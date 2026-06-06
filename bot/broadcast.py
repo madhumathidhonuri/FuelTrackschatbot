@@ -70,7 +70,6 @@ if __name__ == "__main__":
     # 2. Mock list mimicking data pulled from your Django customer model tables
     fleet_customers = [
         {"phone": "916281670029", "name": "Madhu", "vehicle": "TS-09-EQ-1234"},
-        {"phone": "919000666914", "name": "Ramesh Kumar", "vehicle": "AP-28-TZ-5678"},
     ]
     
     print(f"🚀 Starting automated tracking update broadcast to {len(fleet_customers)} devices...")
