@@ -9,8 +9,6 @@ from .models import ChatMessage
 
 load_dotenv()
 
-ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
@@ -23,7 +21,8 @@ def get_ai_response(user_phone, new_user_message):
         ChatMessage.objects.create(phone_number=user_phone, role='user', content=new_user_message)
         
         system_prompt = (
-            "You are an AI assistant representing Purple Technologies. "
+            "You are an AI assistant representing Fuel Tracks Technologies. "
+            "We supply high-end GPS tracking, AIS 140 certified devices, and smart fuel monitoring solutions. "
             "Be professional, polite, and helpful. If the user introduces themselves, "
             "acknowledge their name and company details. Always attempt to professionally gather "
             "their business address or direct them to call +919618743699. Keep answers concise."
@@ -31,18 +30,17 @@ def get_ai_response(user_phone, new_user_message):
         
         messages_payload = [{"role": "system", "content": system_prompt}]
         
-        # 2. Get history (Safely filter and fetch up to last 6 entries chronologically)
-        history_queryset = ChatMessage.objects.filter(phone_number=user_phone).order_by('timestamp')
-        count = history_queryset.count()
-        
-        # Get last 6 entries safely
-        start_index = max(0, count - 6)
-        history = history_queryset[start_index:count]
+        # 2. Get history (Optimized: Fetch only the last 6 messages chronologically)
+        history = ChatMessage.objects.filter(phone_number=user_phone).order_by('-timestamp')[:6]
+        history = reversed(history)  # Flip them back to chronological order
         
         for msg in history:
             messages_payload.append({"role": msg.role, "content": msg.content})
             
-        # 3. Request LLM generation
+        # 3. Instantiate Groq client directly inside the execution block for thread safety
+        ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        
+        # 4. Request LLM generation
         completion = ai_client.chat.completions.create(
             model="llama3-8b-8192",
             messages=messages_payload,
@@ -51,12 +49,13 @@ def get_ai_response(user_phone, new_user_message):
         
         ai_reply = completion.choices[0].message.content
         
-        # 4. Save AI reply to database
+        # 5. Save AI reply to database
         ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=ai_reply)
         return ai_reply
 
     except Exception as e:
-        print(f"System processing error inside AI loop: {e}")
+        # This will print the exact bug in your terminal so you can see why it fails!
+        print(f"❌ Error inside AI loop execution: {e}")
         return "Thank you for reaching out to Fuel Tracks Technologies Private Limited. How can we help you?"
 
 
@@ -89,7 +88,6 @@ def whatsapp_webhook(request):
         token = request.GET.get("hub.verify_token")
         challenge = request.GET.get("hub.challenge")
         
-        # Make sure values match up with .env configurations
         if mode == "subscribe" and token == VERIFY_TOKEN:
             print("Webhook verification checklist passed successfully!")
             return HttpResponse(challenge, content_type="text/plain")
@@ -101,7 +99,6 @@ def whatsapp_webhook(request):
         try:
             data = json.loads(request.body.decode('utf-8'))
             
-            # Defensive check: Ensure it's a real messaging update event loop array
             if "object" in data and data["object"] == "whatsapp_business_account":
                 entry = data.get("entry", [{}])[0]
                 changes = entry.get("changes", [{}])[0]
@@ -113,7 +110,7 @@ def whatsapp_webhook(request):
                     
                     if message_obj.get("type") == "text":
                         user_text = message_obj["text"]["body"]
-                        print(f"Received text message: '{user_text}' from phone number: {user_phone}")
+                        print(f"📥 Received: '{user_text}' from {user_phone}")
                         
                         # Process using AI with database thread memory
                         bot_reply = get_ai_response(user_phone, user_text)
@@ -122,5 +119,4 @@ def whatsapp_webhook(request):
         except Exception as e:
             print(f"Ignored or handled payload structural message notification error: {e}")
             
-        # Meta expects a clean 200 JSON OK status wrapper response to confirm receipt
         return JsonResponse({"status": "success"})
