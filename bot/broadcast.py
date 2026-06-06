@@ -7,10 +7,10 @@ load_dotenv()
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 
-def send_whatsapp_template(to_phone, template_name, customer_name, vehicle_number):
+def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_number=None):
     """
     Fires an official approved Meta message template to a target customer.
-    This bypasses the 24-hour service restriction to open Case B billing.
+    Bypasses the 24-hour service restriction to open Case B billing.
     """
     url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
     
@@ -19,33 +19,39 @@ def send_whatsapp_template(to_phone, template_name, customer_name, vehicle_numbe
         "Content-Type": "application/json"
     }
     
-    # Meta structures templates with a language code and parameters array matching variables like {{1}}, {{2}}
+    # 1. Base template structure
+    template_payload = {
+        "name": template_name,
+        "language": {
+            "code": "en_US"
+        }
+    }
+    
+    # 2. Add parameters ONLY if we are NOT using the default 'hello_world' template.
+    # This prevents the (#132000) parameter mismatch error during sandbox testing!
+    if template_name != "hello_world" and (customer_name or vehicle_number):
+        template_payload["components"] = [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": customer_name if customer_name else ""
+                    },
+                    {
+                        "type": "text",
+                        "text": vehicle_number if vehicle_number else ""
+                    }
+                ]
+            }
+        ]
+        
     payload = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": to_phone,
         "type": "template",
-        "template": {
-            "name": template_name,
-            "language": {
-                "code": "en_US"
-            },
-            "components": [
-                {
-                    "type": "body",
-                    "parameters": [
-                        {
-                            "type": "text",
-                            "text": customer_name        # Replaces {{1}} inside your template layout
-                        },
-                        {
-                            "type": "text",
-                            "text": vehicle_number     # Replaces {{2}} inside your template layout
-                        }
-                    ]
-                }
-            ]
-        }
+        "template": template_payload
     }
     
     try:
@@ -53,7 +59,8 @@ def send_whatsapp_template(to_phone, template_name, customer_name, vehicle_numbe
         response_data = response.json()
         
         if response.status_code == 200:
-            print(f"✅ Template successfully delivered to {customer_name} ({to_phone})")
+            display_name = customer_name if customer_name else "Customer"
+            print(f"✅ Template successfully delivered to {display_name} ({to_phone})")
         else:
             print(f"❌ Meta API error for {to_phone}: {response_data.get('error', {}).get('message')}")
             
@@ -63,18 +70,18 @@ def send_whatsapp_template(to_phone, template_name, customer_name, vehicle_numbe
 
 # --- TEST MASS BROADCAST EXECUTION ---
 if __name__ == "__main__":
-    # 1. Provide your exact template name registered in Meta Dashboard
-    # Example template string: "Hello {{1}}, your fleet vehicle {{2}} tracker is reporting abnormal fuel metrics."
-    MY_APPROVED_TEMPLATE = "fueltracks_utility_alert"
+    # For local sandbox testing, use Meta's built-in "hello_world".
+    # Change this to "fueltracks_utility_alert" later once approved in your dashboard!
+    MY_APPROVED_TEMPLATE = "hello_world"
     
-    # 2. Mock list mimicking data pulled from your Django customer model tables
+    # Mock data array
     fleet_customers = [
         {"phone": "916281670029", "name": "Madhu", "vehicle": "TS-09-EQ-1234"},
     ]
     
     print(f"🚀 Starting automated tracking update broadcast to {len(fleet_customers)} devices...")
     
-    # Loop over your client array and deploy the templates individually
+    # Loop over your array and execute individually
     for customer in fleet_customers:
         send_whatsapp_template(
             to_phone=customer["phone"],
