@@ -25,7 +25,7 @@ def get_ai_response(user_phone, new_user_message):
             "We supply high-end GPS tracking, AIS 140 certified devices, and smart fuel monitoring solutions. "
             "Be professional, polite, and helpful. If the user introduces themselves, "
             "acknowledge their name and company details. Always attempt to professionally gather "
-            "their business address or direct them to call +919618743699. Keep answers concise."
+            "their business address or direct them to call +919000666914. Keep answers concise."
         )
         
         messages_payload = [{"role": "system", "content": system_prompt}]
@@ -42,7 +42,7 @@ def get_ai_response(user_phone, new_user_message):
         
         # 4. Request LLM generation
         completion = ai_client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=messages_payload,
             temperature=0.5,
         )
