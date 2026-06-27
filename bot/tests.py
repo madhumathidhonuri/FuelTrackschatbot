@@ -798,3 +798,105 @@ class WebhookTests(TestCase):
         self.assertEqual(kwargs_catalog["json"]["document"]["filename"], "AC_Temperature_Sensor_Catalog.pdf")
 
 
+class ExcelUploadAndBroadcastTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='password123'
+        )
+        self.client.login(username='admin', password='password123')
+        FleetCustomer.objects.all().delete()
+        
+    def test_parse_csv(self):
+        import io
+        from bot.utils import parse_excel_or_csv
+        csv_data = "Phone Number,Customer Name,Truck Number,Is Active\n918888888888,John Doe,TRUCK123,yes\n917777777777,Jane Smith,TRUCK456,no\n"
+        csv_file = io.StringIO(csv_data)
+        parsed = parse_excel_or_csv(csv_file, filename="test.csv")
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]['phone_number'], '918888888888')
+        self.assertEqual(parsed[0]['owner_name'], 'John Doe')
+        self.assertEqual(parsed[0]['truck_number'], 'TRUCK123')
+        self.assertTrue(parsed[0]['is_active'])
+        
+        self.assertEqual(parsed[1]['phone_number'], '917777777777')
+        self.assertEqual(parsed[1]['owner_name'], 'Jane Smith')
+        self.assertEqual(parsed[1]['truck_number'], 'TRUCK456')
+        self.assertFalse(parsed[1]['is_active'])
+
+    def test_parse_excel(self):
+        import io
+        import pandas as pd
+        from bot.utils import parse_excel_or_csv
+        df = pd.DataFrame({
+            'Phone Number': ['916666666666', '915555555555'],
+            'Customer Name': ['Bob Ross', 'Alice Cooper'],
+            'Truck Number': ['TRUCK789', None],
+            'Is Active': ['yes', 'no']
+        })
+        excel_io = io.BytesIO()
+        df.to_excel(excel_io, index=False)
+        excel_io.seek(0)
+        parsed = parse_excel_or_csv(excel_io, filename="test.xlsx")
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]['phone_number'], '916666666666')
+        self.assertEqual(parsed[0]['owner_name'], 'Bob Ross')
+        self.assertEqual(parsed[0]['truck_number'], 'TRUCK789')
+        self.assertTrue(parsed[0]['is_active'])
+        
+        self.assertEqual(parsed[1]['phone_number'], '915555555555')
+        self.assertEqual(parsed[1]['owner_name'], 'Alice Cooper')
+        self.assertIsNone(parsed[1]['truck_number'])
+        self.assertFalse(parsed[1]['is_active'])
+
+    def test_admin_upload_csv(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        csv_data = "Phone Number,Customer Name,Truck Number,Is Active\n918888888888,John Doe,TRUCK123,yes\n"
+        uploaded_file = SimpleUploadedFile("test_list.csv", csv_data.encode('utf-8'), content_type="text/csv")
+        
+        response = self.client.post(
+            reverse("admin:bot_fleetcustomer_upload_excel"),
+            {"excel_file": uploaded_file}
+        )
+        self.assertEqual(response.status_code, 302) # Redirects back to changelist
+        
+        # Verify customer was imported to database
+        self.assertTrue(FleetCustomer.objects.filter(phone_number="918888888888").exists())
+        customer = FleetCustomer.objects.get(phone_number="918888888888")
+        self.assertEqual(customer.owner_name, "John Doe")
+        self.assertEqual(customer.truck_number, "TRUCK123")
+        self.assertTrue(customer.is_active)
+
+    @patch("bot.broadcast.requests.post")
+    def test_run_massive_broadcast_with_file(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+        
+        from bot.broadcast import run_massive_broadcast
+        
+        # Create a CSV file
+        csv_data = "Phone Number,Customer Name,Truck Number,Is Active\n914444444444,Target User,TRUCK999,yes\n"
+        csv_file_path = "media/test_broadcast_list.csv"
+        # Ensure media directory exists
+        os.makedirs("media", exist_ok=True)
+        with open(csv_file_path, "w") as f:
+            f.write(csv_data)
+            
+        try:
+            # Let's run the broadcast targeting this CSV file
+            run_massive_broadcast("hello_world", "en", csv_file_path)
+            
+            # Verify the mock post was called once for the customer in the file
+            self.assertEqual(mock_post.call_count, 1)
+            _, kwargs = mock_post.call_args
+            self.assertEqual(kwargs["json"]["to"], "914444444444")
+            self.assertEqual(kwargs["json"]["template"]["name"], "hello_world")
+        finally:
+            if os.path.exists(csv_file_path):
+                os.remove(csv_file_path)
+
+
+

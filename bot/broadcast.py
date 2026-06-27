@@ -135,15 +135,41 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
     return False, "All retries exhausted"
 
 
-def run_massive_broadcast(template_name, language_code="en_US"):
+def run_massive_broadcast(template_name, language_code="en_US", csv_or_excel_path=None):
     """
-    Loops through all active customers and sends the template safely,
+    Loops through targeted customers and sends the template safely,
     with tier limit protection, retry logic, and detailed failure logging.
     """
-    active_customers = FleetCustomer.objects.filter(is_active=True)
+    if csv_or_excel_path:
+        print(f"📖 Loading customers from Excel/CSV file: {csv_or_excel_path}")
+        from bot.utils import parse_excel_or_csv
+        try:
+            customers_data = parse_excel_or_csv(csv_or_excel_path)
+            target_phone_numbers = []
+            for cust in customers_data:
+                customer, created = FleetCustomer.objects.update_or_create(
+                    phone_number=cust['phone_number'],
+                    defaults={
+                        'owner_name': cust['owner_name'],
+                        'truck_number': cust['truck_number'],
+                        'is_active': cust['is_active']
+                    }
+                )
+                if customer.is_active:
+                    target_phone_numbers.append(customer.phone_number)
+            
+            # Restrict the broadcast cohort to only the list from the file
+            active_customers = FleetCustomer.objects.filter(phone_number__in=target_phone_numbers, is_active=True)
+            print(f"✅ Loaded {len(target_phone_numbers)} numbers from file ({active_customers.count()} active in database).")
+        except Exception as e:
+            print(f"❌ Failed to parse or import customers from file: {e}")
+            return
+    else:
+        active_customers = FleetCustomer.objects.filter(is_active=True)
+        
     total_count = active_customers.count()
 
-    print(f"🚀 Found {total_count} active fleet accounts in database.")
+    print(f"🚀 Found {total_count} active fleet accounts for broadcast.")
 
     # ✅ FIX 5: Warn if total exceeds your current tier limit
     if total_count > DAILY_TIER_LIMIT:
@@ -212,8 +238,30 @@ def run_massive_broadcast(template_name, language_code="en_US"):
 
 
 if __name__ == "__main__":
-    # Use 'hello_world' to test with 1-2 contacts first before running on full list
-    TARGET_TEMPLATE = "gps_tracking_device"
-    TARGET_LANGUAGE = "en"  # "en" for English, "en_US" for English (US), etc.
-
-    run_massive_broadcast(TARGET_TEMPLATE, TARGET_LANGUAGE)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Run WhatsApp template broadcast.")
+    parser.add_argument("--file", help="Path to Excel (.xlsx, .xls) or CSV (.csv) file containing customer list.")
+    parser.add_argument("--template", default="gps_tracking_device", help="Name of Meta message template to send.")
+    parser.add_argument("--language", default="en", help="Language code of the template (e.g. en, en_US).")
+    
+    args = parser.parse_args()
+    
+    file_path = args.file
+    
+    # If no file argument is specified, look for default uploaded files in media/
+    if not file_path:
+        from django.conf import settings
+        media_dir = os.path.join(settings.BASE_DIR, 'media')
+        default_files = ['broadcast_list.xlsx', 'broadcast_list.xls', 'broadcast_list.csv']
+        for df_name in default_files:
+            p = os.path.join(media_dir, df_name)
+            if os.path.exists(p):
+                file_path = p
+                print(f"📂 Found default uploaded file at {file_path}. Using it for broadcast.")
+                break
+                
+    if not file_path:
+        print("ℹ️ No Excel/CSV file specified or found in media folder. Defaulting to all active customers in database.")
+        
+    run_massive_broadcast(args.template, args.language, file_path)

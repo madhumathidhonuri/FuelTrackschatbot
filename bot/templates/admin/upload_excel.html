@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_modify %}
+
+{% block content %}
+<div id="content-main">
+  <div class="module" style="padding: 20px; background: var(--body-bg, #fff); border: 1px solid var(--border-color, #ccc); border-radius: 4px;">
+    <h2>Upload Excel or CSV File</h2>
+    <form action="" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div style="margin-bottom: 20px; line-height: 1.5;">
+        <p>Please select an Excel file (<code>.xlsx</code>, <code>.xls</code>) or a CSV file (<code>.csv</code>) containing your customer list.</p>
+        <p>The system will scan headers for columns such as:</p>
+        <ul>
+          <li><strong>Phone Number</strong> (or Mobile, Phone)</li>
+          <li><strong>Customer Name</strong> (or Owner Name, Name)</li>
+          <li><strong>Truck Number</strong> (or Vehicle Number, Truck)</li>
+          <li><strong>Status</strong> (or Active, Is Active)</li>
+        </ul>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        {{ form.as_p }}
+      </div>
+      
+      <div>
+        <input type="submit" value="Upload & Import" class="default" style="padding: 10px 20px; background: var(--button-bg, #417690); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" />
+        <a href=".." style="margin-left: 10px; display: inline-block; padding: 9px 20px; background: var(--close-button-bg, #ccc); color: var(--close-button-color, #333); text-decoration: none; border-radius: 4px; border: 1px solid #bbb;">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
