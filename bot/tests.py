@@ -565,6 +565,216 @@ class WebhookTests(TestCase):
         self.assertEqual(kwargs_catalog["json"]["type"], "document")
         self.assertEqual(kwargs_catalog["json"]["document"]["filename"], "Fuel_Tracks_Catalog.pdf")
 
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_webhook_multiline_button_reply(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Payload representing a copy-pasted/forwarded welcome menu button click (with "Products")
+        multiline_body = (
+            "Welcome to Fuel Tracks Technologies Private Limited! \n\n"
+            "We are India's trusted provider of high-end GPS Tracking Systems, "
+            "AIS 140 Certified Devices, and Smart Fuel Monitoring Solutions.\n\n"
+            "How can we help your business today? Select an option below:\n"
+            "Products"
+        )
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_multiline_button",
+                                        "type": "text",
+                                        "text": {"body": multiline_body}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        
+        self.assertEqual(response.status_code, 200)
+
+        # We expect 1 call: sending the main Fuel Tracks Catalog PDF
+        self.assertEqual(mock_post.call_count, 1)
+
+        _, kwargs_catalog = mock_post.call_args_list[0]
+        self.assertEqual(kwargs_catalog["json"]["type"], "document")
+        self.assertEqual(kwargs_catalog["json"]["document"]["filename"], "Fuel_Tracks_Catalog.pdf")
+        self.assertEqual(kwargs_catalog["json"]["document"]["caption"], "Here is our official Fuel Tracks Product Catalog Guide! 📄")
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_webhook_device_catalog_match_direct(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_chat = mock_groq.return_value.chat.completions.create
+        mock_response = MagicMock()
+        mock_response.choices = [
+            MagicMock(message=MagicMock(content="We have the Teltonika FMB120 which is an AIS 140 certified GPS tracker."))
+        ]
+        mock_chat.return_value = mock_response
+
+        mock_post_resp = MagicMock()
+        mock_post_resp.status_code = 200
+        mock_post.return_value = mock_post_resp
+
+        # Set customer name first so it doesn't prompt for name
+        self.customer.owner_name = "Test User"
+        self.customer.save()
+
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_direct_device",
+                                        "type": "text",
+                                        "text": {"body": "Teltonika FMB120"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # We expect 2 calls: AI response (text) and catalog (document)
+        self.assertEqual(mock_post.call_count, 2)
+        _, kwargs_catalog = mock_post.call_args_list[1]
+        self.assertEqual(kwargs_catalog["json"]["type"], "document")
+        self.assertEqual(kwargs_catalog["json"]["document"]["filename"], "AIS_140_GPS_Tracker_Catalog.pdf")
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_webhook_device_catalog_match_history(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_chat = mock_groq.return_value.chat.completions.create
+        
+        mock_response_1 = MagicMock()
+        mock_response_1.choices = [
+            MagicMock(message=MagicMock(content="We have the solar security camera with high resolution."))
+        ]
+        
+        mock_response_2 = MagicMock()
+        mock_response_2.choices = [
+            MagicMock(message=MagicMock(content="Here is the PDF for the solar camera."))
+        ]
+        
+        mock_chat.side_effect = [mock_response_1, mock_response_2]
+
+        mock_post_resp = MagicMock()
+        mock_post_resp.status_code = 200
+        mock_post.return_value = mock_post_resp
+
+        # Set customer name first
+        self.customer.owner_name = "Test User"
+        self.customer.save()
+
+        # 1. Send first message discussing solar camera
+        payload_1 = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_history_1",
+                                        "type": "text",
+                                        "text": {"body": "Tell me about the solar camera"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_1), content_type="application/json")
+
+        # 2. Send generic "Send pdf" message
+        mock_post.reset_mock()
+        payload_2 = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_history_2",
+                                        "type": "text",
+                                        "text": {"body": "Send pdf"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        response = self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_2), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+
+        # The generic query should result in sending Solar_Cam_Catalog.pdf based on history
+        _, kwargs_catalog = mock_post.call_args_list[1]
+        self.assertEqual(kwargs_catalog["json"]["type"], "document")
+        self.assertEqual(kwargs_catalog["json"]["document"]["filename"], "Solar_Cam_Catalog.pdf")
+
     def test_export_customers_excel(self):
         # Create some test customers
         FleetCustomer.objects.all().delete()

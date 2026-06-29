@@ -50,6 +50,140 @@ def has_keyword_match(text, keywords):
     return False
 
 
+def find_device_catalog_match(text, history_messages=None):
+    """
+    Scans the text (and optionally history) to find which device catalog to send.
+    Returns a tuple: (catalog_filename, catalog_name) or (None, None)
+    """
+    clean_text = text.strip().lower()
+    
+    wifi_camera_keywords = ["wifi camera", "wifi cam", "wi-fi camera", "వైఫై కెమెరా", "wifi security camera"]
+    solar_cam_keywords = ["solar cam", "solar camera", "సోలార్ కెమెరా", "solar security camera", "solar 4g cam"]
+    dash_cam_keywords = ["dashcam", "dash cam", "dash camera", "డ్యాష్‌కామ్", "dashcam dc 01 s", "dc 01 s", "dc01s"]
+    ptz_camera_keywords = ["ptz camera", "ptz security", "ptz కెమెరా", "ptz cam"]
+    borewell_rod_keywords = ["rod count", "rod counter", "borewell rod", "రోడ్ కౌంట్"]
+    borewell_rpm_keywords = ["rpm count", "rpm counter", "borewell rpm", "rpm కౌంట్"]
+    ac_sensor_keywords = ["ac sensor", "ac temperature sensor", "temperature sensor", "టెంపరేచర్ సెన్సార్", "ac temperature"]
+    lcd_monitor_keywords = ["lcd monitor", "car lcd", "monitor screen", "మోనిటర్"]
+    relay_switch_keywords = ["relay", "cutoff switch", "relay cutoff", "cutoff", "రిలే"]
+    
+    ais_keywords = [
+        "ais 140", "ais140", "gps", "tracker", "trackers", "ట్రాకర్", "ట్రాకర్లు", "జిపిఎస్",
+        "fmb120", "fmb 120", "fmb910", "fmb 910", "teltonika fmb120", "teltonika fmb910", "teltonika"
+    ]
+    fuel_keywords = [
+        "fuel", "sensor", "sensors", "rod", "theft", "monitoring", "ఫ్యూయల్", "ఇంధన", "సెన్సార్",
+        "fmb920", "fmb 920", "italon", "teltonika fmb920"
+    ]
+    product_keywords = ["product", "products", "catalog", "catalogs", "కేటలాగ్", "ఉత్పత్తులు", "catalogue", "catalogues"]
+
+    # Match Wifi Camera
+    if has_keyword_match(clean_text, wifi_camera_keywords):
+        return "Wifi_Camera_Catalog.pdf", "Wifi Camera"
+    # Match Solar Cam
+    if has_keyword_match(clean_text, solar_cam_keywords):
+        return "Solar_Cam_Catalog.pdf", "Solar Cam"
+    # Match Dash Cam
+    if has_keyword_match(clean_text, dash_cam_keywords):
+        return "Dash_Cam_Catalog.pdf", "Dashcam"
+    # Match PTZ Camera
+    if has_keyword_match(clean_text, ptz_camera_keywords):
+        return "PTZ_Camera_Catalog.pdf", "PTZ Camera"
+    # Match Borewell Rod Count
+    if has_keyword_match(clean_text, borewell_rod_keywords):
+        return "Borewell_Rod_Count_Catalog.pdf", "Borewell Rod Count Solution"
+    # Match Borewell RPM Count
+    if has_keyword_match(clean_text, borewell_rpm_keywords):
+        return "Borewell_RPM_Count_Catalog.pdf", "Borewell RPM Count Solution"
+    # Match AC Temperature Sensor
+    if has_keyword_match(clean_text, ac_sensor_keywords):
+        return "AC_Temperature_Sensor_Catalog.pdf", "AC Temperature Sensor"
+    # Match Car LCD Monitor
+    if has_keyword_match(clean_text, lcd_monitor_keywords):
+        return "Car_LCD_Monitor_Catalog.pdf", "Car LCD Monitor"
+    # Match Relay Cutoff Switch
+    if has_keyword_match(clean_text, relay_switch_keywords):
+        return "Relay_Cutoff_Switch_Catalog.pdf", "Relay Cutoff Switch"
+    # Match Smart Fuel Monitoring
+    if has_keyword_match(clean_text, fuel_keywords):
+        return "Smart_Fuel_Monitoring_Catalog.pdf", "Smart Fuel Monitoring"
+    # Match AIS 140
+    if has_keyword_match(clean_text, ais_keywords):
+        return "AIS_140_GPS_Tracker_Catalog.pdf", "AIS 140 GPS Tracker"
+
+    # If it's a generic catalog request, scan history
+    generic_catalog_request_keywords = [
+        "send catalogue", "send catalog", "send pdf", "share pdf", "share catalog",
+        "share catalogue", "pampandi", "pampandi catalog", "pdf pampandi", "catalog pampandi",
+        "send catalog pdf", "send details", "get catalog", "get pdf"
+    ]
+    if has_keyword_match(clean_text, generic_catalog_request_keywords) and history_messages:
+        for msg in history_messages:
+            res_file, res_name = find_device_catalog_match(msg)
+            if res_file:
+                # Bypass general catalog fallback during history check
+                if res_file != "Fuel_Tracks_Catalog.pdf":
+                    return res_file, res_name
+
+    # Check product keywords (general catalog)
+    if has_keyword_match(clean_text, product_keywords):
+        return "Fuel_Tracks_Catalog.pdf", "official Fuel Tracks Product Catalog Guide!"
+
+    return None, None
+
+
+CATALOG_METADATA = {
+    "Wifi_Camera_Catalog.pdf": {
+        "te": "ఇదిగోండి వైఫై కెమెరా కేటలాగ్: 📄",
+        "en": "Here is the WiFi Camera Catalog: 📄"
+    },
+    "Solar_Cam_Catalog.pdf": {
+        "te": "ఇదిగోండి సోలార్ కెమెరా కేటలాగ్: 📄",
+        "en": "Here is the Solar Cam Catalog: 📄"
+    },
+    "Dash_Cam_Catalog.pdf": {
+        "te": "ఇదిగోండి డ్యాష్ కెమెరా కేటలాగ్: 📄",
+        "en": "Here is the Dashcam Catalog: 📄"
+    },
+    "PTZ_Camera_Catalog.pdf": {
+        "te": "ఇదిగోండి PTZ సెక్యూరిటీ కెమెరా కేటలాగ్: 📄",
+        "en": "Here is the PTZ Camera Catalog: 📄"
+    },
+    "Borewell_Rod_Count_Catalog.pdf": {
+        "te": "ఇదిగోండి బోర్ వెల్ రోడ్ కౌంట్ సొల్యూషన్స్ కేటలాగ్: 📄",
+        "en": "Here is the Borewell Rod Count Solution Catalog: 📄"
+    },
+    "Borewell_RPM_Count_Catalog.pdf": {
+        "te": "ఇదిగోండి బోర్ వెల్ RPM కౌంట్ సొల్యూషన్స్ కేటలాగ్: 📄",
+        "en": "Here is the Borewell RPM Count Solution Catalog: 📄"
+    },
+    "AC_Temperature_Sensor_Catalog.pdf": {
+        "te": "ఇదిగోండి ఏసి టెంపరేచర్ సెన్సార్ కేటలాగ్: 📄",
+        "en": "Here is the AC Temperature Sensor Catalog: 📄"
+    },
+    "Car_LCD_Monitor_Catalog.pdf": {
+        "te": "ఇదిగోండి కార్ LCD మానిటర్ కేటలాగ్: 📄",
+        "en": "Here is the Car LCD Monitor Catalog: 📄"
+    },
+    "Relay_Cutoff_Switch_Catalog.pdf": {
+        "te": "ఇదిగోండి రిలే కటాఫ్ స్విచ్ కేటలాగ్: 📄",
+        "en": "Here is the Relay Cutoff Switch Catalog: 📄"
+    },
+    "Smart_Fuel_Monitoring_Catalog.pdf": {
+        "te": "ఇదిగోండి స్మార్ట్ ఫ్యూయల్ మానిటరింగ్ సిస్టమ్ కేటలాగ్: 📄",
+        "en": "Here is the Smart Fuel Monitoring Catalog: 📄"
+    },
+    "AIS_140_GPS_Tracker_Catalog.pdf": {
+        "te": "ఇదిగోండి AIS 140 GPS ట్రాకర్ కేటలాగ్: 📄",
+        "en": "Here is the AIS 140 GPS Tracker Catalog: 📄"
+    },
+    "Fuel_Tracks_Catalog.pdf": {
+        "te": "ఇదిగోండి మా ఉత్పత్తుల కేటలాగ్: 📄",
+        "en": "Here is our official Fuel Tracks Product Catalog Guide! 📄"
+    }
+}
+
+
 def extract_customer_details_with_ai(user_text):
     """
     Intelligently scans the incoming user text using Llama 3.1 to catch
@@ -546,6 +680,13 @@ def whatsapp_webhook(request):
                         print(f"[INCOMING] Received text/action: '{user_text}' from {user_phone}")
                         clean_text = user_text.strip().lower()
 
+                        # Fallback for button reply text containing welcome message prefix (e.g. from copy-paste/forwarding)
+                        lines = [line.strip() for line in user_text.strip().split("\n") if line.strip()]
+                        if lines:
+                            last_line_clean = lines[-1].lower()
+                            if last_line_clean in ["products", "office location", "talk to an agent", "start", "stop"]:
+                                clean_text = last_line_clean
+
                         # Opt-out compliance: if customer is registered and inactive, ignore all unless "start"
                         customer_exists = FleetCustomer.objects.filter(phone_number=user_phone).exists()
                         if customer_exists:
@@ -741,283 +882,28 @@ def whatsapp_webhook(request):
 
                                 # Specific device catalog sending logic
                                 has_telugu_script = any('\u0c00' <= char <= '\u0c7f' for char in clean_text)
-                                tenglish_keywords = [
-                                    "chepu", "cheppandi", "enti", "anti", "ela", "kavali", "unayi", "una", "undhi", "lo", "ki",
-                                    "pampisthaya", "pampandi", "entha", "vundhi", "vunnayi", "kuda", "naku", "mana", "features",
-                                    "chestunda", "pampisthundhi", "vaddhu", "avunu", "ledu", "panichayayi", "ledhu",
-                                    "ventane", "akada", "ekada"
-                                ]
-                                has_tenglish_roots = has_keyword_match(clean_text, tenglish_keywords)
-
-                                # Define device catalog keywords
-                                # Specific Products
-                                wifi_camera_keywords = ["wifi camera", "wifi cam", "wi-fi camera", "వైఫై కెమెరా"]
-                                solar_cam_keywords = ["solar cam", "solar camera", "సోలార్ కెమెరా"]
-                                dash_cam_keywords = ["dashcam", "dash cam", "dash camera", "డ్యాష్‌కామ్"]
-                                ptz_camera_keywords = ["ptz camera", "ptz security", "ptz కెమెరా"]
-                                borewell_rod_keywords = ["rod count", "rod counter", "borewell rod", "రోడ్ కౌంట్"]
-                                borewell_rpm_keywords = ["rpm count", "rpm counter", "borewell rpm", "rpm కౌంట్"]
-                                ac_sensor_keywords = ["ac sensor", "ac temperature sensor", "temperature sensor", "టెంపరేచర్ సెన్సార్"]
-                                lcd_monitor_keywords = ["lcd monitor", "car lcd", "monitor screen", "మోనిటర్"]
-                                relay_switch_keywords = ["relay", "cutoff switch", "relay cutoff", "cutoff", "రిలే"]
-
-                                # General Categories
-                                ais_keywords = ["ais 140", "ais140", "gps", "tracker", "trackers", "ట్రాకర్", "ట్రాకర్లు", "జిపిఎస్"]
-                                fuel_keywords = ["fuel", "sensor", "sensors", "rod", "theft", "monitoring", "ఫ్యూయల్", "ఇంధన", "సెన్సార్"]
-                                product_keywords = ["product", "products", "catalog", "catalogs", "కేటలాగ్", "ఉత్పత్తులు"]
-
-                                # Check and dispatch Wifi Camera catalog
-                                if has_keyword_match(clean_text, wifi_camera_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి వైఫై కెమెరా కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the WiFi Camera Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the WiFi Camera Catalog: 📄"
-
+                                
+                                # Fetch recent messages in chat history (newest first) to enable history-based catalog lookup
+                                recent_chat_history = ChatMessage.objects.filter(phone_number=user_phone).order_by('-id')[:10]
+                                history_texts = [msg.content for msg in recent_chat_history]
+                                
+                                matched_pdf, _ = find_device_catalog_match(clean_text, history_texts)
+                                
+                                if matched_pdf and matched_pdf in CATALOG_METADATA:
+                                    catalog_msg = CATALOG_METADATA[matched_pdf]["te"] if has_telugu_script else CATALOG_METADATA[matched_pdf]["en"]
+                                    
                                     send_whatsapp_message(
                                         to_phone=user_phone,
                                         text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Wifi_Camera_Catalog.pdf",
-                                        document_filename="Wifi_Camera_Catalog.pdf"
+                                        document_url=f"{domain_url}/api/catalog/{matched_pdf}",
+                                        document_filename=matched_pdf
                                     )
+                                    
                                     ChatMessage.objects.create(
                                         phone_number=user_phone,
                                         role='assistant',
-                                        content=f"{catalog_msg} (Sent Wifi_Camera_Catalog.pdf)"
+                                        content=f"{catalog_msg} (Sent {matched_pdf})"
                                     )
-
-                                # Check and dispatch Solar Cam catalog
-                                elif has_keyword_match(clean_text, solar_cam_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి సోలార్ కెమెరా కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the Solar Cam Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the Solar Cam Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Solar_Cam_Catalog.pdf",
-                                        document_filename="Solar_Cam_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Solar_Cam_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch Dash Cam catalog
-                                elif has_keyword_match(clean_text, dash_cam_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి డ్యాష్ కెమెరా కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the Dashcam Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the Dashcam Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Dash_Cam_Catalog.pdf",
-                                        document_filename="Dash_Cam_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Dash_Cam_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch PTZ Camera catalog
-                                elif has_keyword_match(clean_text, ptz_camera_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి PTZ సెక్యూరిటీ కెమెరా కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the PTZ Camera Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the PTZ Camera Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/PTZ_Camera_Catalog.pdf",
-                                        document_filename="PTZ_Camera_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent PTZ_Camera_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch Borewell Rod Count catalog
-                                elif has_keyword_match(clean_text, borewell_rod_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి బోర్ వెల్ రోడ్ కౌంట్ సొల్యూషన్స్ కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the Borewell Rod Count Solution Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the Borewell Rod Count Solution Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Borewell_Rod_Count_Catalog.pdf",
-                                        document_filename="Borewell_Rod_Count_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Borewell_Rod_Count_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch Borewell RPM Count catalog
-                                elif has_keyword_match(clean_text, borewell_rpm_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి బోర్ వెల్ RPM కౌంట్ సొల్యూషన్స్ కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the Borewell RPM Count Solution Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the Borewell RPM Count Solution Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Borewell_RPM_Count_Catalog.pdf",
-                                        document_filename="Borewell_RPM_Count_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Borewell_RPM_Count_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch AC Temperature Sensor catalog
-                                elif has_keyword_match(clean_text, ac_sensor_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి ఏసి టెంపరేచర్ సెన్సార్ కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the AC Temperature Sensor Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the AC Temperature Sensor Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/AC_Temperature_Sensor_Catalog.pdf",
-                                        document_filename="AC_Temperature_Sensor_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent AC_Temperature_Sensor_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch Car LCD Monitor catalog
-                                elif has_keyword_match(clean_text, lcd_monitor_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి కార్ LCD మానిటర్ కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the Car LCD Monitor Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the Car LCD Monitor Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Car_LCD_Monitor_Catalog.pdf",
-                                        document_filename="Car_LCD_Monitor_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Car_LCD_Monitor_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch Relay Cutoff Switch catalog
-                                elif has_keyword_match(clean_text, relay_switch_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి రిలే కటాఫ్ స్విచ్ కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the Relay Cutoff Switch Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the Relay Cutoff Switch Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Relay_Cutoff_Switch_Catalog.pdf",
-                                        document_filename="Relay_Cutoff_Switch_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Relay_Cutoff_Switch_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch Fuel Monitoring catalog
-                                elif has_keyword_match(clean_text, fuel_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి స్మార్ట్ ఫ్యూయల్ మానిటరింగ్ సిస్టమ్ కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the Smart Fuel Monitoring Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the Smart Fuel Monitoring Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Smart_Fuel_Monitoring_Catalog.pdf",
-                                        document_filename="Smart_Fuel_Monitoring_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Smart_Fuel_Monitoring_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch AIS 140 catalog
-                                elif has_keyword_match(clean_text, ais_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి AIS 140 GPS ట్రాకర్ కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is the AIS 140 GPS Tracker Catalog: 📄"
-                                    else:
-                                        catalog_msg = "Here is the AIS 140 GPS Tracker Catalog: 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/AIS_140_GPS_Tracker_Catalog.pdf",
-                                        document_filename="AIS_140_GPS_Tracker_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent AIS_140_GPS_Tracker_Catalog.pdf)"
-                                    )
-
-                                # Check and dispatch General product catalog if no specific keywords matched
-                                elif has_keyword_match(clean_text, product_keywords):
-                                    if has_telugu_script:
-                                        catalog_msg = "ఇదిగోండి మా ఉత్పత్తుల కేటలాగ్: 📄"
-                                    elif has_tenglish_roots:
-                                        catalog_msg = "Here is our official Product Catalog Guide: 📄"
-                                    else:
-                                        catalog_msg = "Here is our official Product Catalog Guide! 📄"
-
-                                    send_whatsapp_message(
-                                        to_phone=user_phone,
-                                        text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/Fuel_Tracks_Catalog.pdf",
-                                        document_filename="Fuel_Tracks_Catalog.pdf"
-                                    )
-                                    ChatMessage.objects.create(
-                                        phone_number=user_phone,
-                                        role='assistant',
-                                        content=f"{catalog_msg} (Sent Fuel_Tracks_Catalog.pdf)"
-                                    )
-
         except Exception as e:
             print(f"Error inside primary webhook context loop: {e}")
 

@@ -10,7 +10,21 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+try:
+    import dj_database_url
+except ImportError:
+    dj_database_url = None
+
+try:
+    import whitenoise
+except ImportError:
+    whitenoise = None
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,11 +34,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-l*@gth%5hoh5cnm6-v7x7t+u!b@4*h)f1d(kcylt!zn$un&vf+'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-l*@gth%5hoh5cnm6-v7x7t+u!b@4*h)f1d(kcylt!zn$un&vf+')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.onrender.com', '.ngrok-free.dev']
+DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't', 'yes')
+
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.onrender.com,.ngrok-free.dev').split(',')
 
 
 # Application definition
@@ -41,13 +56,19 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+]
+
+if whitenoise:
+    MIDDLEWARE.append('whitenoise.middleware.WhiteNoiseMiddleware')
+
+MIDDLEWARE.extend([
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+])
 
 ROOT_URLCONF = 'config.urls'
 
@@ -72,12 +93,20 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if dj_database_url:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+            conn_max_age=600,
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -115,3 +144,24 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise storage configuration to handle compression (optional fallback)
+if whitenoise:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }

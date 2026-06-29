@@ -242,7 +242,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Run WhatsApp template broadcast.")
     parser.add_argument("--file", help="Path to Excel (.xlsx, .xls) or CSV (.csv) file containing customer list.")
-    parser.add_argument("--template", default="gps_tracking_device", help="Name of Meta message template to send.")
+    parser.add_argument("--template", default="hello_world", help="Name of Meta message template to send.")
     parser.add_argument("--language", default="en", help="Language code of the template (e.g. en, en_US).")
     
     args = parser.parse_args()
