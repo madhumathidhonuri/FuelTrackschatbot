@@ -85,3 +85,17 @@ Ensure these are configured in your production host dashboard:
 *   `DJANGO_SECRET_KEY=a-secure-long-random-string`
 *   `ALLOWED_HOSTS=your-app-domain.com,your-subdomain.onrender.com`
 *   `DATABASE_URL=postgres://...`
+
+### 5. Deploying to Render via Blueprints
+We have included a `render.yaml` file in the root of the project to allow for seamless deployment using Render Blueprints.
+
+1. Create a Render account at [render.com](https://render.com).
+2. Connect your GitHub/GitLab account to Render.
+3. In your Render Dashboard, click **New +** and select **Blueprint**.
+4. Select the repository containing your bot code.
+5. Render will automatically parse the `render.yaml` file and prompt you to:
+   - Configure your service name.
+   - Enter your required environment variables (`WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, and `GROQ_API_KEY`).
+6. Click **Approve** to provision both the **PostgreSQL Database** (Free tier) and the **Django Web Service**.
+7. Once the deploy succeeds, Render will provide a live URL (e.g. `https://whatsapp-ai-bot-xxx.onrender.com`). Set this URL (specifically the `/webhook/` endpoint) in your Meta developer dashboard as the WhatsApp Webhook URL.
+
