@@ -1,7 +1,9 @@
 services:
   - type: web
     name: whatsapp-ai-bot
+    plan: free
     runtime: python
+
     buildCommand: "./build.sh"
     startCommand: "gunicorn config.wsgi:application"
     envVars:
