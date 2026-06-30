@@ -653,13 +653,21 @@ def whatsapp_webhook(request):
                     user_phone = message_obj["from"]
                     domain_url = request.scheme + "://" + request.get_host()
 
-                    # Deduplicate Meta webhook replays using Django cache wrapper (24h TTL)
+                    # Deduplicate Meta webhook replays using Database (persists across container restarts/processes)
                     message_id = message_obj.get("id", "")
                     if message_id:
-                        cache_key = f"wa_msg_id_{message_id}"
-                        if cache.get(cache_key):
-                            print(f"[WARNING] Duplicate message_id {message_id} — skipping.")
+                        from bot.models import ProcessedMessage
+                        if ProcessedMessage.objects.filter(message_id=message_id).exists():
+                            print(f"[WARNING] Duplicate message_id {message_id} found in DB — skipping.")
                             return JsonResponse({"status": "success"})
+                        try:
+                            ProcessedMessage.objects.create(message_id=message_id)
+                        except Exception:
+                            print(f"[WARNING] Duplicate message_id {message_id} save failed — skipping.")
+                            return JsonResponse({"status": "success"})
+                        
+                        # Set in cache as a fast-lookup fallback
+                        cache_key = f"wa_msg_id_{message_id}"
                         cache.set(cache_key, True, timeout=86400)
 
                     if message_obj.get("type") in ["text", "interactive"]:

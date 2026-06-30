@@ -51,4 +51,12 @@ class BroadcastTask(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Task {self.id}: {self.template_name} ({self.status})"
+        return f"Task {self.id}: {self.template_name} ({self.status})"
+
+
+class ProcessedMessage(models.Model):
+    message_id = models.CharField(max_length=255, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.message_id
