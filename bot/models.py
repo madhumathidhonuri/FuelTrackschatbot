@@ -28,3 +28,27 @@ class FleetCustomer(models.Model):
 
     def __str__(self):
         return f"{self.owner_name} ({self.truck_number})"
+
+
+class BroadcastTask(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    template_name = models.CharField(max_length=100)
+    language_code = models.CharField(max_length=10, default='en')
+    excel_file_name = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    total_records = models.IntegerField(default=0)
+    processed_records = models.IntegerField(default=0)
+    success_count = models.IntegerField(default=0)
+    failed_count = models.IntegerField(default=0)
+    failed_details = models.TextField(blank=True, null=True)  # JSON list of errors/successes
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Task {self.id}: {self.template_name} ({self.status})"
