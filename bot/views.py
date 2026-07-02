@@ -10,7 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
 from dotenv import load_dotenv
 from groq import Groq
-from .models import ChatMessage, FleetCustomer
+from .models import ChatMessage, FleetCustomer, AdCampaign
 
 load_dotenv()
 
@@ -458,6 +458,17 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "CONCISENESS: Keep responses clean, focused, and under 3 sentences."
             )
 
+        # Inject ad referral context if applicable
+        if customer and customer.referred_by:
+            campaign = customer.referred_by
+            ad_context = (
+                f"\n\nCRITICAL CONTEXT: The customer arrived via the ad campaign: '{campaign.campaign_name}'. "
+                f"You MUST focus your conversation strictly and exclusively on the product/topic of this ad: {campaign.custom_system_prompt}. "
+                f"Do NOT offer, pitch, or discuss other company products (such as other camera types, GPS trackers, "
+                f"or fuel sensors) unless the customer explicitly asks about them."
+            )
+            system_prompt += ad_context
+
         # Fetch history. To ensure stable sorting, we order by '-id' (newest first).
         messages_payload = [{"role": "system", "content": system_prompt}]
 
@@ -709,6 +720,63 @@ def whatsapp_webhook(request):
                             defaults={"owner_name": "New Fleet Contact", "is_active": True}
                         )
 
+                        # Check for Meta Facebook Ad Referral payload
+                        referral_data = message_obj.get("referral")
+                        if referral_data:
+                            ad_id = referral_data.get("source_id")
+                            headline = referral_data.get("headline", "")
+                            body = referral_data.get("body", "")
+                            print(f"[REFERRAL] Ad Referral detected: Ad ID={ad_id}, Headline='{headline}', Body='{body}'")
+                            
+                            matched_campaign = None
+                            
+                            # 1. Match by Ad ID
+                            if ad_id:
+                                matched_campaign = AdCampaign.objects.filter(ad_id=ad_id, is_active=True).first()
+                            
+                            # 2. Match by Headline Keywords
+                            if not matched_campaign and (headline or body):
+                                headline_lower = headline.lower() if headline else ""
+                                body_lower = body.lower() if body else ""
+                                for campaign in AdCampaign.objects.filter(is_active=True):
+                                    if campaign.headline_keywords:
+                                        keywords = [kw.strip().lower() for kw in campaign.headline_keywords.split(",") if kw.strip()]
+                                        if any(kw in headline_lower or kw in body_lower for kw in keywords):
+                                            matched_campaign = campaign
+                                            break
+                            
+                            if matched_campaign:
+                                print(f"[REFERRAL] Matched customer {user_phone} to campaign '{matched_campaign.campaign_name}'")
+                                customer.referred_by = matched_campaign
+                                customer.save()
+                                
+                                # Send custom welcome message if configured
+                                if matched_campaign.welcome_message:
+                                    # Save user's initial message
+                                    ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                                    
+                                    # Send and save custom welcome message
+                                    welcome_reply = matched_campaign.welcome_message
+                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_reply)
+                                    send_whatsapp_message(user_phone, welcome_reply)
+                                    
+                                    # If a catalog file is associated, send it automatically
+                                    if matched_campaign.catalog_file:
+                                        catalog_name = matched_campaign.catalog_file
+                                        catalog_msg = CATALOG_METADATA.get(catalog_name, {}).get("en", "Here is our product catalog:")
+                                        send_whatsapp_message(
+                                            to_phone=user_phone,
+                                            text_content=catalog_msg,
+                                            document_url=f"{domain_url}/api/catalog/{catalog_name}",
+                                            document_filename=catalog_name
+                                        )
+                                        ChatMessage.objects.create(
+                                            phone_number=user_phone,
+                                            role='assistant',
+                                            content=f"{catalog_msg} (Sent {catalog_name})"
+                                        )
+                                    return JsonResponse({"status": "success"})
+
                         # 🌟 INTERCEPTION: Native Map Pin Routing
                         location_triggers = [
                             "office location", "లొకేషన్", "మ్యాప్", "map", "address",
@@ -792,7 +860,7 @@ def whatsapp_webhook(request):
                             send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
                             return JsonResponse({"status": "success"})
 
-                        elif customer.owner_name == "New Fleet Contact":
+                        elif customer.owner_name == "New Fleet Contact" and not customer.referred_by:
                             # Check history to see if we already asked for the name
                             history = ChatMessage.objects.filter(phone_number=user_phone, role='assistant').order_by('-id')
                             asked_for_name = False

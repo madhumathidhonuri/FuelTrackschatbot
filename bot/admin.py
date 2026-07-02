@@ -8,15 +8,30 @@ import os
 import json
 import threading
 import time
-from .models import ChatMessage, FleetCustomer, BroadcastTask
+from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign
+
+@admin.register(AdCampaign)
+class AdCampaignAdmin(admin.ModelAdmin):
+    list_display = ('campaign_name', 'ad_id', 'headline_keywords', 'catalog_file', 'is_active', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('campaign_name', 'ad_id', 'headline_keywords')
+
 
 class ExcelUploadForm(forms.Form):
     excel_file = forms.FileField(label="Select Excel or CSV File")
 
 @admin.register(ChatMessage)
 class ChatMessageAdmin(admin.ModelAdmin):
-    list_display = ('phone_number', 'role', 'content', 'timestamp')
-    list_filter = ('phone_number',)
+    list_display = ('phone_number_link', 'role', 'content', 'timestamp')
+    list_filter = ('phone_number', 'role')
+    search_fields = ('phone_number', 'content')
+    list_display_links = ('timestamp',)
+
+    def phone_number_link(self, obj):
+        from django.utils.html import format_html
+        url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
+        return format_html('<a href="{}">{}</a>', url, obj.phone_number)
+    phone_number_link.short_description = "Phone Number"
 
 def run_broadcast_thread(task_id, file_path, template_name, language_code):
     from django.db import connection
@@ -115,9 +130,15 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
 
 @admin.register(FleetCustomer)
 class FleetCustomerAdmin(admin.ModelAdmin):
-    list_display = ('owner_name', 'phone_number', 'truck_number', 'is_active', 'created_at')
-    list_filter = ('is_active',)
+    list_display = ('owner_name', 'phone_number_link', 'truck_number', 'is_active', 'referred_by', 'created_at')
+    list_filter = ('is_active', 'referred_by')
     search_fields = ('owner_name', 'phone_number', 'truck_number')
+    
+    def phone_number_link(self, obj):
+        from django.utils.html import format_html
+        url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
+        return format_html('<a href="{}">{}</a>', url, obj.phone_number)
+    phone_number_link.short_description = "Phone Number"
     
     change_list_template = "admin/fleetcustomer_changelist.html"
     

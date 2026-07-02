@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from unittest.mock import patch, MagicMock
 from django.urls import reverse
-from bot.models import FleetCustomer, ChatMessage
+from bot.models import FleetCustomer, ChatMessage, AdCampaign
 import json
 import os
 
@@ -1107,6 +1107,204 @@ class ExcelUploadAndBroadcastTests(TestCase):
         finally:
             if os.path.exists(csv_file_path):
                 os.remove(csv_file_path)
+
+
+class FacebookAdsIntegrationTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        AdCampaign.objects.all().delete()
+        FleetCustomer.objects.all().delete()
+        ChatMessage.objects.all().delete()
+
+        # Create campaigns
+        self.campaign_wifi = AdCampaign.objects.create(
+            campaign_name="Wifi Camera Promo",
+            ad_id="wifi_ad_123",
+            headline_keywords="wifi camera, wifi security",
+            welcome_message="Hello, welcome to our Wifi Camera ad campaign!",
+            custom_system_prompt="Focus on Wifi camera setup and night vision.",
+            catalog_file="Wifi_Camera_Catalog.pdf",
+            is_active=True
+        )
+
+        self.campaign_gps = AdCampaign.objects.create(
+            campaign_name="GPS Tracker Promo",
+            ad_id="gps_ad_456",
+            headline_keywords="gps tracker, location tracker",
+            welcome_message="Welcome! Learn about our GPS Trackers.",
+            custom_system_prompt="Focus strictly on GPS trackers and government AIS 140 certification.",
+            catalog_file="AIS_140_GPS_Tracker_Catalog.pdf",
+            is_active=True
+        )
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.os.getenv")
+    def test_webhook_matches_ad_by_id(self, mock_getenv, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_post.return_value = MagicMock(status_code=200)
+
+        # Incoming webhook payload with referral block containing wifi ad ID
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": "919999999999",
+                            "id": "wamid.referral_id_1",
+                            "type": "text",
+                            "text": {"body": "Interested in camera"},
+                            "referral": {
+                                "source_id": "wifi_ad_123",
+                                "source_type": "ad",
+                                "headline": "High-Quality Wifi Camera",
+                                "body": "Protect your assets."
+                            }
+                        }]
+                    }
+                }]
+            }]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify customer was created and referred_by was set
+        customer = FleetCustomer.objects.get(phone_number="919999999999")
+        self.assertEqual(customer.referred_by, self.campaign_wifi)
+
+        # We expect 2 calls: 1 for welcome message, 1 for catalog document
+        self.assertEqual(mock_post.call_count, 2)
+        
+        # Verify welcome message
+        _, kwargs_welcome = mock_post.call_args_list[0]
+        self.assertEqual(kwargs_welcome["json"]["text"]["body"], "Hello, welcome to our Wifi Camera ad campaign!")
+
+        # Verify catalog message
+        _, kwargs_catalog = mock_post.call_args_list[1]
+        self.assertEqual(kwargs_catalog["json"]["type"], "document")
+        self.assertEqual(kwargs_catalog["json"]["document"]["filename"], "Wifi_Camera_Catalog.pdf")
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.os.getenv")
+    def test_webhook_matches_ad_by_headline_keywords(self, mock_getenv, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_post.return_value = MagicMock(status_code=200)
+
+        # Incoming webhook payload with referral block matching keywords (location tracker -> gps)
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": "918888888888",
+                            "id": "wamid.referral_id_2",
+                            "type": "text",
+                            "text": {"body": "Interested"},
+                            "referral": {
+                                "source_id": "unknown_ad_id",
+                                "source_type": "ad",
+                                "headline": "Best Location Tracker",
+                                "body": "Realtime updates."
+                            }
+                        }]
+                    }
+                }]
+            }]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify customer was created and referred_by was set to GPS campaign
+        customer = FleetCustomer.objects.get(phone_number="918888888888")
+        self.assertEqual(customer.referred_by, self.campaign_gps)
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_ai_response_injects_ad_context(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock Groq client
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="Mocked camera reply."))
+        ]
+        mock_ai_instance.chat.completions.create.return_value = mock_completion
+        mock_post.return_value = MagicMock(status_code=200)
+
+        # Create a customer already associated with the WiFi camera campaign
+        customer = FleetCustomer.objects.create(
+            phone_number="917777777777",
+            owner_name="Ad Customer",
+            referred_by=self.campaign_wifi
+        )
+
+        # Customer sends a follow-up message (no referral block in webhook this time)
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": "917777777777",
+                            "id": "wamid.follow_up_msg",
+                            "type": "text",
+                            "text": {"body": "Tell me more about it."}
+                        }]
+                    }
+                }]
+            }]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify Groq was called
+        self.assertTrue(mock_ai_instance.chat.completions.create.called)
+        
+        # Verify the custom ad instructions were present in the system prompt
+        call_args = mock_ai_instance.chat.completions.create.call_args
+        messages_payload = call_args[1]["messages"]
+        system_message = next(msg for msg in messages_payload if msg["role"] == "system")
+        
+        self.assertIn("Focus on Wifi camera setup and night vision.", system_message["content"])
+        self.assertIn("CRITICAL CONTEXT: The customer arrived via the ad campaign: 'Wifi Camera Promo'", system_message["content"])
+
 
 
 

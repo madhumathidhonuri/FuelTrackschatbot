@@ -19,11 +19,46 @@ class ChatMessage(models.Model):
         return f"{self.phone_number} - {self.role}: {self.content[:30]}"
     
     
+class AdCampaign(models.Model):
+    campaign_name = models.CharField(max_length=100)
+    ad_id = models.CharField(max_length=100, blank=True, db_index=True)
+    headline_keywords = models.CharField(
+        max_length=255, 
+        blank=True, 
+        help_text="Comma-separated keywords to match in referral ad headline or body."
+    )
+    welcome_message = models.TextField(
+        blank=True, 
+        help_text="Optional custom greeting message sent immediately on ad click."
+    )
+    custom_system_prompt = models.TextField(
+        blank=True, 
+        help_text="Custom instructions to inject into the AI agent prompt."
+    )
+    catalog_file = models.CharField(
+        max_length=100, 
+        blank=True, 
+        help_text="Catalog PDF file name to send (e.g. Wifi_Camera_Catalog.pdf)"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.campaign_name
+
+
 class FleetCustomer(models.Model):
     phone_number = models.CharField(max_length=20, unique=True, db_index=True)
     owner_name = models.CharField(max_length=100, blank=True, null=True)
     truck_number = models.CharField(max_length=30, blank=True, null=True)
     is_active = models.BooleanField(default=True) # Easily drop un-subscribed or past clients
+    referred_by = models.ForeignKey(
+        'AdCampaign', 
+        null=True, 
+        blank=True, 
+        on_delete=models.SET_NULL, 
+        related_name='referred_customers'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
