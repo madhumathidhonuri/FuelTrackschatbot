@@ -80,10 +80,16 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
         "template": template_payload
     }
 
+    import json
+    print(f"[DEBUG BROADCAST] URL: {url}")
+    print(f"[DEBUG BROADCAST] Payload: {json.dumps(payload, indent=2)}")
+
     # ✅ FIX 3: Retry loop for temporary failures
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=10)
+            print(f"[DEBUG BROADCAST] Response Status: {response.status_code}")
+            print(f"[DEBUG BROADCAST] Response Body: {response.text}")
 
             # ✅ FIX 1: Meta returns 200 OR 201 for success depending on endpoint version
             if response.status_code in (200, 201):
