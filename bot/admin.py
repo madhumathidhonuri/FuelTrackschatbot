@@ -33,6 +33,25 @@ class ChatMessageAdmin(admin.ModelAdmin):
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if getattr(request, '_is_changelist', False):
+            # Check if request has phone_number or search filter
+            has_filter = any(
+                k in request.GET for k in (
+                    'phone_number',
+                    'phone_number__exact',
+                    'q'
+                )
+            )
+            if not has_filter:
+                return qs.none()
+        return qs
+
+    def changelist_view(self, request, extra_context=None):
+        request._is_changelist = True
+        return super().changelist_view(request, extra_context=extra_context)
+
 def run_broadcast_thread(task_id, file_path, template_name, language_code):
     from django.db import connection
     connection.close()

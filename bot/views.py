@@ -872,7 +872,7 @@ def whatsapp_webhook(request):
                             if not asked_for_name:
                                 ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
                                 professional_welcome = (
-                                    "Welcome to Fuel Tracks Technologies Private Limited! 🚀\n\n"
+                                    "Welcome to Fuel Tracks Technologies Private Limited!\n\n"
                                     "We are India's trusted provider of high-end GPS Tracking Systems, "
                                     "AIS 140 Certified Devices, and Smart Fuel Monitoring Solutions "
                                     "designed to eliminate fuel theft and optimize fleet operations.\n\n"
