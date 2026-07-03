@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django import forms
 import os
 import json
+import requests
 import threading
 import time
 from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign, WhatsAppTemplate
@@ -19,7 +20,7 @@ class AdCampaignAdmin(admin.ModelAdmin):
 
 @admin.register(WhatsAppTemplate)
 class WhatsAppTemplateAdmin(admin.ModelAdmin):
-    list_display = ('template_name', 'description', 'has_variables', 'created_at')
+    list_display = ('template_name', 'description', 'has_variables', 'languages', 'created_at')
     search_fields = ('template_name', 'description')
     list_filter = ('has_variables',)
 
@@ -152,6 +153,82 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             pass
     finally:
         connection.close()
+
+
+def sync_whatsapp_templates_from_meta():
+    """
+    Fetches templates from Meta Graph API using WHATSAPP_BUSINESS_ACCOUNT_ID and WHATSAPP_TOKEN.
+    Synchronizes them into the local database and returns a dict mapping
+    template name to a list of approved language codes, e.g.
+    {'gps_tracking_device': ['en_US', 'te'], ...}
+    
+    If WABA ID or Token is missing, or the call fails, returns None.
+    """
+    import os
+    import requests
+    from bot.models import WhatsAppTemplate
+
+    waba_id = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID")
+    token = os.getenv("WHATSAPP_TOKEN")
+    if not waba_id or not token:
+        return None
+
+    url = f"https://graph.facebook.com/v19.0/{waba_id}/message_templates"
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    params = {
+        "limit": 1000
+    }
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+        if response.status_code == 200:
+            templates_data = response.json().get("data", [])
+            
+            # Group by template name
+            grouped = {}
+            for item in templates_data:
+                if item.get("status") != "APPROVED":
+                    continue
+                name = item.get("name")
+                lang = item.get("language")
+                if not name or not lang:
+                    continue
+                
+                # Check if it has variables
+                has_vars = False
+                for comp in item.get("components", []):
+                    text = comp.get("text", "")
+                    if text and "{{" in text:
+                        has_vars = True
+                        break
+                        
+                if name not in grouped:
+                    grouped[name] = {
+                        "languages": set(),
+                        "has_variables": False,
+                        "category": item.get("category", "")
+                    }
+                grouped[name]["languages"].add(lang)
+                if has_vars:
+                    grouped[name]["has_variables"] = True
+            
+            # Now update the database
+            for name, info in grouped.items():
+                langs_str = ",".join(sorted(list(info["languages"])))
+                desc = f"Sync'd from Meta: {info['category']}"
+                WhatsAppTemplate.objects.update_or_create(
+                    template_name=name,
+                    defaults={
+                        "description": desc,
+                        "has_variables": info["has_variables"],
+                        "languages": langs_str
+                    }
+                )
+            return {name: sorted(list(info["languages"])) for name, info in grouped.items()}
+    except Exception as e:
+        print(f"Error syncing templates from Meta API: {e}")
+    return None
 
 
 @admin.register(FleetCustomer)
@@ -309,21 +386,31 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 
             messages.success(request, f"Broadcast task #{task.id} started successfully!")
             return redirect(".")
-        # Ensure default templates are populated if empty
+        # Ensure default templates are populated if empty (with correct languages)
         if WhatsAppTemplate.objects.count() == 0:
             WhatsAppTemplate.objects.bulk_create([
-                WhatsAppTemplate(template_name="hello_world", description="Default Greetings", has_variables=False),
-                WhatsAppTemplate(template_name="gps_tracking_device", description="GPS Tracking Devices promo", has_variables=False),
-                WhatsAppTemplate(template_name="fuel_alert", description="Fuel theft/drop alerts", has_variables=True),
-                WhatsAppTemplate(template_name="fleet_update", description="Fleet status summary updates", has_variables=True),
+                WhatsAppTemplate(template_name="hello_world", description="Default Greetings", has_variables=False, languages="en_US"),
+                WhatsAppTemplate(template_name="gps_tracking_device", description="GPS Tracking Devices promo", has_variables=False, languages="en_US"),
+                WhatsAppTemplate(template_name="fuel_alert", description="Fuel theft/drop alerts", has_variables=True, languages="en_US,te"),
+                WhatsAppTemplate(template_name="fleet_update", description="Fleet status summary updates", has_variables=True, languages="en_US,te"),
             ])
 
+        # Attempt to sync from Meta Graph API
+        sync_whatsapp_templates_from_meta()
+
         templates = WhatsAppTemplate.objects.all().order_by('template_name')
+
+        # Build mapping of template name to list of language codes
+        templates_mapping = {}
+        for t in templates:
+            langs = [l.strip() for l in t.languages.split(",") if l.strip()]
+            templates_mapping[t.template_name] = langs
 
         context = {
             **self.admin_site.each_context(request),
             'title': 'WhatsApp Broadcast Panel',
             'templates': templates,
+            'templates_mapping_json': json.dumps(templates_mapping),
         }
         return render(request, "admin/broadcast.html", context)
 

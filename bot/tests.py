@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from unittest.mock import patch, MagicMock
 from django.urls import reverse
-from bot.models import FleetCustomer, ChatMessage, AdCampaign
+from bot.models import FleetCustomer, ChatMessage, AdCampaign, WhatsAppTemplate
 import json
 import os
 
@@ -1304,6 +1304,130 @@ class FacebookAdsIntegrationTests(TestCase):
         
         self.assertIn("Focus on Wifi camera setup and night vision.", system_message["content"])
         self.assertIn("CRITICAL CONTEXT: The customer arrived via the ad campaign: 'Wifi Camera Promo'", system_message["content"])
+
+
+class WhatsAppTemplateSyncTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='password123'
+        )
+        self.client.login(username='admin', password='password123')
+        WhatsAppTemplate.objects.all().delete()
+
+    @patch("bot.admin.requests.get")
+    @patch("bot.admin.os.getenv")
+    def test_sync_whatsapp_templates_from_meta(self, mock_getenv, mock_get):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_TOKEN": "fake_token",
+            "WHATSAPP_BUSINESS_ACCOUNT_ID": "fake_waba_id"
+        }.get(key, default)
+
+        # Mock Meta API template response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {
+                    "name": "hello_world",
+                    "status": "APPROVED",
+                    "category": "UTILITY",
+                    "language": "en_US",
+                    "components": [{"type": "BODY", "text": "Hello World"}]
+                },
+                {
+                    "name": "gps_tracking_device",
+                    "status": "APPROVED",
+                    "category": "MARKETING",
+                    "language": "en_US",
+                    "components": [{"type": "BODY", "text": "AIS 140 tracker details"}]
+                },
+                {
+                    "name": "gps_tracking_device",
+                    "status": "APPROVED",
+                    "category": "MARKETING",
+                    "language": "te",
+                    "components": [{"type": "BODY", "text": "AIS 140 tracker details in Telugu"}]
+                },
+                {
+                    "name": "fuel_alert",
+                    "status": "APPROVED",
+                    "category": "UTILITY",
+                    "language": "en_US",
+                    "components": [{"type": "BODY", "text": "Fuel drop alert for {{1}}"}]
+                },
+                {
+                    "name": "pending_template",
+                    "status": "PENDING",
+                    "category": "UTILITY",
+                    "language": "en_US",
+                    "components": [{"type": "BODY", "text": "Hello"}]
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        from bot.admin import sync_whatsapp_templates_from_meta
+        result = sync_whatsapp_templates_from_meta()
+
+        self.assertIsNotNone(result)
+        self.assertIn("hello_world", result)
+        self.assertIn("gps_tracking_device", result)
+        self.assertIn("fuel_alert", result)
+        self.assertNotIn("pending_template", result) # Should filter out pending
+
+        self.assertEqual(result["hello_world"], ["en_US"])
+        self.assertEqual(result["gps_tracking_device"], ["en_US", "te"])
+        self.assertEqual(result["fuel_alert"], ["en_US"])
+
+        # Check DB objects
+        t_hello = WhatsAppTemplate.objects.get(template_name="hello_world")
+        self.assertFalse(t_hello.has_variables)
+        self.assertEqual(t_hello.languages, "en_US")
+
+        t_fuel = WhatsAppTemplate.objects.get(template_name="fuel_alert")
+        self.assertTrue(t_fuel.has_variables)
+        self.assertEqual(t_fuel.languages, "en_US")
+
+        t_gps = WhatsAppTemplate.objects.get(template_name="gps_tracking_device")
+        self.assertFalse(t_gps.has_variables)
+        self.assertEqual(t_gps.languages, "en_US,te")
+
+    @patch("bot.admin.requests.get")
+    @patch("bot.admin.os.getenv")
+    def test_broadcast_view_contains_template_mapping(self, mock_getenv, mock_get):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_TOKEN": "fake_token",
+            "WHATSAPP_BUSINESS_ACCOUNT_ID": "fake_waba_id"
+        }.get(key, default)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {
+                    "name": "gps_tracking_device",
+                    "status": "APPROVED",
+                    "category": "MARKETING",
+                    "language": "en_US",
+                    "components": []
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        url = reverse("admin:bot_fleetcustomer_broadcast")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("templates_mapping_json", response.context)
+        
+        # Verify custom template and synced templates are in mapping
+        mapping = json.loads(response.context["templates_mapping_json"])
+        self.assertIn("gps_tracking_device", mapping)
+        self.assertEqual(mapping["gps_tracking_device"], ["en_US"])
 
 
 

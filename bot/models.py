@@ -112,6 +112,11 @@ class WhatsAppTemplate(models.Model):
         default=False, 
         help_text="Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)"
     )
+    languages = models.CharField(
+        max_length=255,
+        default='en_US',
+        help_text="Comma-separated approved language codes (e.g. en_US,te)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

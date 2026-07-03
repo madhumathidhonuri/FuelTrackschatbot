@@ -225,7 +225,7 @@
                 
                 <div style="width: 180px;">
                     <label>3. Language</label>
-                    <select name="language_code" class="form-control">
+                    <select name="language_code" id="id_language_code" class="form-control">
                         <option value="en_US">English (en_US)</option>
                         <option value="en">English (en)</option>
                         <option value="te">Telugu (te)</option>
@@ -238,6 +238,9 @@
                 <a href=".." class="btn btn-secondary">Cancel</a>
             </div>
         </form>
+        <script id="templates-mapping-json" type="application/json">
+            {{ templates_mapping_json|safe }}
+        </script>
     </div>
 
     <!-- Active Task Card -->
@@ -290,10 +293,52 @@
 </div>
 
 <script>
-    // Handle Custom Template Toggle
+    // Handle Custom Template Toggle & Dynamic Language Dropdown Updates
     const templateSelect = document.getElementById('id_template_name');
     const customTemplateInput = document.getElementById('id_custom_template_name');
-    
+    const languageSelect = document.getElementById('id_language_code');
+    const templatesMapping = JSON.parse(document.getElementById('templates-mapping-json').textContent);
+
+    const LANGUAGE_NAMES = {
+        'en': 'English (en)',
+        'en_US': 'English (US) (en_US)',
+        'en_GB': 'English (UK) (en_GB)',
+        'te': 'Telugu (te)',
+        'hi': 'Hindi (hi)',
+        'es': 'Spanish (es)',
+        'pt_BR': 'Portuguese (Brazil) (pt_BR)',
+        'fr': 'French (fr)',
+        'de': 'German (de)',
+        'it': 'Italian (it)',
+        'ja': 'Japanese (ja)',
+        'ko': 'Korean (ko)',
+        'zh_CN': 'Chinese (Simplified) (zh_CN)'
+    };
+
+    function updateLanguages(templateName) {
+        languageSelect.innerHTML = '';
+        let codes = [];
+        
+        if (templateName === 'custom') {
+            const uniqueCodes = new Set(['en_US', 'te', 'en']);
+            for (const key in templatesMapping) {
+                templatesMapping[key].forEach(code => uniqueCodes.add(code));
+            }
+            codes = Array.from(uniqueCodes).sort();
+        } else if (templatesMapping[templateName]) {
+            codes = templatesMapping[templateName];
+        } else {
+            codes = ['en_US', 'te', 'en'];
+        }
+
+        codes.forEach(code => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = LANGUAGE_NAMES[code] || `${code} (${code})`;
+            languageSelect.appendChild(option);
+        });
+    }
+
     templateSelect.addEventListener('change', function() {
         if (this.value === 'custom') {
             customTemplateInput.style.display = 'block';
@@ -303,7 +348,11 @@
             customTemplateInput.style.display = 'none';
             customTemplateInput.required = false;
         }
+        updateLanguages(this.value);
     });
+
+    // Run on load to set initial state
+    updateLanguages(templateSelect.value);
 
     let currentTaskId = null;
     let poller = null;
