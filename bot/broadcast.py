@@ -58,10 +58,19 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
         "language": {"code": language_code}
     }
 
-    # ✅ FIX 4: Only inject body parameters for custom templates that actually have placeholders
-    TEMPLATES_WITH_VARIABLES = ["fuel_alert", "fleet_update", "promo_blast"]  # Add your real template names here
+    # Check if template has variables in database (fallback to hardcoded list if not found or on error)
+    has_variables = False
+    try:
+        from bot.models import WhatsAppTemplate
+        template_obj = WhatsAppTemplate.objects.filter(template_name=template_name).first()
+        if template_obj:
+            has_variables = template_obj.has_variables
+        else:
+            has_variables = template_name in ["fuel_alert", "fleet_update", "promo_blast"]
+    except Exception:
+        has_variables = template_name in ["fuel_alert", "fleet_update", "promo_blast"]
 
-    if template_name in TEMPLATES_WITH_VARIABLES and (customer_name or vehicle_number):
+    if has_variables and (customer_name or vehicle_number):
         template_payload["components"] = [
             {
                 "type": "body",

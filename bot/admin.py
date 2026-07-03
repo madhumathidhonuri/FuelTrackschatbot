@@ -8,13 +8,20 @@ import os
 import json
 import threading
 import time
-from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign
+from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign, WhatsAppTemplate
 
 @admin.register(AdCampaign)
 class AdCampaignAdmin(admin.ModelAdmin):
     list_display = ('campaign_name', 'ad_id', 'headline_keywords', 'catalog_file', 'is_active', 'created_at')
     list_filter = ('is_active',)
     search_fields = ('campaign_name', 'ad_id', 'headline_keywords')
+
+
+@admin.register(WhatsAppTemplate)
+class WhatsAppTemplateAdmin(admin.ModelAdmin):
+    list_display = ('template_name', 'description', 'has_variables', 'created_at')
+    search_fields = ('template_name', 'description')
+    list_filter = ('has_variables',)
 
 
 class ExcelUploadForm(forms.Form):
@@ -302,10 +309,21 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 
             messages.success(request, f"Broadcast task #{task.id} started successfully!")
             return redirect(".")
-            
+        # Ensure default templates are populated if empty
+        if WhatsAppTemplate.objects.count() == 0:
+            WhatsAppTemplate.objects.bulk_create([
+                WhatsAppTemplate(template_name="hello_world", description="Default Greetings", has_variables=False),
+                WhatsAppTemplate(template_name="gps_tracking_device", description="GPS Tracking Devices promo", has_variables=False),
+                WhatsAppTemplate(template_name="fuel_alert", description="Fuel theft/drop alerts", has_variables=True),
+                WhatsAppTemplate(template_name="fleet_update", description="Fleet status summary updates", has_variables=True),
+            ])
+
+        templates = WhatsAppTemplate.objects.all().order_by('template_name')
+
         context = {
             **self.admin_site.each_context(request),
-            'title': 'WhatsApp Broadcast Panel'
+            'title': 'WhatsApp Broadcast Panel',
+            'templates': templates,
         }
         return render(request, "admin/broadcast.html", context)
 

@@ -94,4 +94,25 @@ class ProcessedMessage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.message_id
+        return self.message_id
+
+
+class WhatsAppTemplate(models.Model):
+    template_name = models.CharField(
+        max_length=100, 
+        unique=True, 
+        help_text="Approved Meta template name (e.g. gps_tracking_device)"
+    )
+    description = models.CharField(
+        max_length=255, 
+        blank=True, 
+        help_text="Brief description/label shown in dropdown"
+    )
+    has_variables = models.BooleanField(
+        default=False, 
+        help_text="Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.template_name} ({self.description or 'No description'})"

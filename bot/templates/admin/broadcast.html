@@ -210,10 +210,14 @@
                 <div class="flex-col">
                     <label>2. Message Template</label>
                     <select name="template_name" id="id_template_name" class="form-control">
-                        <option value="hello_world">hello_world (Default Greetings)</option>
-                        <option value="gps_tracking_device">gps_tracking_device (GPS Tracking Devices promo)</option>
-                        <option value="fuel_alert">fuel_alert (Fuel theft/drop alerts)</option>
-                        <option value="fleet_update">fleet_update (Fleet status summary updates)</option>
+                        {% for t in templates %}
+                            <option value="{{ t.template_name }}">{{ t.template_name }}{% if t.description %} ({{ t.description }}){% endif %}</option>
+                        {% empty %}
+                            <option value="hello_world">hello_world (Default Greetings)</option>
+                            <option value="gps_tracking_device">gps_tracking_device (GPS Tracking Devices promo)</option>
+                            <option value="fuel_alert">fuel_alert (Fuel theft/drop alerts)</option>
+                            <option value="fleet_update">fleet_update (Fleet status summary updates)</option>
+                        {% endfor %}
                         <option value="custom">-- Custom Template --</option>
                     </select>
                     <input type="text" name="custom_template_name" id="id_custom_template_name" placeholder="Enter approved meta template name" class="form-control" style="margin-top: 8px; display: none;">
