@@ -9,14 +9,16 @@
         margin: 20px auto;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
+
     .card {
         background: #fff;
         border: 1px solid #e0e0e0;
         border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         padding: 25px;
         margin-bottom: 30px;
     }
+
     .card-title {
         margin-top: 0;
         color: #1e293b;
@@ -26,9 +28,11 @@
         padding-bottom: 12px;
         margin-bottom: 20px;
     }
+
     .form-group {
         margin-bottom: 20px;
     }
+
     .form-group label {
         display: block;
         font-weight: 600;
@@ -36,6 +40,7 @@
         color: #475569;
         font-size: 14px;
     }
+
     .form-control {
         padding: 8px 12px !important;
         border: 1px solid #cbd5e1 !important;
@@ -47,23 +52,28 @@
         color: #334155 !important;
         transition: border-color 0.2s !important;
     }
+
     select.form-control {
         height: 40px !important;
         padding: 8px 12px !important;
         line-height: 1.5 !important;
     }
+
     .form-control:focus {
         border-color: #3b82f6 !important;
         outline: none !important;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
     }
+
     .flex-row {
         display: flex;
         gap: 20px;
     }
+
     .flex-col {
         flex: 1;
     }
+
     .btn {
         display: inline-block;
         padding: 10px 20px;
@@ -76,25 +86,31 @@
         transition: background-color 0.2s, box-shadow 0.2s;
         border: none;
     }
+
     .btn-primary {
         background-color: #3b82f6;
         color: #fff;
     }
+
     .btn-primary:hover {
         background-color: #2563eb;
     }
+
     .btn-primary:disabled {
         background-color: #93c5fd;
         cursor: not-allowed;
     }
+
     .btn-secondary {
         background-color: #64748b;
         color: #fff;
         margin-left: 10px;
     }
+
     .btn-secondary:hover {
         background-color: #475569;
     }
+
     .status-badge {
         display: inline-block;
         padding: 4px 10px;
@@ -103,17 +119,34 @@
         font-weight: 700;
         text-transform: uppercase;
     }
-    .status-pending { background-color: #fef3c7; color: #d97706; }
-    .status-running { background-color: #dbeafe; color: #2563eb; }
-    .status-completed { background-color: #dcfce7; color: #15803d; }
-    .status-failed { background-color: #fee2e2; color: #b91c1c; }
-    
+
+    .status-pending {
+        background-color: #fef3c7;
+        color: #d97706;
+    }
+
+    .status-running {
+        background-color: #dbeafe;
+        color: #2563eb;
+    }
+
+    .status-completed {
+        background-color: #dcfce7;
+        color: #15803d;
+    }
+
+    .status-failed {
+        background-color: #fee2e2;
+        color: #b91c1c;
+    }
+
     /* Stats Grid */
     .stats-grid {
         display: flex;
         gap: 20px;
         margin: 20px 0;
     }
+
     .stat-card {
         flex: 1;
         padding: 15px;
@@ -122,23 +155,39 @@
         border: 1px solid #e2e8f0;
         background-color: #f8fafc;
     }
+
     .stat-val {
         font-size: 24px;
         font-weight: 700;
         margin-top: 5px;
         color: #1e293b;
     }
+
     .stat-label {
         font-size: 12px;
         color: #64748b;
         text-transform: uppercase;
         font-weight: 600;
     }
-    .stat-success { background-color: #f0fdf4; border-color: #bbf7d0; }
-    .stat-success .stat-val { color: #166534; }
-    .stat-failed { background-color: #fef2f2; border-color: #fecaca; }
-    .stat-failed .stat-val { color: #991b1b; }
-    
+
+    .stat-success {
+        background-color: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+
+    .stat-success .stat-val {
+        color: #166534;
+    }
+
+    .stat-failed {
+        background-color: #fef2f2;
+        border-color: #fecaca;
+    }
+
+    .stat-failed .stat-val {
+        color: #991b1b;
+    }
+
     /* Progress bar wrapper */
     .progress-wrapper {
         background: #e2e8f0;
@@ -148,13 +197,14 @@
         margin: 20px 0;
         overflow: hidden;
     }
+
     .progress-bar {
         background: #22c55e;
         width: 0%;
         height: 100%;
         transition: width 0.3s ease;
     }
-    
+
     .table-container {
         max-height: 250px;
         overflow-y: auto;
@@ -164,23 +214,27 @@
         padding: 10px;
         margin-top: 15px;
     }
+
     .failures-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
         text-align: left;
     }
+
     .failures-table th {
         padding: 8px;
         border-bottom: 2px solid #fee2e2;
         color: #991b1b;
         font-weight: 600;
     }
+
     .failures-table td {
         padding: 8px;
         border-bottom: 1px solid #fee2e2;
         color: #334155;
     }
+
     .hint {
         font-size: 12px;
         color: #64748b;
@@ -197,32 +251,36 @@
         <div class="card-title">🚀 New WhatsApp Template Broadcast</div>
         <form id="broadcast-form" method="post" enctype="multipart/form-data">
             {% csrf_token %}
-            
+
             <div class="form-group">
                 <label>1. Select Excel or CSV File</label>
                 <input type="file" name="excel_file" accept=".xlsx,.xls,.csv" required class="form-control">
                 <div class="hint">
-                    The file must contain a <strong>Phone Number</strong> (or Mobile) column. The import will create or update records in your database first, then send messages only to active customers.
+                    The file must contain a <strong>Phone Number</strong> (or Mobile) column. The import will create or
+                    update records in your database first, then send messages only to active customers.
                 </div>
             </div>
-            
+
             <div class="flex-row form-group">
                 <div class="flex-col">
                     <label>2. Message Template</label>
                     <select name="template_name" id="id_template_name" class="form-control">
                         {% for t in templates %}
-                            <option value="{{ t.template_name }}">{{ t.template_name }}{% if t.description %} ({{ t.description }}){% endif %}</option>
+                        <option value="{{ t.template_name }}">{{ t.template_name }}{% if t.description %} ({{
+                            t.description }}){% endif %}</option>
                         {% empty %}
-                            <option value="hello_world">hello_world (Default Greetings)</option>
-                            <option value="gps_tracking_device">gps_tracking_device (GPS Tracking Devices promo)</option>
-                            <option value="fuel_alert">fuel_alert (Fuel theft/drop alerts)</option>
-                            <option value="fleet_update">fleet_update (Fleet status summary updates)</option>
+                        <option value="hello_world">hello_world (Default Greetings)</option>
+                        <option value="gps_tracking_device">gps_tracking_device (GPS Tracking Devices promo)</option>
+                        <option value="fuel_alert">fuel_alert (Fuel theft/drop alerts)</option>
+                        <option value="fleet_update">fleet_update (Fleet status summary updates)</option>
                         {% endfor %}
                         <option value="custom">-- Custom Template --</option>
                     </select>
-                    <input type="text" name="custom_template_name" id="id_custom_template_name" placeholder="Enter approved meta template name" class="form-control" style="margin-top: 8px; display: none;">
+                    <input type="text" name="custom_template_name" id="id_custom_template_name"
+                        placeholder="Enter approved meta template name" class="form-control"
+                        style="margin-top: 8px; display: none;">
                 </div>
-                
+
                 <div style="width: 180px;">
                     <label>3. Language</label>
                     <select name="language_code" id="id_language_code" class="form-control">
@@ -232,7 +290,7 @@
                     </select>
                 </div>
             </div>
-            
+
             <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #f1f5f9;">
                 <button type="submit" id="submit-btn" class="btn btn-primary">Start Broadcast</button>
                 <a href=".." class="btn btn-secondary">Cancel</a>
@@ -245,15 +303,16 @@
 
     <!-- Active Task Card -->
     <div id="progress-card" class="card" style="display: none;">
-        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; border: none; margin-bottom: 10px;">
+        <div class="card-title"
+            style="display: flex; justify-content: space-between; align-items: center; border: none; margin-bottom: 10px;">
             <span>Current Status: <span id="task-status" class="status-badge status-pending">PENDING</span></span>
             <span id="progress-text" style="font-size: 14px; font-weight: normal; color: #64748b;">0 / 0 sent</span>
         </div>
-        
+
         <div class="progress-wrapper">
             <div id="progress-bar" class="progress-bar"></div>
         </div>
-        
+
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Total to Send</div>
@@ -268,10 +327,11 @@
                 <div id="stat-failed" class="stat-val">0</div>
             </div>
         </div>
-        
+
         <!-- Failures Section -->
         <div id="failures-section" style="display: none;">
-            <div style="color: #b91c1c; font-weight: 600; font-size: 14px; margin-top: 15px;">⚠️ Failed Broadcast Details</div>
+            <div style="color: #b91c1c; font-weight: 600; font-size: 14px; margin-top: 15px;">⚠️ Failed Broadcast
+                Details</div>
             <div class="table-container">
                 <table class="failures-table">
                     <thead>
@@ -318,7 +378,7 @@
     function updateLanguages(templateName) {
         languageSelect.innerHTML = '';
         let codes = [];
-        
+
         if (templateName === 'custom') {
             const uniqueCodes = new Set(['en_US', 'te', 'en']);
             for (const key in templatesMapping) {
@@ -331,15 +391,21 @@
             codes = ['en_US', 'te', 'en'];
         }
 
+        let hasEnUs = codes.includes('en_US');
         codes.forEach(code => {
             const option = document.createElement('option');
             option.value = code;
             option.textContent = LANGUAGE_NAMES[code] || `${code} (${code})`;
+            if (code === 'en_US') {
+                option.selected = true;
+            } else if (code === 'en' && !hasEnUs) {
+                option.selected = true;
+            }
             languageSelect.appendChild(option);
         });
     }
 
-    templateSelect.addEventListener('change', function() {
+    templateSelect.addEventListener('change', function () {
         if (this.value === 'custom') {
             customTemplateInput.style.display = 'block';
             customTemplateInput.required = true;
@@ -359,7 +425,7 @@
 
     function fetchStatus() {
         if (!currentTaskId) return;
-        
+
         fetch(`../broadcast-status/${currentTaskId}/`)
             .then(response => {
                 if (!response.ok) throw new Error("Failed to fetch task status");
@@ -370,22 +436,22 @@
                 const statusBadge = document.getElementById('task-status');
                 statusBadge.innerText = data.status.toUpperCase();
                 statusBadge.className = 'status-badge status-' + data.status;
-                
+
                 // Update Progress text & bar
                 document.getElementById('progress-text').innerText = `${data.processed_records} / ${data.total_records} processed`;
                 document.getElementById('stat-total').innerText = data.total_records;
                 document.getElementById('stat-success').innerText = data.success_count;
                 document.getElementById('stat-failed').innerText = data.failed_count;
-                
+
                 const percent = data.total_records > 0 ? (data.processed_records / data.total_records) * 100 : 0;
                 document.getElementById('progress-bar').style.width = percent + '%';
-                
+
                 // Show/hide failures
                 if (data.failed_details && data.failed_details.length > 0) {
                     document.getElementById('failures-section').style.display = 'block';
                     const tbody = document.getElementById('failures-tbody');
                     tbody.innerHTML = '';
-                    
+
                     data.failed_details.forEach(fail => {
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
@@ -396,7 +462,7 @@
                         tbody.appendChild(tr);
                     });
                 }
-                
+
                 // Check if completed/failed to stop polling
                 if (data.status === 'completed' || data.status === 'failed') {
                     clearInterval(poller);
@@ -409,15 +475,15 @@
             });
     }
 
-    document.getElementById('broadcast-form').addEventListener('submit', function(e) {
+    document.getElementById('broadcast-form').addEventListener('submit', function (e) {
         e.preventDefault();
-        
+
         const submitBtn = document.getElementById('submit-btn');
         submitBtn.disabled = true;
         submitBtn.innerText = 'Initializing...';
-        
+
         const formData = new FormData(this);
-        
+
         fetch('', {
             method: 'POST',
             body: formData,
@@ -425,40 +491,40 @@
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(errData => {
-                    throw new Error(errData.error || "Failed to initiate broadcast");
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                currentTaskId = data.task_id;
-                
-                // Show progress card and reset values
-                document.getElementById('progress-card').style.display = 'block';
-                document.getElementById('progress-bar').style.width = '0%';
-                document.getElementById('failures-section').style.display = 'none';
-                document.getElementById('failures-tbody').innerHTML = '';
-                
-                // Scroll to progress card
-                document.getElementById('progress-card').scrollIntoView({ behavior: 'smooth' });
-                
-                // Start polling every 1.5 seconds
-                if (poller) clearInterval(poller);
-                poller = setInterval(fetchStatus, 1500);
-                fetchStatus(); // immediate run
-            } else {
-                throw new Error(data.error || "An unknown error occurred");
-            }
-        })
-        .catch(error => {
-            alert("Error: " + error.message);
-            submitBtn.disabled = false;
-            submitBtn.innerText = 'Start Broadcast';
-        });
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errData => {
+                        throw new Error(errData.error || "Failed to initiate broadcast");
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    currentTaskId = data.task_id;
+
+                    // Show progress card and reset values
+                    document.getElementById('progress-card').style.display = 'block';
+                    document.getElementById('progress-bar').style.width = '0%';
+                    document.getElementById('failures-section').style.display = 'none';
+                    document.getElementById('failures-tbody').innerHTML = '';
+
+                    // Scroll to progress card
+                    document.getElementById('progress-card').scrollIntoView({ behavior: 'smooth' });
+
+                    // Start polling every 1.5 seconds
+                    if (poller) clearInterval(poller);
+                    poller = setInterval(fetchStatus, 1500);
+                    fetchStatus(); // immediate run
+                } else {
+                    throw new Error(data.error || "An unknown error occurred");
+                }
+            })
+            .catch(error => {
+                alert("Error: " + error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Start Broadcast';
+            });
     });
 </script>
 {% endblock %}

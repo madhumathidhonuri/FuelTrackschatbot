@@ -1108,6 +1108,54 @@ class ExcelUploadAndBroadcastTests(TestCase):
             if os.path.exists(csv_file_path):
                 os.remove(csv_file_path)
 
+    @patch("bot.broadcast.requests.post")
+    def test_send_whatsapp_template_en_fallback(self, mock_post):
+        from bot.broadcast import send_whatsapp_template
+        import copy
+        
+        # Define mock responses
+        mock_response_fail = MagicMock()
+        mock_response_fail.status_code = 404
+        mock_response_fail.json.return_value = {
+            "error": {
+                "message": "(#132001) Template name does not exist in the translation",
+                "code": 132001,
+                "type": "OAuthException"
+            }
+        }
+        
+        mock_response_success = MagicMock()
+        mock_response_success.status_code = 200
+        mock_response_success.text = '{"success": true}'
+        
+        # Capture deep copies of call payloads to avoid mutation-in-place issues in mock call history
+        call_payloads = []
+        def side_effect(*args, **kwargs):
+            call_payloads.append(copy.deepcopy(kwargs.get("json")))
+            if len(call_payloads) == 1:
+                return mock_response_fail
+            return mock_response_success
+            
+        mock_post.side_effect = side_effect
+        
+        # Call send_whatsapp_template with language_code='en'
+        success, error = send_whatsapp_template(
+            to_phone="919999999999",
+            template_name="gps_tracking_device",
+            language_code="en"
+        )
+        
+        # Verify success and calls
+        self.assertTrue(success)
+        self.assertIsNone(error)
+        self.assertEqual(mock_post.call_count, 2)
+        
+        # First call has 'en'
+        self.assertEqual(call_payloads[0]["template"]["language"]["code"], "en")
+        
+        # Second call has 'en_US'
+        self.assertEqual(call_payloads[1]["template"]["language"]["code"], "en_US")
+
 
 class FacebookAdsIntegrationTests(TestCase):
     def setUp(self):

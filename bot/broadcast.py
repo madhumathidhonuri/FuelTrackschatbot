@@ -128,6 +128,12 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
                 error_msg = response.text[:200]
                 error_code = f"HTTP_{response.status_code}"
 
+            # Auto-fallback: if language is generic 'en' and template not found (code 132001), retry with 'en_US'
+            if error_code == 132001 and payload.get("template", {}).get("language", {}).get("code") == "en":
+                print(f"   ⚠️  Template '{template_name}' not found in 'en'. Retrying with 'en_US' fallback...")
+                payload["template"]["language"]["code"] = "en_US"
+                continue
+
             # If it's a rate limit error (code 4 or 130429), wait and retry
             if error_code in (4, 130429) and attempt < MAX_RETRIES:
                 print(f"   ⚠️  Rate limit hit for {to_phone}. Waiting 30s before retry {attempt}/{MAX_RETRIES}...")
@@ -279,4 +285,4 @@ if __name__ == "__main__":
     if not file_path:
         print("ℹ️ No Excel/CSV file specified or found in media folder. Defaulting to all active customers in database.")
         
-    run_massive_broadcast(args.template, args.language, file_path)
+    run_massive_broadcast(args.template, args.language, file_path)

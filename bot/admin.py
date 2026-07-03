@@ -386,14 +386,22 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 
             messages.success(request, f"Broadcast task #{task.id} started successfully!")
             return redirect(".")
-        # Ensure default templates are populated if empty (with correct languages)
-        if WhatsAppTemplate.objects.count() == 0:
-            WhatsAppTemplate.objects.bulk_create([
-                WhatsAppTemplate(template_name="hello_world", description="Default Greetings", has_variables=False, languages="en_US"),
-                WhatsAppTemplate(template_name="gps_tracking_device", description="GPS Tracking Devices promo", has_variables=False, languages="en_US"),
-                WhatsAppTemplate(template_name="fuel_alert", description="Fuel theft/drop alerts", has_variables=True, languages="en_US,te"),
-                WhatsAppTemplate(template_name="fleet_update", description="Fleet status summary updates", has_variables=True, languages="en_US,te"),
-            ])
+        # Ensure default templates are populated if missing (with correct languages)
+        default_templates = [
+            ("hello_world", "Default Greetings", False, "en_US"),
+            ("gps_tracking_device", "GPS Tracking Devices promo", False, "en_US"),
+            ("fuel_alert", "Fuel theft/drop alerts", True, "en_US,te"),
+            ("fleet_update", "Fleet status summary updates", True, "en_US,te"),
+        ]
+        for name, desc, has_vars, langs in default_templates:
+            WhatsAppTemplate.objects.get_or_create(
+                template_name=name,
+                defaults={
+                    "description": desc,
+                    "has_variables": has_vars,
+                    "languages": langs
+                }
+            )
 
         # Attempt to sync from Meta Graph API
         sync_whatsapp_templates_from_meta()

@@ -35,6 +35,7 @@ Create a `.env` file in the root of your project directory (this file is ignored
 # Meta WhatsApp API Credentials
 WHATSAPP_TOKEN=your_whatsapp_access_token_here
 PHONE_NUMBER_ID=your_whatsapp_phone_number_id_here
+WHATSAPP_BUSINESS_ACCOUNT_ID=your_whatsapp_business_account_id_here
 VERIFY_TOKEN=your_webhook_verify_token_here
 WHATSAPP_APP_SECRET=your_meta_app_secret_here
 
@@ -85,6 +86,7 @@ Ensure these are configured in your production host dashboard:
 *   `DJANGO_SECRET_KEY=a-secure-long-random-string`
 *   `ALLOWED_HOSTS=your-app-domain.com,your-subdomain.onrender.com`
 *   `DATABASE_URL=postgres://...`
+*   `WHATSAPP_BUSINESS_ACCOUNT_ID=your-business-account-id`
 
 ### 5. Deploying to Render via Blueprints
 We have included a `render.yaml` file in the root of the project to allow for seamless deployment using Render Blueprints.
@@ -95,7 +97,6 @@ We have included a `render.yaml` file in the root of the project to allow for se
 4. Select the repository containing your bot code.
 5. Render will automatically parse the `render.yaml` file and prompt you to:
    - Configure your service name.
-   - Enter your required environment variables (`WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, and `GROQ_API_KEY`).
+   - Enter your required environment variables (`WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, and `GROQ_API_KEY`).
 6. Click **Approve** to provision both the **PostgreSQL Database** (Free tier) and the **Django Web Service**.
 7. Once the deploy succeeds, Render will provide a live URL (e.g. `https://whatsapp-ai-bot-xxx.onrender.com`). Set this URL (specifically the `/webhook/` endpoint) in your Meta developer dashboard as the WhatsApp Webhook URL.
-
