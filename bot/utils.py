@@ -81,3 +81,71 @@ def parse_excel_or_csv(file_path_or_buffer, filename=None):
             'is_active': is_active
         })
     return customers_data
+
+
+def upload_media_to_meta(file_path_or_field):
+    """
+    Uploads a file to Meta Cloud API and returns the media_id.
+    Accepts a local file path (str) or a Django FieldFile/File object.
+    """
+    import os
+    import requests
+    import mimetypes
+
+    phone_number_id = os.getenv("PHONE_NUMBER_ID")
+    whatsapp_token = os.getenv("WHATSAPP_TOKEN")
+    if not phone_number_id or not whatsapp_token:
+        raise ValueError("PHONE_NUMBER_ID and WHATSAPP_TOKEN must be configured in environment.")
+
+    url = f"https://graph.facebook.com/v19.0/{phone_number_id}/media"
+    headers = {
+        "Authorization": f"Bearer {whatsapp_token}"
+    }
+
+    file_name = None
+    file_obj = None
+    mime_type = "image/jpeg"  # Default fallback
+
+    # Check if it's a Django FieldFile or File object (it will have open method and name)
+    if hasattr(file_path_or_field, "name") and hasattr(file_path_or_field, "open"):
+        file_name = os.path.basename(file_path_or_field.name)
+        guess = mimetypes.guess_type(file_name)[0]
+        if guess:
+            mime_type = guess
+        file_obj = file_path_or_field.open("rb")
+    elif isinstance(file_path_or_field, str):
+        if not os.path.exists(file_path_or_field):
+            raise FileNotFoundError(f"File not found on local disk: {file_path_or_field}")
+        file_name = os.path.basename(file_path_or_field)
+        guess = mimetypes.guess_type(file_name)[0]
+        if guess:
+            mime_type = guess
+        file_obj = open(file_path_or_field, "rb")
+    else:
+        raise TypeError("file_path_or_field must be a string file path or a Django File/FieldFile object.")
+
+    try:
+        files = {
+            "messaging_product": (None, "whatsapp"),
+            "file": (file_name, file_obj, mime_type),
+            "type": (None, mime_type)
+        }
+        response = requests.post(url, headers=headers, files=files, timeout=30)
+        
+        # Close file if we opened it locally via string path
+        if isinstance(file_path_or_field, str):
+            file_obj.close()
+
+        if response.status_code == 200:
+            media_id = response.json().get("id")
+            if not media_id:
+                raise Exception("Response did not contain media ID.")
+            return media_id
+        else:
+            raise Exception(f"Meta API returned status code {response.status_code}: {response.text}")
+    finally:
+        try:
+            if file_obj and not file_obj.closed:
+                file_obj.close()
+        except Exception:
+            pass

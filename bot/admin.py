@@ -28,11 +28,59 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
         'header_type', 
         'header_image_url', 
         'header_file',
+        'header_media_id',
         'languages', 
         'created_at'
     )
-    search_fields = ('template_name', 'description', 'header_image_url')
+    search_fields = ('template_name', 'description', 'header_image_url', 'header_media_id')
     list_filter = ('has_variables', 'has_header', 'header_type')
+    actions = ['upload_to_meta_action']
+
+    @admin.action(description="Upload selected templates' header media to Meta")
+    def upload_to_meta_action(self, request, queryset):
+        success_count = 0
+        for template in queryset:
+            if not template.header_file:
+                self.message_user(
+                    request, 
+                    f"Template '{template.template_name}' has no header file configured.", 
+                    level=messages.WARNING
+                )
+                continue
+
+            # Check if file exists on disk
+            import os
+            try:
+                path = template.header_file.path
+                exists = os.path.exists(path)
+            except Exception:
+                exists = False
+
+            if not exists:
+                self.message_user(
+                    request, 
+                    f"Template '{template.template_name}' header file does not physically exist on the server's disk. "
+                    f"Please re-upload the image file manually via the admin first.", 
+                    level=messages.ERROR
+                )
+                continue
+
+            try:
+                from bot.utils import upload_media_to_meta
+                media_id = upload_media_to_meta(template.header_file)
+                if media_id:
+                    template.header_media_id = media_id
+                    template.save()
+                    success_count += 1
+            except Exception as e:
+                self.message_user(
+                    request, 
+                    f"Failed to upload '{template.template_name}' to Meta: {str(e)}", 
+                    level=messages.ERROR
+                )
+
+        if success_count > 0:
+            self.message_user(request, f"Successfully uploaded {success_count} templates' header media to Meta.")
 
 
 class ExcelUploadForm(forms.Form):

@@ -1502,6 +1502,80 @@ class WhatsAppTemplateSyncTests(TestCase):
 class WhatsAppTemplateHeaderTests(TestCase):
     def setUp(self):
         WhatsAppTemplate.objects.all().delete()
+        # Patch upload_media_to_meta globally for this test suite to avoid real API calls on save()
+        self.upload_patcher = patch("bot.utils.upload_media_to_meta", return_value="fake_media_id_123")
+        self.mock_upload = self.upload_patcher.start()
+
+    def tearDown(self):
+        try:
+            self.upload_patcher.stop()
+        except RuntimeError:
+            pass
+
+    @patch("requests.post")
+    @patch("bot.utils.os.getenv")
+    def test_upload_media_to_meta_success(self, mock_getenv, mock_post):
+        # Stop the class-level patcher so we can test the real utility
+        self.upload_patcher.stop()
+        try:
+            mock_getenv.side_effect = lambda key, default=None: {
+                "WHATSAPP_TOKEN": "fake_token",
+                "PHONE_NUMBER_ID": "fake_phone_id"
+            }.get(key, default)
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"id": "meta_returned_media_id_999"}
+            mock_post.return_value = mock_response
+
+            from bot.utils import upload_media_to_meta
+            # Pass a local file path that physically exists
+            import sys
+            import os
+            test_file_path = os.path.abspath(__file__)
+            media_id = upload_media_to_meta(test_file_path)
+            
+            self.assertEqual(media_id, "meta_returned_media_id_999")
+            self.assertEqual(mock_post.call_count, 1)
+        finally:
+            self.upload_patcher.start()
+
+    @patch("bot.broadcast.requests.post")
+    def test_send_whatsapp_template_with_header_media_id(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"success": true}'
+        mock_post.return_value = mock_response
+
+        # Create template with header_media_id set
+        WhatsAppTemplate.objects.create(
+            template_name="ais_140_gps_mining_device",
+            description="Mining Device Info",
+            has_variables=False,
+            has_header=True,
+            header_type="image",
+            header_media_id="meta_media_id_123",
+            languages="en_US"
+        )
+
+        from bot.broadcast import send_whatsapp_template
+        success, error = send_whatsapp_template(
+            to_phone="916281670029",
+            template_name="ais_140_gps_mining_device",
+            language_code="en_US"
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(mock_post.call_count, 1)
+
+        _, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        self.assertIn("components", payload["template"])
+        components = payload["template"]["components"]
+        self.assertEqual(components[0]["type"], "header")
+        self.assertEqual(components[0]["parameters"][0]["type"], "image")
+        self.assertEqual(components[0]["parameters"][0]["image"]["id"], "meta_media_id_123")
+        self.assertNotIn("link", components[0]["parameters"][0]["image"])
 
     @patch("bot.broadcast.requests.post")
     def test_send_whatsapp_template_with_image_header_url(self, mock_post):
@@ -1510,7 +1584,7 @@ class WhatsAppTemplateHeaderTests(TestCase):
         mock_response.text = '{"success": true}'
         mock_post.return_value = mock_response
 
-        # Create template with image header using URL
+        # Create template with image header using URL and empty media ID
         WhatsAppTemplate.objects.create(
             template_name="ais_140_gps_mining_device",
             description="Mining Device Info",
@@ -1518,6 +1592,7 @@ class WhatsAppTemplateHeaderTests(TestCase):
             has_header=True,
             header_type="image",
             header_image_url="https://your-public-image-url.com/mining-header.jpg",
+            header_media_id="",
             languages="en_US"
         )
 
@@ -1536,7 +1611,7 @@ class WhatsAppTemplateHeaderTests(TestCase):
         payload = kwargs["json"]
         self.assertEqual(payload["template"]["name"], "ais_140_gps_mining_device")
         
-        # Verify components structure
+        # Verify components structure fallback to link
         self.assertIn("components", payload["template"])
         components = payload["template"]["components"]
         self.assertEqual(len(components), 1)
@@ -1545,13 +1620,13 @@ class WhatsAppTemplateHeaderTests(TestCase):
         self.assertEqual(components[0]["parameters"][0]["image"]["link"], "https://your-public-image-url.com/mining-header.jpg")
 
     @patch("bot.broadcast.requests.post")
-    def test_send_whatsapp_template_with_image_header_id(self, mock_post):
+    def test_send_whatsapp_template_with_image_header_id_fallback(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = '{"success": true}'
         mock_post.return_value = mock_response
 
-        # Create template with image header using Meta media ID (numeric ID)
+        # Create template with image header using Meta media ID (numeric ID in image_url field)
         WhatsAppTemplate.objects.create(
             template_name="ais_140_gps_mining_device",
             description="Mining Device Info",
@@ -1559,6 +1634,7 @@ class WhatsAppTemplateHeaderTests(TestCase):
             has_header=True,
             header_type="image",
             header_image_url="123456789012345",
+            header_media_id="",
             languages="en_US"
         )
 
@@ -1593,6 +1669,7 @@ class WhatsAppTemplateHeaderTests(TestCase):
             has_header=False,
             header_type="none",
             header_image_url="",
+            header_media_id="",
             languages="en_US"
         )
 
@@ -1618,6 +1695,9 @@ class WhatsAppTemplateHeaderTests(TestCase):
         mock_response.text = '{"success": true}'
         mock_post.return_value = mock_response
 
+        # Temporarily mock upload_media_to_meta to return a dummy so it runs save hook
+        # Actually it's already mocked in setUp to return fake_media_id_123
+
         # Create template with uploaded image file
         mock_file = SimpleUploadedFile("my_downloaded_image.jpg", b"fake_image_bytes", content_type="image/jpeg")
         template = WhatsAppTemplate.objects.create(
@@ -1627,8 +1707,11 @@ class WhatsAppTemplateHeaderTests(TestCase):
             has_header=True,
             header_type="image",
             header_file=mock_file,
+            header_media_id="", # will get populated by save hook to fake_media_id_123
             languages="en_US"
         )
+
+        self.assertEqual(template.header_media_id, "fake_media_id_123")
 
         from bot.broadcast import send_whatsapp_template
         success, error = send_whatsapp_template(
@@ -1644,7 +1727,7 @@ class WhatsAppTemplateHeaderTests(TestCase):
         payload = kwargs["json"]
         self.assertIn("components", payload["template"])
         components = payload["template"]["components"]
-        self.assertEqual(components[0]["parameters"][0]["image"]["link"], f"https://whatsapp-ai-bot-dqot.onrender.com{template.header_file.url}")
+        self.assertEqual(components[0]["parameters"][0]["image"]["id"], "fake_media_id_123")
 
         # Clean up the file created by SimpleUploadedFile
         if template.header_file and os.path.exists(template.header_file.path):

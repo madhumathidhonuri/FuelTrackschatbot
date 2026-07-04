@@ -140,12 +140,65 @@ class WhatsAppTemplate(models.Model):
         null=True,
         help_text="Upload header file (image, video, document) from local system"
     )
+    header_media_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Meta's media ID once uploaded"
+    )
     languages = models.CharField(
         max_length=255,
         default='en_US',
         help_text="Comma-separated approved language codes (e.g. en_US,te)"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        
+        # Check if header_file has changed or was newly uploaded
+        is_changed = False
+        if not self.pk:
+            if self.header_file:
+                is_changed = True
+        else:
+            try:
+                orig = WhatsAppTemplate.objects.get(pk=self.pk)
+                if self.header_file != orig.header_file:
+                    is_changed = True
+            except WhatsAppTemplate.DoesNotExist:
+                is_changed = True
+
+        if is_changed:
+            if self.header_file:
+                from django.core.files.uploadedfile import UploadedFile
+                file_exists = False
+                if isinstance(self.header_file.file, UploadedFile):
+                    file_exists = True
+                else:
+                    try:
+                        file_exists = os.path.exists(self.header_file.path)
+                    except (ValueError, AttributeError):
+                        file_exists = False
+                
+                if not file_exists:
+                    raise ValidationError(
+                        "The template header file does not physically exist on the server's disk. "
+                        "Please re-upload the image file manually via the admin first."
+                    )
+                
+                # Upload to Meta
+                try:
+                    from bot.utils import upload_media_to_meta
+                    media_id = upload_media_to_meta(self.header_file)
+                    if media_id:
+                        self.header_media_id = media_id
+                except Exception as e:
+                    raise ValidationError(f"Failed to upload header media to Meta Cloud API: {str(e)}")
+            else:
+                self.header_media_id = ''
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.template_name} ({self.description or 'No description'})"
