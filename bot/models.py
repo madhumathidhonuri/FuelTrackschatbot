@@ -146,6 +146,11 @@ class WhatsAppTemplate(models.Model):
         default='',
         help_text="Meta's media ID once uploaded"
     )
+    media_id_updated_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp when the Meta media ID was last refreshed/uploaded"
+    )
     languages = models.CharField(
         max_length=255,
         default='en_US',
@@ -193,10 +198,13 @@ class WhatsAppTemplate(models.Model):
                     media_id = upload_media_to_meta(self.header_file)
                     if media_id:
                         self.header_media_id = media_id
+                        from django.utils import timezone
+                        self.media_id_updated_at = timezone.now()
                 except Exception as e:
                     raise ValidationError(f"Failed to upload header media to Meta Cloud API: {str(e)}")
             else:
                 self.header_media_id = ''
+                self.media_id_updated_at = None
 
         super().save(*args, **kwargs)
 

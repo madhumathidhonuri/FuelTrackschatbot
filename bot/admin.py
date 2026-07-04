@@ -29,15 +29,17 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
         'header_image_url', 
         'header_file',
         'header_media_id',
+        'media_id_updated_at',
         'languages', 
         'created_at'
     )
     search_fields = ('template_name', 'description', 'header_image_url', 'header_media_id')
     list_filter = ('has_variables', 'has_header', 'header_type')
-    actions = ['upload_to_meta_action']
+    readonly_fields = ('media_id_updated_at',)
+    actions = ['upload_header_file_to_meta']
 
-    @admin.action(description="Upload selected templates' header media to Meta")
-    def upload_to_meta_action(self, request, queryset):
+    @admin.action(description="Upload header file to Meta")
+    def upload_header_file_to_meta(self, request, queryset):
         success_count = 0
         for template in queryset:
             if not template.header_file:
@@ -70,6 +72,8 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
                 media_id = upload_media_to_meta(template.header_file)
                 if media_id:
                     template.header_media_id = media_id
+                    from django.utils import timezone
+                    template.media_id_updated_at = timezone.now()
                     template.save()
                     success_count += 1
             except Exception as e:
