@@ -112,7 +112,11 @@ def upload_media_to_meta(file_path_or_field):
         guess = mimetypes.guess_type(file_name)[0]
         if guess:
             mime_type = guess
-        file_obj = file_path_or_field.open("rb")
+        file_obj = file_path_or_field
+        try:
+            file_obj.seek(0)
+        except Exception:
+            pass
     elif isinstance(file_path_or_field, str):
         if not os.path.exists(file_path_or_field):
             raise FileNotFoundError(f"File not found on local disk: {file_path_or_field}")
@@ -132,10 +136,6 @@ def upload_media_to_meta(file_path_or_field):
         }
         response = requests.post(url, headers=headers, files=files, timeout=30)
         
-        # Close file if we opened it locally via string path
-        if isinstance(file_path_or_field, str):
-            file_obj.close()
-
         if response.status_code == 200:
             media_id = response.json().get("id")
             if not media_id:
@@ -144,8 +144,15 @@ def upload_media_to_meta(file_path_or_field):
         else:
             raise Exception(f"Meta API returned status code {response.status_code}: {response.text}")
     finally:
-        try:
-            if file_obj and not file_obj.closed:
-                file_obj.close()
-        except Exception:
-            pass
+        if isinstance(file_path_or_field, str):
+            try:
+                if file_obj:
+                    file_obj.close()
+            except Exception:
+                pass
+        else:
+            try:
+                if file_obj:
+                    file_obj.seek(0)
+            except Exception:
+                pass
