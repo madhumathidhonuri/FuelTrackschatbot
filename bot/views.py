@@ -319,6 +319,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "- If the user sends anything unrelated to fleet management, GPS tracking, fuel monitoring, "
             "pricing, or Fuel Tracks products — such as personal chit-chat, jokes, poems, food, weather, "
             "sports, or any other off-topic content — you MUST politely decline and redirect.\n"
+            "- CRITICAL: Product pricing inquiries, catalog/PDF requests, contact requests, greetings, and gratitude (e.g. thanks, thank you) are strictly ON-TOPIC. Never decline or redirect them.\n"
             f"- Off-topic redirect (English): '{display_name} garu, I can only assist with Fuel Tracks "
             "Technologies products and services. Feel free to ask about our GPS trackers, fuel monitoring, "
             "smart cameras, borewell solutions, or other accessories!'\n"
@@ -331,6 +332,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "Meeru general chatbot kaadu — sales assistant maatram.\n"
             "- User personal topics (bhojnam, jokes, kavitalu, weather, sports, etc.) adigithe "
             "maryādagā decline cheyandi mariyu business ki redirect cheyandi.\n"
+            "- CRITICAL: Pricing queries, catalog/PDF requests, contact requests, greetings, and thanks/dhanyavadalu are strictly ON-TOPIC. Never decline or redirect them.\n"
             f"- Off-topic redirect: '{display_name} garu, nenu Fuel Tracks Technologies products "
             "mariyu services ki maatrame help cheyagalanu. Meeru fleet, GPS tracking, fuel monitoring, "
             "cameras, borewell solutions, leda other accessories gurinchi adugavacchu!'\n"
@@ -342,6 +344,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "- మీరు ONLY Fuel Tracks Technologies products మరియు services గురించి మాట్లాడాలి.\n"
             "- వ్యక్తిగత విషయాలు (భోజనం, జోక్స్, కవితలు, వాతావరణం మొదలైనవి) అడిగితే "
             "మర్యాదగా తిరస్కరించండి మరియు వెంటనే business కి redirect చేయండి.\n"
+            "- CRITICAL: ధర (pricing) అడిగినప్పుడు, క్యాటలాగ్/PDF అడిగినప్పుడు, కాంటాక్ట్ నంబర్ అడిగినప్పుడు, నమస్కారాలు, మరియు థాంక్యూ/ధన్యవాదాలు చెప్పినప్పుడు అవి ON-TOPIC. వీటిని ఎప్పుడూ తిరస్కరించకండి.\n"
             f"- Off-topic అయినప్పుడు చెప్పండి: '{display_name} గారు, నేను Fuel Tracks Technologies "
             "products మరియు services కోసం మాత్రమే సహాయం చేయగలను. GPS tracking, fuel monitoring, "
             "కెమెరాలు, బోరుబావి సొల్యూషన్స్, లేదా ఇతర పరికరాల గురించి అడగవచ్చు!'\n"
@@ -375,7 +378,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- Accessories: AC Temperature Sensor for Truck (ఏసి టెంపరేచర్ మానిటరింగ్), Car LCD Monitor (4.3\" డిస్ప్లే), మరియు Relay Cutoff Switch (12V 40A రిమోట్ ఇంజన్/ఫ్యూయల్ పవర్ కట్).\n\n"
 
                 "FUEL TRACKS OFFICIAL CONTACT INFO (TELUGU SCRIPT):\n"
-                "- ఫోన్ నంబర్: +91 90006 66914\n"
+                "- ఫోన్ నంబర్: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n"
                 "- ఈమెయిల్: info@fueltracks.in\n"
                 "- వెబ్‌సైట్: www.fueltracks.in\n"
                 "- ప్రధాన కార్యాలయం: Champapet, Hyderabad (ప్రెస్ కాలనీ, చంపాపేట్, హైదరాబాద్)\n\n"
@@ -385,7 +388,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- ధర వివరాలను మీ అంతటగా ఊహించి చెప్పకండి.\n"
                 "- యూజర్ డీల్స్ లేదా కోట్ కావాలని అడిగితే మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్, "
                 "మిస్టర్ కరుణాకర్ రెడ్డి గారు 10-15 నిమిషాల్లో మీకు కాల్ చేసి పూర్తి వివరాలు "
-                "అందిస్తారని చెప్పండి.\n"
+                "అందిస్తారని చెప్పండి. మీరు నేరుగా సంప్రదించవచ్చు: 7337433350, 7337433351, 73337433356, లేదా మిస్టర్ కరుణాకర్ రెడ్డి 9000666914.\n"
                 f"- ఒకవేళ యూజర్ 'సరే', 'ధన్యవాదాలు', లేదా సెలవు చెబితే: "
                 f"'ఫ్యూయల్ ట్రాక్స్ టెక్నాలజీస్‌ను సంప్రదించినందుకు ధన్యవాదాలు, {display_name_telugu} గారు. "
                 "మీకు శుభదినం!'"
@@ -416,7 +419,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 f"- Accessories: AC Temperature Sensor for Truck, Car LCD Monitor (4.3 inch screen), mariyu Relay Cutoff Switch (12V 40A remote power disconnection switch for fuel/ignition prevention).\n\n"
 
                 "OFFICIAL CONTACT INFO IN TENGLISH:\n"
-                "- Phone Support: +91 90006 66914\n"
+                "- Phone Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n"
                 "- Email: info@fueltracks.in\n"
                 "- Website: www.fueltracks.in\n"
                 "- Head office address: Press Colony, Champapet, Hyderabad\n\n"
@@ -425,7 +428,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "CRITICAL PRICING & CLOSING RULES:\n"
                 "- Specific pricing package values or numerical cost rates guess cheyakandi.\n"
                 f"- Deal quotes or fleet integrations adigithe: 'Mr. Karunakar Reddy garu 10-15 minutes "
-                f"lo meeku call chesi full commercial proposal isthaaru' ani cheppandi.\n"
+                f"lo meeku call chesi full commercial proposal isthaaru' ani cheppandi. Meeru direct ga contact cheyavacchu: 7337433350, 7337433351, 73337433356, leda Mr. Karunakar Reddy 9000666914.\n"
                 f"- If the user says 'ok', 'thank you', or goodbye, close: "
                 f"'Fuel Tracks Technologies ni contact chesinanduku dhanyavadalu, {display_name} garu. "
                 "Have a great day ahead!'"
@@ -452,7 +455,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- Accessories: AC Temperature Sensor for Truck, Car LCD Monitor (4.3\" TFT kit with reversing priority), and Relay Cutoff Switch (12V 40A remote engine/fuel system cutoff).\n\n"
 
                 "FUEL TRACKS OFFICIAL CONTACT INFO:\n"
-                "- Phone Support: +91 90006 66914\n"
+                "- Phone Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n"
                 "- Email: info@fueltracks.in\n"
                 "- Website: www.fueltracks.in\n"
                 "- Address: Press Colony, Champapet, Hyderabad, Telangana 500079\n\n"
@@ -461,7 +464,8 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "CRITICAL PRICING & QUOTE GUARDRAIL:\n"
                 "- NEVER invent, guess, or state specific pricing figures or numerical rates.\n"
                 "- State that our Technical Sales Expert, Mr. Karunakar Reddy, will provide a "
-                "customized commercial proposal during his call.\n\n"
+                "customized commercial proposal during his call. You can also contact us at "
+                "7337433350, 7337433351, 73337433356, or Mr. Karunakar Reddy at 9000666914.\n\n"
 
                 "CRITICAL CLOSING GUARDRAIL:\n"
                 f"- If the user says goodbye, 'bye', 'thank you', or 'thanks', close: "
@@ -868,9 +872,10 @@ def whatsapp_webhook(request):
                         if is_new_unreferred_contact:
                             history = ChatMessage.objects.filter(phone_number=user_phone, role='assistant').order_by('-id')
                             if history.exists():
-                                last_assistant_msg = history[0].content
-                                if "May I know your name" in last_assistant_msg or "tell me your name" in last_assistant_msg:
-                                    asked_for_name = True
+                                for msg in history[:2]:
+                                    if "May I know your name" in msg.content or "tell me your name" in msg.content:
+                                        asked_for_name = True
+                                        break
                                     
                         handle_name_flow = is_new_unreferred_contact and (asked_for_name or is_greeting)
 
@@ -933,7 +938,8 @@ def whatsapp_webhook(request):
                             ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
                             agent_text = (
                                 "Our Expert, Mr. Karunakar Reddy, has been notified of your request! 📞 "
-                                "He will call or message you natively in 10-15 minutes."
+                                "He will call or message you natively in 10-15 minutes.\n\n"
+                                "You can also contact us at: 7337433350, 7337433351, 73337433356, or Mr. Karunakar Reddy at 9000666914."
                             )
                             ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=agent_text)
                             send_whatsapp_message(user_phone, agent_text)
@@ -958,7 +964,7 @@ def whatsapp_webhook(request):
                                     "AIS 140 Certified Devices, and Smart Fuel Monitoring Solutions "
                                     "designed to eliminate fuel theft and optimize fleet operations.\n\n"
                                     "🌐 Website: www.fueltracks.in\n"
-                                    "📞 Support: +91 90006 66914\n\n"
+                                    "📞 Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n\n"
                                     "How can we help your business today? Select an option below:"
                                 )
                                 ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=professional_welcome)

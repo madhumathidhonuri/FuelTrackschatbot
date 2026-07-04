@@ -1889,6 +1889,63 @@ class AdditionalBotFlowTests(TestCase):
         system_prompt = call_args[1]["messages"][0]["content"]
         self.assertIn("Focus strictly on the GPS tracker's waterproof capabilities and remote engine cutoff.", system_prompt)
 
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_welcome_and_agent_contact_numbers(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock response from Meta
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # 1. Check welcome message support numbers on greeting
+        new_phone = "919000111222"
+        payload_1 = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_hello", "type": "text", "text": {"body": "Hello"}}]}}]}]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_1),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # First call is the interactive welcome message
+        _, kwargs_welcome = mock_post.call_args_list[0]
+        welcome_text = kwargs_welcome["json"]["interactive"]["body"]["text"]
+        self.assertIn("73374 33350", welcome_text)
+        self.assertIn("73374 33351", welcome_text)
+        self.assertIn("73337 43356", welcome_text)
+
+        # 2. Check talk to an agent numbers
+        mock_post.reset_mock()
+        payload_2 = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_agent", "type": "text", "text": {"body": "talk to an agent"}}]}}]}]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_2),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        _, kwargs_agent = mock_post.call_args_list[0]
+        agent_body = kwargs_agent["json"]["text"]["body"]
+        self.assertIn("7337433350", agent_body)
+        self.assertIn("7337433351", agent_body)
+        self.assertIn("73337433356", agent_body)
+
 
 
 
