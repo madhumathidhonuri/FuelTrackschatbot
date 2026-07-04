@@ -159,7 +159,8 @@ class WhatsAppTemplate(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        from django.core.exceptions import ValidationError
+        import logging
+        logger = logging.getLogger(__name__)
         
         # Check if header_file has changed or was newly uploaded
         is_changed = False
@@ -187,21 +188,25 @@ class WhatsAppTemplate(models.Model):
                         file_exists = False
                 
                 if not file_exists:
-                    raise ValidationError(
-                        "The template header file does not physically exist on the server's disk. "
-                        "Please re-upload the image file manually via the admin first."
-                    )
-                
-                # Upload to Meta
-                try:
-                    from bot.utils import upload_media_to_meta
-                    media_id = upload_media_to_meta(self.header_file)
-                    if media_id:
-                        self.header_media_id = media_id
-                        from django.utils import timezone
-                        self.media_id_updated_at = timezone.now()
-                except Exception as e:
-                    raise ValidationError(f"Failed to upload header media to Meta Cloud API: {str(e)}")
+                    logger.warning("The template header file does not physically exist on the server's disk. Left header_media_id blank.")
+                    self.header_media_id = ''
+                    self.media_id_updated_at = None
+                else:
+                    # Upload to Meta
+                    try:
+                        from bot.utils import upload_media_to_meta
+                        media_id = upload_media_to_meta(self.header_file)
+                        if media_id:
+                            self.header_media_id = media_id
+                            from django.utils import timezone
+                            self.media_id_updated_at = timezone.now()
+                        else:
+                            self.header_media_id = ''
+                            self.media_id_updated_at = None
+                    except Exception as e:
+                        logger.error(f"Failed to auto-upload template header media to Meta Cloud API: {str(e)}")
+                        self.header_media_id = ''
+                        self.media_id_updated_at = None
             else:
                 self.header_media_id = ''
                 self.media_id_updated_at = None
