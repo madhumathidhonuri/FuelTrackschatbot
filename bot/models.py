@@ -112,6 +112,28 @@ class WhatsAppTemplate(models.Model):
         default=False, 
         help_text="Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)"
     )
+    has_header = models.BooleanField(
+        default=False,
+        help_text="Does this template have a header?"
+    )
+    header_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('none', 'None'),
+            ('image', 'Image'),
+            ('text', 'Text'),
+            ('video', 'Video'),
+            ('document', 'Document'),
+        ],
+        default='none',
+        help_text="Type of header template requires"
+    )
+    header_image_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text="URL or Meta Media ID of the header image if header type is Image/Video/Document"
+    )
     languages = models.CharField(
         max_length=255,
         default='en_US',

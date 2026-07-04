@@ -58,28 +58,57 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
         "language": {"code": language_code}
     }
 
-    # Check if template has variables in database (fallback to hardcoded list if not found or on error)
+    # Check template configuration in database (fallback to hardcoded list if not found or on error)
     has_variables = False
+    has_header = False
+    header_type = 'none'
+    header_image_url = ''
     try:
         from bot.models import WhatsAppTemplate
         template_obj = WhatsAppTemplate.objects.filter(template_name=template_name).first()
         if template_obj:
             has_variables = template_obj.has_variables
+            has_header = template_obj.has_header
+            header_type = template_obj.header_type
+            header_image_url = template_obj.header_image_url
         else:
             has_variables = template_name in ["fuel_alert", "fleet_update", "promo_blast"]
     except Exception:
         has_variables = template_name in ["fuel_alert", "fleet_update", "promo_blast"]
 
-    if has_variables and (customer_name or vehicle_number):
-        template_payload["components"] = [
-            {
-                "type": "body",
+    components = []
+
+    # Handle dynamic media header (image, video, document)
+    if has_header and header_type in ('image', 'video', 'document'):
+        if header_image_url:
+            media_data = {}
+            if header_image_url.startswith("http://") or header_image_url.startswith("https://"):
+                media_data = {"link": header_image_url}
+            else:
+                media_data = {"id": header_image_url}
+
+            components.append({
+                "type": "header",
                 "parameters": [
-                    {"type": "text", "text": customer_name or "Customer"},
-                    {"type": "text", "text": vehicle_number or "N/A"}
+                    {
+                        "type": header_type,
+                        header_type: media_data
+                    }
                 ]
-            }
-        ]
+            })
+
+    # Handle body variables
+    if has_variables and (customer_name or vehicle_number):
+        components.append({
+            "type": "body",
+            "parameters": [
+                {"type": "text", "text": customer_name or "Customer"},
+                {"type": "text", "text": vehicle_number or "N/A"}
+            ]
+        })
+
+    if components:
+        template_payload["components"] = components
 
     payload = {
         "messaging_product": "whatsapp",

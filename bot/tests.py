@@ -1407,6 +1407,16 @@ class WhatsAppTemplateSyncTests(TestCase):
                     "components": [{"type": "BODY", "text": "Fuel drop alert for {{1}}"}]
                 },
                 {
+                    "name": "ais_140_gps_mining_device",
+                    "status": "APPROVED",
+                    "category": "UTILITY",
+                    "language": "en_US",
+                    "components": [
+                        {"type": "HEADER", "format": "IMAGE"},
+                        {"type": "BODY", "text": "Mining details"}
+                    ]
+                },
+                {
                     "name": "pending_template",
                     "status": "PENDING",
                     "category": "UTILITY",
@@ -1424,24 +1434,35 @@ class WhatsAppTemplateSyncTests(TestCase):
         self.assertIn("hello_world", result)
         self.assertIn("gps_tracking_device", result)
         self.assertIn("fuel_alert", result)
+        self.assertIn("ais_140_gps_mining_device", result)
         self.assertNotIn("pending_template", result) # Should filter out pending
 
         self.assertEqual(result["hello_world"], ["en_US"])
         self.assertEqual(result["gps_tracking_device"], ["en_US", "te"])
         self.assertEqual(result["fuel_alert"], ["en_US"])
+        self.assertEqual(result["ais_140_gps_mining_device"], ["en_US"])
 
         # Check DB objects
         t_hello = WhatsAppTemplate.objects.get(template_name="hello_world")
         self.assertFalse(t_hello.has_variables)
+        self.assertFalse(t_hello.has_header)
+        self.assertEqual(t_hello.header_type, "none")
         self.assertEqual(t_hello.languages, "en_US")
 
         t_fuel = WhatsAppTemplate.objects.get(template_name="fuel_alert")
         self.assertTrue(t_fuel.has_variables)
+        self.assertFalse(t_fuel.has_header)
         self.assertEqual(t_fuel.languages, "en_US")
 
         t_gps = WhatsAppTemplate.objects.get(template_name="gps_tracking_device")
         self.assertFalse(t_gps.has_variables)
+        self.assertFalse(t_gps.has_header)
         self.assertEqual(t_gps.languages, "en_US,te")
+
+        t_mining = WhatsAppTemplate.objects.get(template_name="ais_140_gps_mining_device")
+        self.assertFalse(t_mining.has_variables)
+        self.assertTrue(t_mining.has_header)
+        self.assertEqual(t_mining.header_type, "image")
 
     @patch("bot.admin.requests.get")
     @patch("bot.admin.os.getenv")
@@ -1476,6 +1497,118 @@ class WhatsAppTemplateSyncTests(TestCase):
         mapping = json.loads(response.context["templates_mapping_json"])
         self.assertIn("gps_tracking_device", mapping)
         self.assertEqual(mapping["gps_tracking_device"], ["en_US"])
+
+
+class WhatsAppTemplateHeaderTests(TestCase):
+    def setUp(self):
+        WhatsAppTemplate.objects.all().delete()
+
+    @patch("bot.broadcast.requests.post")
+    def test_send_whatsapp_template_with_image_header_url(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"success": true}'
+        mock_post.return_value = mock_response
+
+        # Create template with image header using URL
+        WhatsAppTemplate.objects.create(
+            template_name="ais_140_gps_mining_device",
+            description="Mining Device Info",
+            has_variables=False,
+            has_header=True,
+            header_type="image",
+            header_image_url="https://your-public-image-url.com/mining-header.jpg",
+            languages="en_US"
+        )
+
+        from bot.broadcast import send_whatsapp_template
+        success, error = send_whatsapp_template(
+            to_phone="916281670029",
+            template_name="ais_140_gps_mining_device",
+            language_code="en_US"
+        )
+
+        self.assertTrue(success)
+        self.assertIsNone(error)
+        self.assertEqual(mock_post.call_count, 1)
+
+        _, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        self.assertEqual(payload["template"]["name"], "ais_140_gps_mining_device")
+        
+        # Verify components structure
+        self.assertIn("components", payload["template"])
+        components = payload["template"]["components"]
+        self.assertEqual(len(components), 1)
+        self.assertEqual(components[0]["type"], "header")
+        self.assertEqual(components[0]["parameters"][0]["type"], "image")
+        self.assertEqual(components[0]["parameters"][0]["image"]["link"], "https://your-public-image-url.com/mining-header.jpg")
+
+    @patch("bot.broadcast.requests.post")
+    def test_send_whatsapp_template_with_image_header_id(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"success": true}'
+        mock_post.return_value = mock_response
+
+        # Create template with image header using Meta media ID (numeric ID)
+        WhatsAppTemplate.objects.create(
+            template_name="ais_140_gps_mining_device",
+            description="Mining Device Info",
+            has_variables=False,
+            has_header=True,
+            header_type="image",
+            header_image_url="123456789012345",
+            languages="en_US"
+        )
+
+        from bot.broadcast import send_whatsapp_template
+        success, error = send_whatsapp_template(
+            to_phone="916281670029",
+            template_name="ais_140_gps_mining_device",
+            language_code="en_US"
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(mock_post.call_count, 1)
+
+        _, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        components = payload["template"]["components"]
+        self.assertEqual(components[0]["parameters"][0]["image"]["id"], "123456789012345")
+        self.assertNotIn("link", components[0]["parameters"][0]["image"])
+
+    @patch("bot.broadcast.requests.post")
+    def test_send_whatsapp_template_with_no_header(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"success": true}'
+        mock_post.return_value = mock_response
+
+        # Create template with no header
+        WhatsAppTemplate.objects.create(
+            template_name="simple_template",
+            description="No Header Info",
+            has_variables=False,
+            has_header=False,
+            header_type="none",
+            header_image_url="",
+            languages="en_US"
+        )
+
+        from bot.broadcast import send_whatsapp_template
+        success, error = send_whatsapp_template(
+            to_phone="916281670029",
+            template_name="simple_template",
+            language_code="en_US"
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(mock_post.call_count, 1)
+
+        _, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        self.assertNotIn("components", payload["template"])
 
 
 

@@ -20,9 +20,18 @@ class AdCampaignAdmin(admin.ModelAdmin):
 
 @admin.register(WhatsAppTemplate)
 class WhatsAppTemplateAdmin(admin.ModelAdmin):
-    list_display = ('template_name', 'description', 'has_variables', 'languages', 'created_at')
-    search_fields = ('template_name', 'description')
-    list_filter = ('has_variables',)
+    list_display = (
+        'template_name', 
+        'description', 
+        'has_variables', 
+        'has_header', 
+        'header_type', 
+        'header_image_url', 
+        'languages', 
+        'created_at'
+    )
+    search_fields = ('template_name', 'description', 'header_image_url')
+    list_filter = ('has_variables', 'has_header', 'header_type')
 
 
 class ExcelUploadForm(forms.Form):
@@ -195,23 +204,32 @@ def sync_whatsapp_templates_from_meta():
                 if not name or not lang:
                     continue
                 
-                # Check if it has variables
+                # Check if it has variables and headers
                 has_vars = False
+                has_header = False
+                header_type = 'none'
                 for comp in item.get("components", []):
                     text = comp.get("text", "")
                     if text and "{{" in text:
                         has_vars = True
-                        break
+                    if comp.get("type") == "HEADER":
+                        has_header = True
+                        header_type = comp.get("format", "TEXT").lower()
                         
                 if name not in grouped:
                     grouped[name] = {
                         "languages": set(),
                         "has_variables": False,
+                        "has_header": False,
+                        "header_type": "none",
                         "category": item.get("category", "")
                     }
                 grouped[name]["languages"].add(lang)
                 if has_vars:
                     grouped[name]["has_variables"] = True
+                if has_header:
+                    grouped[name]["has_header"] = True
+                    grouped[name]["header_type"] = header_type
             
             # Now update the database
             for name, info in grouped.items():
@@ -222,7 +240,9 @@ def sync_whatsapp_templates_from_meta():
                     defaults={
                         "description": desc,
                         "has_variables": info["has_variables"],
-                        "languages": langs_str
+                        "languages": langs_str,
+                        "has_header": info["has_header"],
+                        "header_type": info["header_type"]
                     }
                 )
             return {name: sorted(list(info["languages"])) for name, info in grouped.items()}
@@ -388,18 +408,21 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             return redirect(".")
         # Ensure default templates are populated if missing (with correct languages)
         default_templates = [
-            ("hello_world", "Default Greetings", False, "en_US"),
-            ("gps_tracking_device", "GPS Tracking Devices promo", False, "en_US"),
-            ("fuel_alert", "Fuel theft/drop alerts", True, "en_US,te"),
-            ("fleet_update", "Fleet status summary updates", True, "en_US,te"),
+            ("hello_world", "Default Greetings", False, "en_US", False, "none", ""),
+            ("gps_tracking_device", "GPS Tracking Devices promo", False, "en_US", False, "none", ""),
+            ("fuel_alert", "Fuel theft/drop alerts", True, "en_US,te", False, "none", ""),
+            ("fleet_update", "Fleet status summary updates", True, "en_US,te", False, "none", ""),
         ]
-        for name, desc, has_vars, langs in default_templates:
+        for name, desc, has_vars, langs, has_header, header_type, header_img in default_templates:
             WhatsAppTemplate.objects.get_or_create(
                 template_name=name,
                 defaults={
                     "description": desc,
                     "has_variables": has_vars,
-                    "languages": langs
+                    "languages": langs,
+                    "has_header": has_header,
+                    "header_type": header_type,
+                    "header_image_url": header_img
                 }
             )
 
