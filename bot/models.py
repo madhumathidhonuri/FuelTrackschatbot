@@ -108,6 +108,11 @@ class WhatsAppTemplate(models.Model):
         blank=True, 
         help_text="Brief description/label shown in dropdown"
     )
+    custom_system_prompt = models.TextField(
+        blank=True,
+        default='',
+        help_text="Custom instructions to inject into the AI agent prompt when a customer responds to this template."
+    )
     has_variables = models.BooleanField(
         default=False, 
         help_text="Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)"

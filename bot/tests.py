@@ -1737,5 +1737,158 @@ class WhatsAppTemplateHeaderTests(TestCase):
                 pass
 
 
+class AdditionalBotFlowTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        # Clean database state before test
+        FleetCustomer.objects.all().delete()
+        ChatMessage.objects.all().delete()
+        WhatsAppTemplate.objects.all().delete()
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_new_customer_cost_query_and_name_collection(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        
+        # 1. Mock Groq response for the AI reply
+        mock_completion_1 = MagicMock()
+        mock_completion_1.choices = [
+            MagicMock(message=MagicMock(content="Here is the price of our tracker."))
+        ]
+        mock_ai_instance.chat.completions.create.return_value = mock_completion_1
+
+        # Mock response from Meta Graph Server
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Post specific query from a new phone number
+        new_phone = "919000285220"
+        payload_1 = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_cost", "type": "text", "text": {"body": "Cost antha"}}]}}]}]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_1),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # AI should be called (not intercepted by the generic welcome)
+        self.assertTrue(mock_ai_instance.chat.completions.create.called)
+        
+        # Let's inspect the message sent to WhatsApp: it should contain the AI response + name request suffix
+        _, kwargs_post = mock_post.call_args
+        sent_body = kwargs_post["json"]["text"]["body"]
+        self.assertIn("Here is the price of our tracker.", sent_body)
+        self.assertIn("May I know your name, please?", sent_body)
+
+        # 2. Next message, the customer replies with their name "Narender"
+        # Reset mocks
+        mock_post.reset_mock()
+        mock_ai_instance.chat.completions.create.reset_mock()
+        
+        mock_completion_2 = MagicMock()
+        mock_completion_2.choices = [
+            MagicMock(message=MagicMock(content='{"name": "Narender", "truck_number": null}'))
+        ]
+        mock_ai_instance.chat.completions.create.return_value = mock_completion_2
+
+        payload_2 = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_name", "type": "text", "text": {"body": "Narender"}}]}}]}]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_2),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Customer's name should be extracted and saved to DB
+        customer = FleetCustomer.objects.get(phone_number=new_phone)
+        self.assertEqual(customer.owner_name, "Narender")
+
+        # Friendly response should be sent to user acknowledging their name
+        _, kwargs_post_2 = mock_post.call_args
+        self.assertIn("Narender garu", kwargs_post_2["json"]["text"]["body"])
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_broadcast_template_context_routing(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="Yes, our GPS tracker is waterproof."))
+        ]
+        mock_ai_instance.chat.completions.create.return_value = mock_completion
+
+        # Mock response from Meta Graph Server
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Create a customer with a name
+        customer = FleetCustomer.objects.create(
+            phone_number="919999999999",
+            owner_name="Narender",
+            is_active=True
+        )
+
+        # Create a WhatsAppTemplate with a custom system prompt instruction
+        template = WhatsAppTemplate.objects.create(
+            template_name="gps_tracking_device",
+            description="Promo for GPS Tracker",
+            custom_system_prompt="Focus strictly on the GPS tracker's waterproof capabilities and remote engine cutoff."
+        )
+
+        # Simulate system sent broadcast message in ChatMessage history
+        ChatMessage.objects.create(
+            phone_number=customer.phone_number,
+            role="assistant",
+            content=f"[System Sent Broadcast: {template.template_name} - {template.description}]"
+        )
+
+        # Customer replies "Is it waterproof?"
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": customer.phone_number, "id": "msg_reply", "type": "text", "text": {"body": "Is it waterproof?"}}]}}]}]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify Groq was called and custom system prompt is injected
+        self.assertTrue(mock_ai_instance.chat.completions.create.called)
+        call_args = mock_ai_instance.chat.completions.create.call_args
+        system_prompt = call_args[1]["messages"][0]["content"]
+        self.assertIn("Focus strictly on the GPS tracker's waterproof capabilities and remote engine cutoff.", system_prompt)
+
+
 
 

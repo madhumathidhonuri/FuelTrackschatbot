@@ -156,7 +156,7 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
                     ChatMessage.objects.create(
                         phone_number=to_phone,
                         role='assistant',
-                        content=f"[System Sent Broadcast: {desc}]"
+                        content=f"[System Sent Broadcast: {template_name} - {desc}]"
                     )
                 except Exception as e:
                     print(f"Failed to record broadcast message in history: {e}")

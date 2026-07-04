@@ -33,7 +33,7 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
         'languages', 
         'created_at'
     )
-    search_fields = ('template_name', 'description', 'header_image_url', 'header_media_id')
+    search_fields = ('template_name', 'description', 'custom_system_prompt', 'header_image_url', 'header_media_id')
     list_filter = ('has_variables', 'has_header', 'header_type')
     readonly_fields = ('media_id_updated_at',)
     actions = ['upload_header_file_to_meta']

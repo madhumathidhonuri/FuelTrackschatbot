@@ -50,6 +50,19 @@ def has_keyword_match(text, keywords):
     return False
 
 
+def is_simple_greeting(text):
+    """
+    Checks if the clean user text is a simple greeting or start trigger.
+    """
+    greetings = {
+        "hi", "hello", "namaste", "start", "hey", "yo", "good morning", "good afternoon",
+        "good evening", "hlo", "hi sir", "hello sir", "హాయ్", "హలో", "నమస్తే", "నమస్కారం"
+    }
+    # Remove simple punctuation like question marks or exclamation marks and trim whitespace
+    cleaned = "".join(c for c in text.lower() if c.isalnum() or c.isspace()).strip()
+    return cleaned in greetings
+
+
 def find_device_catalog_match(text, history_messages=None):
     """
     Scans the text (and optionally history) to find which device catalog to send.
@@ -293,7 +306,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
         tenglish_keywords = [
             "chepu", "cheppandi", "enti", "anti", "ela", "kavali", "unayi", "una", "undhi", "lo", "ki",
-            "pampisthaya", "pampandi", "entha", "vundhi", "vunnayi", "kuda", "naku", "mana", "features",
+            "pampisthaya", "pampandi", "entha", "antha", "vundhi", "vunnayi", "kuda", "naku", "mana", "features",
             "chestunda", "pampisthundhi", "vaddhu", "avunu", "ledu", "panichayayi", "ledhu",
             "ventane", "akada", "ekada"
         ]
@@ -469,6 +482,49 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             )
             system_prompt += ad_context
 
+        # Check if the customer recently received a broadcast template
+        recent_broadcast = ChatMessage.objects.filter(
+            phone_number=user_phone,
+            role='assistant',
+            content__startswith="[System Sent Broadcast:"
+        ).order_by('-id').first()
+
+        if recent_broadcast:
+            content = recent_broadcast.content
+            template_name = None
+            if " - " in content:
+                # Format: [System Sent Broadcast: template_name - desc]
+                parts = content.replace("[System Sent Broadcast:", "").replace("]", "").strip().split(" - ")
+                if parts:
+                    template_name = parts[0].strip()
+            else:
+                # Fallback for older formats: [System Sent Broadcast: desc]
+                template_name = content.replace("[System Sent Broadcast:", "").replace("]", "").strip()
+
+            if template_name:
+                from bot.models import WhatsAppTemplate
+                template_obj = WhatsAppTemplate.objects.filter(template_name=template_name).first()
+                template_prompt = ""
+                if template_obj and template_obj.custom_system_prompt:
+                    template_prompt = template_obj.custom_system_prompt
+                else:
+                    DEFAULT_TEMPLATE_PROMPTS = {
+                        "hello_world": "Focus on welcoming the user and introducing our GPS tracking and fuel monitoring systems.",
+                        "gps_tracking_device": "Focus strictly on promoting and answering queries about our AIS 140 certified GPS tracking devices.",
+                        "ais_140_gps_mining_device": "Focus strictly on our AIS 140 certified GPS tracking devices optimized for mining and heavy commercial vehicles.",
+                        "fuel_alert": "Focus on addressing the fuel drop/theft alert, explaining how our fuel sensors work to detect theft and provide 99% accuracy.",
+                        "fleet_update": "Focus on discussing fleet tracking updates and overall fleet optimization."
+                    }
+                    template_prompt = DEFAULT_TEMPLATE_PROMPTS.get(template_name, "")
+
+                if template_prompt:
+                    template_context = (
+                        f"\n\nCRITICAL CONTEXT: The customer recently received the broadcast template: '{template_name}'. "
+                        f"You MUST focus your conversation strictly and response style on the product/topic of this template: {template_prompt}. "
+                        f"Do NOT offer, pitch, or discuss other company products unless the customer explicitly asks about them."
+                    )
+                    system_prompt += template_context
+
         # Fetch history. To ensure stable sorting, we order by '-id' (newest first).
         messages_payload = [{"role": "system", "content": system_prompt}]
 
@@ -507,6 +563,21 @@ def get_ai_response(user_phone, new_user_message, customer=None):
         )
 
         ai_reply = completion.choices[0].message.content
+
+        # If the customer's name is not yet collected (i.e. name is default "New Fleet Contact"),
+        # append a request for their name to the generated AI response.
+        is_new_contact = (
+            not customer or 
+            not customer.owner_name or 
+            customer.owner_name.strip().lower() in ["new fleet contact", "new fleet contact."]
+        )
+        if is_new_contact:
+            if has_telugu_script:
+                name_suffix = "\n\nదయచేసి మీ పేరు తెలుసుకోవచ్చా? (May I know your name, please?)"
+            else:
+                name_suffix = "\n\nMay I know your name, please?"
+            ai_reply = f"{ai_reply}{name_suffix}"
+
         ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=ai_reply)
         return ai_reply
 
@@ -785,6 +856,24 @@ def whatsapp_webhook(request):
                         device_triggers = ["tracker", "ట్రాకర్", "gps", "జిపిఎస్", "device", "పరికరం"]
                         is_device_query = has_keyword_match(clean_text, device_triggers)
 
+                        # Determine if this message is a simple greeting
+                        is_greeting = is_simple_greeting(clean_text)
+                        
+                        # Determine if we should handle the name collection flow
+                        asked_for_name = False
+                        is_new_unreferred_contact = (
+                            customer.owner_name == "New Fleet Contact" and 
+                            not customer.referred_by
+                        )
+                        if is_new_unreferred_contact:
+                            history = ChatMessage.objects.filter(phone_number=user_phone, role='assistant').order_by('-id')
+                            if history.exists():
+                                last_assistant_msg = history[0].content
+                                if "May I know your name" in last_assistant_msg or "tell me your name" in last_assistant_msg:
+                                    asked_for_name = True
+                                    
+                        handle_name_flow = is_new_unreferred_contact and (asked_for_name or is_greeting)
+
                         if clean_text == "stop":
                             customer.is_active = False
                             customer.save()
@@ -860,15 +949,7 @@ def whatsapp_webhook(request):
                             send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
                             return JsonResponse({"status": "success"})
 
-                        elif customer.owner_name == "New Fleet Contact" and not customer.referred_by:
-                            # Check history to see if we already asked for the name
-                            history = ChatMessage.objects.filter(phone_number=user_phone, role='assistant').order_by('-id')
-                            asked_for_name = False
-                            if history.exists():
-                                last_assistant_msg = history[0].content
-                                if "May I know your name" in last_assistant_msg or "tell me your name" in last_assistant_msg:
-                                    asked_for_name = True
-
+                        elif handle_name_flow:
                             if not asked_for_name:
                                 ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
                                 professional_welcome = (
