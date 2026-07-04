@@ -160,56 +160,68 @@ class WhatsAppTemplate(models.Model):
 
     def save(self, *args, **kwargs):
         import logging
+        import os
         logger = logging.getLogger(__name__)
         
-        # Check if header_file has changed or was newly uploaded
-        is_changed = False
-        if not self.pk:
-            if self.header_file:
-                is_changed = True
-        else:
-            try:
-                orig = WhatsAppTemplate.objects.get(pk=self.pk)
-                if self.header_file != orig.header_file:
+        try:
+            # Check if header_file has changed or was newly uploaded
+            is_changed = False
+            if not self.pk:
+                if self.header_file:
                     is_changed = True
-            except WhatsAppTemplate.DoesNotExist:
-                is_changed = True
+            else:
+                try:
+                    orig = WhatsAppTemplate.objects.get(pk=self.pk)
+                    if self.header_file != orig.header_file:
+                        is_changed = True
+                except WhatsAppTemplate.DoesNotExist:
+                    is_changed = True
 
-        if is_changed:
-            if self.header_file:
-                from django.core.files.uploadedfile import UploadedFile
-                file_exists = False
-                if isinstance(self.header_file.file, UploadedFile):
-                    file_exists = True
-                else:
+            if is_changed:
+                if self.header_file:
+                    file_exists = False
                     try:
-                        file_exists = os.path.exists(self.header_file.path)
-                    except (ValueError, AttributeError):
+                        from django.core.files.uploadedfile import UploadedFile
+                        if hasattr(self.header_file, 'file') and isinstance(self.header_file.file, UploadedFile):
+                            file_exists = True
+                        elif hasattr(self.header_file, 'path') and os.path.exists(self.header_file.path):
+                            file_exists = True
+                    except Exception as check_err:
+                        logger.warning(f"Error checking if header_file exists: {check_err}")
                         file_exists = False
-                
-                if not file_exists:
-                    logger.warning("The template header file does not physically exist on the server's disk. Left header_media_id blank.")
-                    self.header_media_id = ''
-                    self.media_id_updated_at = None
-                else:
-                    # Upload to Meta
-                    try:
-                        from bot.utils import upload_media_to_meta
-                        media_id = upload_media_to_meta(self.header_file)
-                        if media_id:
-                            self.header_media_id = media_id
-                            from django.utils import timezone
-                            self.media_id_updated_at = timezone.now()
-                        else:
-                            self.header_media_id = ''
-                            self.media_id_updated_at = None
-                    except Exception as e:
-                        logger.error(f"Failed to auto-upload template header media to Meta Cloud API: {str(e)}")
+                    
+                    if not file_exists:
+                        logger.warning("The template header file does not physically exist on the server's disk. Left header_media_id blank.")
                         self.header_media_id = ''
                         self.media_id_updated_at = None
-            else:
-                self.header_media_id = ''
-                self.media_id_updated_at = None
+                    else:
+                        # Upload to Meta
+                        try:
+                            from bot.utils import upload_media_to_meta
+                            media_id = upload_media_to_meta(self.header_file)
+                            if media_id:
+                                self.header_media_id = media_id
+                                from django.utils import timezone
+                                self.media_id_updated_at = timezone.now()
+                            else:
+                                self.header_media_id = ''
+                                self.media_id_updated_at = None
+                        except Exception as upload_err:
+                            logger.error(f"[ERROR] Meta upload failed: {upload_err}")
+                            self.header_media_id = ''
+                            self.media_id_updated_at = None
+                else:
+                    self.header_media_id = ''
+                    self.media_id_updated_at = None
+        except Exception as outer_err:
+            logger.error(f"[ERROR] WhatsAppTemplate save hook failed: {outer_err}")
+            try:
+                if not hasattr(self, 'header_media_id') or not self.header_media_id:
+                    self.header_media_id = ''
+                if not hasattr(self, 'media_id_updated_at'):
+                    self.media_id_updated_at = None
+            except Exception:
+                pass
 
         super().save(*args, **kwargs)
 
