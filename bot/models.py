@@ -134,6 +134,12 @@ class WhatsAppTemplate(models.Model):
         default='',
         help_text="URL or Meta Media ID of the header image if header type is Image/Video/Document"
     )
+    header_file = models.FileField(
+        upload_to='whatsapp_templates/',
+        blank=True,
+        null=True,
+        help_text="Upload header file (image, video, document) from local system"
+    )
     languages = models.CharField(
         max_length=255,
         default='en_US',

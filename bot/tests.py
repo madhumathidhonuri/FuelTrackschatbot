@@ -1610,6 +1610,49 @@ class WhatsAppTemplateHeaderTests(TestCase):
         payload = kwargs["json"]
         self.assertNotIn("components", payload["template"])
 
+    @patch("bot.broadcast.requests.post")
+    def test_send_whatsapp_template_with_image_header_uploaded_file(self, mock_post):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"success": true}'
+        mock_post.return_value = mock_response
+
+        # Create template with uploaded image file
+        mock_file = SimpleUploadedFile("my_downloaded_image.jpg", b"fake_image_bytes", content_type="image/jpeg")
+        template = WhatsAppTemplate.objects.create(
+            template_name="ais_140_gps_mining_device",
+            description="Mining Device Info",
+            has_variables=False,
+            has_header=True,
+            header_type="image",
+            header_file=mock_file,
+            languages="en_US"
+        )
+
+        from bot.broadcast import send_whatsapp_template
+        success, error = send_whatsapp_template(
+            to_phone="916281670029",
+            template_name="ais_140_gps_mining_device",
+            language_code="en_US"
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(mock_post.call_count, 1)
+
+        _, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        self.assertIn("components", payload["template"])
+        components = payload["template"]["components"]
+        self.assertEqual(components[0]["parameters"][0]["image"]["link"], f"https://whatsapp-ai-bot-dqot.onrender.com{template.header_file.url}")
+
+        # Clean up the file created by SimpleUploadedFile
+        if template.header_file and os.path.exists(template.header_file.path):
+            try:
+                os.remove(template.header_file.path)
+            except Exception:
+                pass
+
 
 
 

@@ -27,6 +27,7 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
         'has_header', 
         'header_type', 
         'header_image_url', 
+        'header_file',
         'languages', 
         'created_at'
     )

@@ -63,6 +63,7 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
     has_header = False
     header_type = 'none'
     header_image_url = ''
+    header_file_url = None
     try:
         from bot.models import WhatsAppTemplate
         template_obj = WhatsAppTemplate.objects.filter(template_name=template_name).first()
@@ -71,6 +72,12 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
             has_header = template_obj.has_header
             header_type = template_obj.header_type
             header_image_url = template_obj.header_image_url
+            if template_obj.header_file:
+                import os
+                site_url = os.getenv("SITE_URL", "https://whatsapp-ai-bot-dqot.onrender.com")
+                if site_url.endswith("/"):
+                    site_url = site_url[:-1]
+                header_file_url = f"{site_url}{template_obj.header_file.url}"
         else:
             has_variables = template_name in ["fuel_alert", "fleet_update", "promo_blast"]
     except Exception:
@@ -80,12 +87,13 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
 
     # Handle dynamic media header (image, video, document)
     if has_header and header_type in ('image', 'video', 'document'):
-        if header_image_url:
+        media_url_or_id = header_file_url or header_image_url
+        if media_url_or_id:
             media_data = {}
-            if header_image_url.startswith("http://") or header_image_url.startswith("https://"):
-                media_data = {"link": header_image_url}
+            if media_url_or_id.startswith("http://") or media_url_or_id.startswith("https://"):
+                media_data = {"link": media_url_or_id}
             else:
-                media_data = {"id": header_image_url}
+                media_data = {"id": media_url_or_id}
 
             components.append({
                 "type": "header",
