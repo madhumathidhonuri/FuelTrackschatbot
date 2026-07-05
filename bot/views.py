@@ -197,6 +197,25 @@ CATALOG_METADATA = {
 }
 
 
+CONTACT_KEYWORDS = [
+    "give his number", "his phone number", "contact number", "give number",
+    "number of the human", "number send", "number bodybuilding", "number ivvu",
+    "number pampandi", "ph no", "phone no", "mobile number", "contact details",
+    "phone number", "mobile", "whatsapp number", "karunakar number", "karunakar phone",
+    "his number", "his contact", "agent number", "agent phone", "agent contact",
+    "reddy number", "reddy phone", "provide phone number", "send phone number",
+    "give phone number", "how can i contact", "how to contact", "how can we contact",
+    "contact you", "contact us", "how to reach", "how can i reach",
+    "sales", "contact sales", "talk to sales", "connect to sales", "call sales", "speak to sales",
+    "sales team", "sales executive", "sales person", "sales guy", "sales manager", "sales representative",
+    "sales dept", "sales department", "talk to agent", "contact agent", "connect to agent",
+    "speak to agent", "call agent", "talk to an agent", "agent details", "contact human",
+    "talk to human", "connect to human", "call human", "speak to human", "human agent",
+    "human support", "live agent", "live support", "customer care", "customer support",
+    "support number", "support phone", "support contact", "customer executive", "customer representative"
+]
+
+
 def extract_customer_details_with_ai(user_text):
     """
     Intelligently scans the incoming user text using Llama 3.1 to catch
@@ -260,17 +279,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             display_name = "Sir"
 
         # 🌟 HIGH-PRIORITY OVERRIDE 1: Contact Card Hijack
-        contact_keywords = [
-            "give his number", "his phone number", "contact number", "give number",
-            "number of the human", "number send", "number bodybuilding", "number ivvu",
-            "number pampandi", "ph no", "phone no", "mobile number", "contact details",
-            "phone number", "mobile", "whatsapp number", "karunakar number", "karunakar phone",
-            "his number", "his contact", "agent number", "agent phone", "agent contact",
-            "reddy number", "reddy phone", "provide phone number", "send phone number",
-            "give phone number", "how can i contact", "how to contact", "how can we contact",
-            "contact you", "contact us", "how to reach", "how can i reach"
-        ]
-        if has_keyword_match(test_text_lower, contact_keywords):
+        if has_keyword_match(test_text_lower, CONTACT_KEYWORDS):
             handoff_intro = (
                 "Here are the official business contact details for our Technical Sales Expert, "
                 "Mr. Karunakar Reddy! 📞\n\n"
@@ -877,7 +886,8 @@ def whatsapp_webhook(request):
                                         asked_for_name = True
                                         break
                                     
-                        handle_name_flow = is_new_unreferred_contact and (asked_for_name or is_greeting)
+                        is_contact_request = has_keyword_match(clean_text, CONTACT_KEYWORDS)
+                        handle_name_flow = is_new_unreferred_contact and (asked_for_name or is_greeting) and not is_contact_request
 
                         if clean_text == "stop":
                             customer.is_active = False

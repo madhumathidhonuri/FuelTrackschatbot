@@ -426,6 +426,116 @@ class WebhookTests(TestCase):
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
     @patch("bot.views.os.getenv")
+    def test_webhook_contact_hijack_talk_to_sales(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock response from Meta
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Payload representing "Talk to sales"
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_talk_to_sales",
+                                        "type": "text",
+                                        "text": {"body": "Talk to sales"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # We expect 2 calls: one for handoff_intro, one for the contact card.
+        self.assertEqual(mock_post.call_count, 2)
+        _, kwargs_intro = mock_post.call_args_list[0]
+        self.assertEqual(kwargs_intro["json"]["type"], "text")
+        self.assertIn("Technical Sales Expert", kwargs_intro["json"]["text"]["body"])
+
+        _, kwargs_card = mock_post.call_args_list[1]
+        self.assertEqual(kwargs_card["json"]["type"], "contacts")
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_webhook_contact_hijack_during_name_flow(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock response from Meta
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        new_phone = "9876543219"
+
+        # 1. First send "Hello" to initiate the name flow and trigger the name prompt
+        payload_1 = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_1", "type": "text", "text": {"body": "Hello"}}]}}]}]
+        }
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_1),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_post.call_count, 2)
+
+        # Reset mock
+        mock_post.reset_mock()
+
+        # 2. Second send "I want to contact sales" - this should bypass the name flow and directly return the contact card
+        payload_2 = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_2", "type": "text", "text": {"body": "I want to contact sales"}}]}}]}]
+        }
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_2),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # We expect 2 calls: handoff_intro and the contact card, bypassing the retry_request ("Could you please tell me your name...")
+        self.assertEqual(mock_post.call_count, 2)
+        _, kwargs_intro = mock_post.call_args_list[0]
+        self.assertEqual(kwargs_intro["json"]["type"], "text")
+        self.assertIn("Technical Sales Expert", kwargs_intro["json"]["text"]["body"])
+
+        _, kwargs_card = mock_post.call_args_list[1]
+        self.assertEqual(kwargs_card["json"]["type"], "contacts")
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
     def test_webhook_ask_name_flow(self, mock_getenv, mock_groq, mock_post):
         mock_getenv.side_effect = lambda key, default=None: {
             "WHATSAPP_APP_SECRET": None,
