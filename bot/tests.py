@@ -2256,3 +2256,94 @@ class AdditionalBotFlowTests(TestCase):
         self.assertEqual(mock_post.call_count, 3)
         called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
         self.assertIn("+919000666914", called_numbers)
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_ais_140_mining_system_prompts(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Pre-create the customer to bypass the name extraction and welcome/name collection flow
+        customer = FleetCustomer.objects.create(
+            phone_number="1234567890",
+            owner_name="Ravi",
+            truck_number="AP12XX1234",
+            is_active=True
+        )
+
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="Mock response"))
+        ]
+        mock_ai_instance.chat.completions.create.return_value = mock_completion
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # 1. Test English Query system prompt contains AIS 140 mining facts
+        payload_en = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": "1234567890", "id": "msg_en", "type": "text", "text": {"body": "Tell me about GPS trackers"}}]}}]}]
+        }
+        self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_en), content_type="application/json")
+        call_args = mock_ai_instance.chat.completions.create.call_args
+        sys_prompt = call_args[1]["messages"][0]["content"]
+        self.assertIn("officially approved by the government of telangana mining department", sys_prompt.lower())
+        self.assertIn("mandatory for all mining vehicles", sys_prompt.lower())
+
+        # 2. Test Telugu Query system prompt contains AIS 140 mining facts
+        mock_ai_instance.chat.completions.create.reset_mock()
+        payload_te = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": "1234567890", "id": "msg_te", "type": "text", "text": {"body": "జీపిఎస్ ట్రాకర్ల గురించి చెప్పండి"}}]}}]}]
+        }
+        self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_te), content_type="application/json")
+        call_args = mock_ai_instance.chat.completions.create.call_args
+        sys_prompt = call_args[1]["messages"][0]["content"]
+        self.assertIn("తెలంగాణ ప్రభుత్వ మైనింగ్ డిపార్ట్‌మెంట్", sys_prompt)
+        self.assertIn("మైనింగ్ వాహనాలకు", sys_prompt)
+
+        # 3. Test Tenglish Query system prompt contains AIS 140 mining facts
+        mock_ai_instance.chat.completions.create.reset_mock()
+        payload_teng = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": "1234567890", "id": "msg_teng", "type": "text", "text": {"body": "mana trackers gurinchi cheppandi"}}]}}]}]
+        }
+        self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_teng), content_type="application/json")
+        call_args = mock_ai_instance.chat.completions.create.call_args
+        sys_prompt = call_args[1]["messages"][0]["content"]
+        self.assertIn("government of telangana mining department dwara approved", sys_prompt.lower())
+        self.assertIn("mining vehicles/operations ki mandatory", sys_prompt.lower())
+
+        # 4. Test recent broadcast context for ais_140_gps_mining_device
+        WhatsAppTemplate.objects.create(
+            template_name="ais_140_gps_mining_device",
+            description="Mining Tracker promo",
+            languages="en_US",
+            has_header=True,
+            header_type="image"
+        )
+        ChatMessage.objects.create(
+            phone_number="1234567890",
+            role="assistant",
+            content="[System Sent Broadcast: ais_140_gps_mining_device - Description]"
+        )
+        mock_ai_instance.chat.completions.create.reset_mock()
+        payload_reply = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": "1234567890", "id": "msg_broadcast_reply", "type": "text", "text": {"body": "Tell me about GPS trackers"}}], "metadata": {"phone_number_id": "fake_id"}}}]}]
+        }
+        self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_reply), content_type="application/json")
+        call_args = mock_ai_instance.chat.completions.create.call_args
+        sys_prompt = call_args[1]["messages"][0]["content"]
+        self.assertIn("ais_140_gps_mining_device", sys_prompt)
+        self.assertIn("focus strictly on our ais 140 certified gps tracking devices approved by the government of telangana mining department", sys_prompt.lower())

@@ -419,9 +419,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- CRITICAL: Ignore any previous language used in the chat history. You MUST respond strictly in Telugu script characters (తెలుగు లిపి) now.\n\n"
 
                 "FUEL TRACKS OFFICIAL PRODUCT FACTS (TELUGU SCRIPT):\n"
-                "- GPS Trackers: ఇవి ప్రభుత్వ ఆమోదం పొందిన లొకేషన్ ట్రాకర్లు (AIS 140 Certified Device). "
-                "ఇందులో రియల్-టైమ్ లొకేషన్ ట్రాకింగ్, స్పీడ్ మానిటరింగ్, మరియు అత్యవసర పానిక్ బటన్స్ ఉంటాయి. "
-                "ఇతర మోడల్స్: Teltonika FMB120, Teltonika FMB910, మరియు 3G WCDMA GPS tracker (రిమోట్ ఇంజన్ కట్ మరియు IP67 వాటర్ ప్రూఫ్ కలిగి ఉంటుంది).\n"
+                "- GPS Trackers: ఇవి ప్రభుత్వ ఆమోదం పొందిన లొకేషన్ ట్రాకర్లు (AIS 140 Certified Device). తెలంగాణ ప్రభుత్వ మైనింగ్ డిపార్ట్‌మెంట్ (Mining Department) ద్వారా ఆమోదించబడిన ఈ AIS 140 పరికరం మైనింగ్ వాహనాలకు (Mining Vehicles/Operations) ఇప్పుడు తప్పనిసరి (mandatory). మా వద్ద లభించే AIS 140 ట్రాకర్లు అత్యంత నాణ్యమైనవి, నమ్మకమైనవి మరియు బెస్ట్ ప్రైస్ గ్యారెంటీతో లభిస్తాయి. ఇందులో రియల్-టైమ్ ట్రాకింగ్, స్పీడ్ మానిటరింగ్, మరియు పానిక్ బటన్స్ ఉంటాయి. ఇతర మోడల్స్: Teltonika FMB120, Teltonika FMB910, మరియు 3G WCDMA GPS tracker (రిమోట్ ఇంజన్ కట్ మరియు IP67 వాటర్ ప్రూఫ్ కలిగి ఉంటుంది).\n"
                 "- Smart Fuel Monitoring: మా సిస్టమ్ 99% ఖచ్చితత్వంతో డిజిటల్ ఫ్యూయల్ రాడ్ సెన్సార్లను (Italon Fuel Sensor) మరియు Teltonika FMB920 ట్రాకర్లను "
                 "ఉపయోగిస్తుంది. ఇది ఇంధన దొంగతనాన్ని గుర్తించి వెంటనే లైవ్ అలర్ట్లను పంపుతుంది.\n"
                 "- Smart Security Cameras & Dash Cams: Solar Cam (100% సోలార్, 4G LTE), Wi-Fi Security Camera (1080P, టూ-వే ఆడియో, నైట్ విజన్, SD/క్లౌడ్ స్టోరేజ్), మరియు Dashcam DC 01 S (ముందు/వెనుక 2K రికార్డింగ్, G-సెన్సార్ ప్రొటెక్షన్).\n"
@@ -460,9 +458,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- CRITICAL: Ignore any previous language used in the chat history. Translate and respond strictly in Tenglish now.\n\n"
 
                 "FUEL TRACKS FACTS IN TENGLISH:\n"
-                f"- GPS Trackers: {display_name} garu, mana trackers government certified (AIS 140 Certified Device). "
-                "Indulo real-time location tracking, speed monitoring, mariyu panic buttons untayi. "
-                "Other models: Teltonika FMB120, Teltonika FMB910, mariyu 3G WCDMA GPS tracker (remote engine cutoff mariyu IP67 waterproof features tho).\n"
+                f"- GPS Trackers: {display_name} garu, mana trackers government certified (AIS 140 Certified Device). Government of Telangana Mining Department dwara approved aina ee AIS 140 device mining vehicles/operations ki mandatory. Ee device high quality, more reliable, mariyu best price guaranteed tho vastundi. Indulo real-time location tracking, speed monitoring, mariyu panic buttons untayi. Other models: Teltonika FMB120, Teltonika FMB910, mariyu 3G WCDMA GPS tracker (remote engine cutoff mariyu IP67 waterproof features tho).\n"
                 f"- Smart Fuel Monitoring: {display_name} garu, mana smart fuel monitoring system 99% accuracy provides chesthundhi. "
                 "Indulo Italon Fuel Level Sensor mariyu Teltonika FMB920 trackers untayi. Sudden fuel level drops and theft automatic ga detect chesi alerts pampisthundhi.\n"
                 f"- Smart Cameras & Dash Cams: Solar Cam (100% solar, 4G LTE), Wi-Fi Camera (1080P, night vision, two-way audio), mariyu Dashcam DC 01 S (front/rear 2K recording, loop recording, G-sensor protection).\n"
@@ -499,7 +495,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- CRITICAL: Ignore any previous language used in the chat history. You MUST respond strictly in English now.\n\n"
 
                 "FUEL TRACKS OFFICIAL PRODUCT FACTS:\n"
-                "- GPS Trackers: Government-approved trackers for commercial vehicles (AIS 140 Certified Devices) featuring real-time location, speed monitoring, and panic buttons. Other models: Teltonika FMB120, Teltonika FMB910, and 3G WCDMA GPS tracker with remote engine cutoff and IP67 waterproof casing.\n"
+                "- GPS Trackers: Government-approved trackers for commercial vehicles (AIS 140 Certified Devices). Officially approved by the Government of Telangana Mining Department, the AIS 140 device is now mandatory for all mining vehicles/operations in Telangana. Built for mining vehicles, it offers high quality, reliability, and the best price guaranteed, featuring real-time location, speed monitoring, and panic buttons. Other models: Teltonika FMB120, Teltonika FMB910, and 3G WCDMA GPS tracker with remote engine cutoff and IP67 waterproof casing.\n"
                 "- Smart Fuel Monitoring: Uses Italon digital fuel rod sensors (99% accuracy) and Teltonika FMB920 trackers to track refilling, detect sudden fuel drops, and send live theft alerts to operators.\n"
                 "- Smart Security Cameras & Dash Cams: Solar Cam (100% solar powered, 4G LTE connectivity, mobile app viewing), Wi-Fi Security Camera (1080P, night vision, motion alerts, two-way audio), and Dashcam DC 01 S (front & rear 2K recording, loop recording, G-sensor protection).\n"
                 "- Borewell Solutions: Bore Well Rod Count (digital display for drilling rod timings) and Bore Well RPM Count (accurate drilling RPM measurement).\n"
@@ -566,7 +562,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                     DEFAULT_TEMPLATE_PROMPTS = {
                         "hello_world": "Focus on welcoming the user and introducing our GPS tracking and fuel monitoring systems.",
                         "gps_tracking_device": "Focus strictly on promoting and answering queries about our AIS 140 certified GPS tracking devices.",
-                        "ais_140_gps_mining_device": "Focus strictly on our AIS 140 certified GPS tracking devices optimized for mining and heavy commercial vehicles.",
+                        "ais_140_gps_mining_device": "Focus strictly on our AIS 140 certified GPS tracking devices approved by the Government of Telangana Mining Department, which are now mandatory for mining vehicles in Telangana. Highlight their high quality, reliability, best price guaranteed, and suitability for mining operations.",
                         "fuel_alert": "Focus on addressing the fuel drop/theft alert, explaining how our fuel sensors work to detect theft and provide 99% accuracy.",
                         "fleet_update": "Focus on discussing fleet tracking updates and overall fleet optimization."
                     }

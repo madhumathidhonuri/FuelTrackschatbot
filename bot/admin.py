@@ -463,6 +463,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         default_templates = [
             ("hello_world", "Default Greetings", False, "en_US", False, "none", ""),
             ("gps_tracking_device", "GPS Tracking Devices promo", False, "en_US", False, "none", ""),
+            ("ais_140_gps_mining_device", "AIS 140 mining tracker template", False, "en_US,te", True, "image", ""),
             ("fuel_alert", "Fuel theft/drop alerts", True, "en_US,te", False, "none", ""),
             ("fleet_update", "Fleet status summary updates", True, "en_US,te", False, "none", ""),
         ]
