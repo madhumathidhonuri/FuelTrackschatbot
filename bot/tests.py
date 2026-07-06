@@ -908,8 +908,9 @@ class WebhookTests(TestCase):
         mock_post_resp.status_code = 200
         mock_post.return_value = mock_post_resp
 
-        # Set customer name first
+        # Set customer name and truck number first to bypass details extraction
         self.customer.owner_name = "Test User"
+        self.customer.truck_number = "TS09EX1234"
         self.customer.save()
 
         # 1. Send first message discussing solar camera

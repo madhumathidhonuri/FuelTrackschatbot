@@ -37,9 +37,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-l*@gth%5hoh5cnm6-v7x7t+u!b@4*h)f1d(kcylt!zn$un&vf+')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True # Temporarily hardcoded for testing traceback, set back to os.getenv(...) later
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't', 'y', 'yes')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.onrender.com,.ngrok-free.dev').split(',')
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.onrender.com,.ngrok-free.dev').split(',') if h.strip()]
 
 
 # Application definition
@@ -157,14 +157,6 @@ if whitenoise:
         },
         "staticfiles": {
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-        },
-    }
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
         },
     }
 

@@ -245,14 +245,23 @@ def extract_customer_details_with_ai(user_text):
             temperature=0.0,
         )
 
-        content = completion.choices[0].message.content.strip()
-        if content.startswith("```"):
-            lines = content.splitlines()
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].startswith("```"):
-                lines = lines[:-1]
-            content = "\n".join(lines).strip()
+        content = completion.choices[0].message.content
+        if not isinstance(content, str):
+            return {"name": None, "truck_number": None}
+        content = content.strip()
+        # Attempt to isolate JSON substring to handle markdown fences or conversational preambles/postscripts
+        start_idx = content.find('{')
+        end_idx = content.rfind('}')
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            content = content[start_idx:end_idx + 1]
+        else:
+            if content.startswith("```"):
+                lines = content.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                content = "\n".join(lines).strip()
 
         extracted_data = json.loads(content)
         return extracted_data
@@ -931,15 +940,16 @@ def whatsapp_webhook(request):
                                 customer.referred_by = matched_campaign
                                 customer.save()
                                 
-                                # Send custom welcome message if configured
-                                if matched_campaign.welcome_message:
+                                # Send custom welcome message or catalog file if configured
+                                if matched_campaign.welcome_message or matched_campaign.catalog_file:
                                     # Save user's initial message
                                     ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
                                     
                                     # Send and save custom welcome message
-                                    welcome_reply = matched_campaign.welcome_message
-                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_reply)
-                                    send_whatsapp_message(user_phone, welcome_reply)
+                                    if matched_campaign.welcome_message:
+                                        welcome_reply = matched_campaign.welcome_message
+                                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_reply)
+                                        send_whatsapp_message(user_phone, welcome_reply)
                                     
                                     # If a catalog file is associated, send it automatically
                                     if matched_campaign.catalog_file:
