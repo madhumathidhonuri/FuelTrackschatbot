@@ -5,6 +5,7 @@ import hmac
 import csv
 import hashlib
 import requests
+import contextvars
 from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
@@ -34,6 +35,9 @@ print = safe_print
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
+
+# Context variable to hold the phone number ID for the current request
+_phone_number_id_ctx = contextvars.ContextVar("phone_number_id", default=None)
 
 # 🌟 CONFIGURATION PARAMETER
 AGENT_NOTIFY_PHONE = "+919000666914"  # Include your full country code (e.g., +91...)
@@ -601,9 +605,10 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
 def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=None,
                           document_filename=None, location_data=None, list_data=None,
-                          contact_data=None):
+                          contact_data=None, phone_number_id=None):
     """Dispatches payload structures cleanly to Meta Graph Servers."""
-    url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
+    active_phone_number_id = phone_number_id or _phone_number_id_ctx.get() or PHONE_NUMBER_ID
+    url = f"https://graph.facebook.com/v19.0/{active_phone_number_id}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
         "Content-Type": "application/json"
@@ -739,6 +744,12 @@ def whatsapp_webhook(request):
                 entry = data.get("entry", [{}])[0]
                 changes = entry.get("changes", [{}])[0]
                 value = changes.get("value", {})
+
+                # Dynamically determine the recipient's phone number ID to reply from it
+                metadata = value.get("metadata", {})
+                recipient_phone_number_id = metadata.get("phone_number_id")
+                if recipient_phone_number_id:
+                    _phone_number_id_ctx.set(recipient_phone_number_id)
 
                 if "statuses" in value:
                     return JsonResponse({"status": "success"})

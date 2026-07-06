@@ -94,6 +94,74 @@ class WebhookTests(TestCase):
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
     @patch("bot.views.os.getenv")
+    def test_webhook_dynamic_phone_number_routing(self, mock_getenv, mock_groq, mock_post):
+        # Prevent signature check and set API keys/vars
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock Groq client completion responses
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="Dynamic phone test reply."))
+        ]
+        mock_ai_instance.chat.completions.create.return_value = mock_completion
+
+        # Mock response from Meta
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Payload representing an incoming message with specific metadata.phone_number_id
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "metadata": {
+                                    "display_phone_number": "917337433356",
+                                    "phone_number_id": "112310527583236"
+                                },
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_dynamic_test",
+                                        "type": "text",
+                                        "text": {"body": "Hello"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        
+        self.assertEqual(response.status_code, 200)
+
+        # Verify mock_post was called with the dynamic phone number ID in URL
+        self.assertGreater(mock_post.call_count, 0)
+        args, _ = mock_post.call_args_list[0]
+        url = args[0]
+        self.assertIn("112310527583236", url)
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
     def test_webhook_fuel_monitoring_query(self, mock_getenv, mock_groq, mock_post):
         # Prevent signature check
         mock_getenv.side_effect = lambda key, default=None: {
