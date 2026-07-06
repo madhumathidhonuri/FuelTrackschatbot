@@ -478,11 +478,10 @@ class WebhookTests(TestCase):
             data=json.dumps(payload),
             content_type="application/json"
         )
-        
         self.assertEqual(response.status_code, 200)
 
-        # We expect 2 calls: one for handoff_intro, one for the contact card.
-        self.assertEqual(mock_post.call_count, 2)
+        # We expect 3 calls: one for handoff_intro, one for the contact card, and one for agent notification.
+        self.assertEqual(mock_post.call_count, 3)
         
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
@@ -490,6 +489,11 @@ class WebhookTests(TestCase):
 
         _, kwargs_card = mock_post.call_args_list[1]
         self.assertEqual(kwargs_card["json"]["type"], "contacts")
+
+        _, kwargs_notify = mock_post.call_args_list[2]
+        self.assertEqual(kwargs_notify["json"]["type"], "text")
+        self.assertEqual(kwargs_notify["json"]["to"], "+919000666914")
+        self.assertIn("Contact Card Request Alert", kwargs_notify["json"]["text"]["body"])
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -537,14 +541,19 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 2 calls: one for handoff_intro, one for the contact card.
-        self.assertEqual(mock_post.call_count, 2)
+        # We expect 3 calls: one for handoff_intro, one for the contact card, and one for agent notification.
+        self.assertEqual(mock_post.call_count, 3)
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
         self.assertIn("Technical Sales Expert", kwargs_intro["json"]["text"]["body"])
 
         _, kwargs_card = mock_post.call_args_list[1]
         self.assertEqual(kwargs_card["json"]["type"], "contacts")
+
+        _, kwargs_notify = mock_post.call_args_list[2]
+        self.assertEqual(kwargs_notify["json"]["type"], "text")
+        self.assertEqual(kwargs_notify["json"]["to"], "+919000666914")
+        self.assertIn("Contact Card Request Alert", kwargs_notify["json"]["text"]["body"])
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -592,14 +601,19 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 2 calls: handoff_intro and the contact card, bypassing the retry_request ("Could you please tell me your name...")
-        self.assertEqual(mock_post.call_count, 2)
+        # We expect 3 calls: handoff_intro, the contact card, and agent notification
+        self.assertEqual(mock_post.call_count, 3)
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
         self.assertIn("Technical Sales Expert", kwargs_intro["json"]["text"]["body"])
 
         _, kwargs_card = mock_post.call_args_list[1]
         self.assertEqual(kwargs_card["json"]["type"], "contacts")
+
+        _, kwargs_notify = mock_post.call_args_list[2]
+        self.assertEqual(kwargs_notify["json"]["type"], "text")
+        self.assertEqual(kwargs_notify["json"]["to"], "+919000666914")
+        self.assertIn("Contact Card Request Alert", kwargs_notify["json"]["text"]["body"])
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -2124,6 +2138,120 @@ class AdditionalBotFlowTests(TestCase):
         self.assertIn("7337433351", agent_body)
         self.assertIn("73337433356", agent_body)
 
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_paperwork_guardrails_system_prompt(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
 
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="I cannot process official documents, but Mr. Karunakar Reddy has been notified."))
+        ]
+        mock_ai_instance.chat.completions.create.return_value = mock_completion
 
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
 
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_paperwork",
+                                        "type": "text",
+                                        "text": {"body": "Please send us the signed and stamped copy on the letter head"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify Groq was called and the system prompt contains the guardrail
+        self.assertTrue(mock_ai_instance.chat.completions.create.called)
+        call_args = mock_ai_instance.chat.completions.create.call_args
+        system_prompt = call_args[1]["messages"][0]["content"]
+        self.assertIn("CRITICAL PAPERWORK & ADMINISTRATIVE REQUEST GUARDRAIL", system_prompt)
+
+        # Verify that the agent was notified
+        # Expecting 2 post calls: 1 to client, 1 to AGENT_NOTIFY_PHONE (+919000666914)
+        self.assertEqual(mock_post.call_count, 2)
+        called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
+        self.assertIn("+919000666914", called_numbers)
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_contact_card_notification(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Trigger Contact Card Hijack override via contacting sales
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_contact",
+                                        "type": "text",
+                                        "text": {"body": "give me phone number of the human agent"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Expecting 3 post calls:
+        # 1. Handoff intro text to user
+        # 2. Vcard to user
+        # 3. Notification to AGENT_NOTIFY_PHONE (+919000666914)
+        self.assertEqual(mock_post.call_count, 3)
+        called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
+        self.assertIn("+919000666914", called_numbers)

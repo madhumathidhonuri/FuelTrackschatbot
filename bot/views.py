@@ -302,6 +302,17 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "phone_number": "+919000666914"  # ✅ FIX 9: No spaces so wa_id replace is clean
             }
             send_whatsapp_message(to_phone=user_phone, text_content="", contact_data=corporate_vcard)
+
+            # Notify the agent
+            agent_alert = (
+                f"🚨 Contact Card Request Alert!\n"
+                f"Customer: {customer.owner_name if customer else 'Unknown'}\n"
+                f"Phone: {user_phone}\n"
+                f"Truck: {customer.truck_number if (customer and customer.truck_number) else 'Not provided'}\n"
+                f"User Msg: '{new_user_message}'\n"
+                f"Action: Sent contact card of Mr. Karunakar Reddy to customer."
+            )
+            send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
             return None  # ✅ Caller must NOT call send_whatsapp_message again
 
         # 🌟 HIGH-PRIORITY OVERRIDE 2: Tenglish notification shortcut
@@ -332,7 +343,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "- If the user sends anything unrelated to fleet management, GPS tracking, fuel monitoring, "
             "pricing, or Fuel Tracks products — such as personal chit-chat, jokes, poems, food, weather, "
             "sports, or any other off-topic content — you MUST politely decline and redirect.\n"
-            "- CRITICAL: Product pricing inquiries, catalog/PDF requests, contact requests, greetings, and gratitude (e.g. thanks, thank you) are strictly ON-TOPIC. Never decline or redirect them.\n"
+            "- CRITICAL: Product pricing inquiries, catalog/PDF requests, contact requests, official documentation/paperwork requests (e.g., POA, board resolution, notary letter, letterhead, signed/stamped copies), greetings, and gratitude (e.g. thanks, thank you) are strictly ON-TOPIC. Never decline or redirect them.\n"
             f"- Off-topic redirect (English): '{display_name} garu, I can only assist with Fuel Tracks "
             "Technologies products and services. Feel free to ask about our GPS trackers, fuel monitoring, "
             "smart cameras, borewell solutions, or other accessories!'\n"
@@ -345,7 +356,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "Meeru general chatbot kaadu — sales assistant maatram.\n"
             "- User personal topics (bhojnam, jokes, kavitalu, weather, sports, etc.) adigithe "
             "maryādagā decline cheyandi mariyu business ki redirect cheyandi.\n"
-            "- CRITICAL: Pricing queries, catalog/PDF requests, contact requests, greetings, and thanks/dhanyavadalu are strictly ON-TOPIC. Never decline or redirect them.\n"
+            "- CRITICAL: Pricing queries, catalog/PDF requests, contact requests, official documentation/paperwork requests (e.g., POA, board resolution, notary letter, letterhead, signed/stamped copies), greetings, and thanks/dhanyavadalu are strictly ON-TOPIC. Never decline or redirect them.\n"
             f"- Off-topic redirect: '{display_name} garu, nenu Fuel Tracks Technologies products "
             "mariyu services ki maatrame help cheyagalanu. Meeru fleet, GPS tracking, fuel monitoring, "
             "cameras, borewell solutions, leda other accessories gurinchi adugavacchu!'\n"
@@ -357,12 +368,30 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "- మీరు ONLY Fuel Tracks Technologies products మరియు services గురించి మాట్లాడాలి.\n"
             "- వ్యక్తిగత విషయాలు (భోజనం, జోక్స్, కవితలు, వాతావరణం మొదలైనవి) అడిగితే "
             "మర్యాదగా తిరస్కరించండి మరియు వెంటనే business కి redirect చేయండి.\n"
-            "- CRITICAL: ధర (pricing) అడిగినప్పుడు, క్యాటలాగ్/PDF అడిగినప్పుడు, కాంటాక్ట్ నంబర్ అడిగినప్పుడు, నమస్కారాలు, మరియు థాంక్యూ/ధన్యవాదాలు చెప్పినప్పుడు అవి ON-TOPIC. వీటిని ఎప్పుడూ తిరస్కరించకండి.\n"
+            "- CRITICAL: ధర (pricing) అడిగినప్పుడు, క్యాటలాగ్/PDF అడిగినప్పుడు, కాంటాక్ట్ నంబర్ అడిగినప్పుడు, అధికారిక పత్రాల/కాగితాల అభ్యర్థనలు (ఉదాహరణకు: POA, బోర్డ్ రిజల్యూషన్, నోటరీ లేఖ, లెటర్ హెడ్, సంతకం/స్టాంప్ చేసిన పత్రాలు), నమస్కారాలు, మరియు థాంక్యూ/ధన్యవాదాలు చెప్పినప్పుడు అవి ON-TOPIC. వీటిని ఎప్పుడూ తిరస్కరించకండి.\n"
             f"- Off-topic అయినప్పుడు చెప్పండి: '{display_name} గారు, నేను Fuel Tracks Technologies "
             "products మరియు services కోసం మాత్రమే సహాయం చేయగలను. GPS tracking, fuel monitoring, "
             "కెమెరాలు, బోరుబావి సొల్యూషన్స్, లేదా ఇతర పరికరాల గురించి అడగవచ్చు!'\n"
             "- మినహాయింపులు: సాధారణ నమస్కారాలు (హాయ్, హలో, నమస్తే), కృతజ్ఞతలు (ధన్యవాదాలు, థాంక్యూ), లేదా సెలవు/బై చెప్పడం off-topic కావు. వాటికి మర్యాదగా సమాధానం చెప్పండి.\n"
             "- Poems, jokes, stories, creative content ఎప్పుడూ రాయకండి.\n\n"
+        )
+        paperwork_rule_english = (
+            "CRITICAL PAPERWORK & ADMINISTRATIVE REQUEST GUARDRAIL:\n"
+            "- NEVER make decisions, commitments, or promises regarding administrative requests, official documentation, company letterheads, signed/stamped copies, board resolutions, power of attorney (POA), notary letters, trademark applications, or timelines (e.g., 'within 24 hours').\n"
+            "- Do NOT promise that you or the team will prepare or send any such files or documents.\n"
+            "- If the user requests official documents, paperwork, letterhead copies, notary letters, or trademark/POA/resolution copies, state politely that as an AI assistant you cannot process or commit to document requests, but you have notified our Technical Sales Expert, Mr. Karunakar Reddy, to assist them with this. Provide Mr. Karunakar Reddy's contact details (+91 90006 66914) for direct follow-up.\n\n"
+        )
+        paperwork_rule_tenglish = (
+            "CRITICAL PAPERWORK & ADMINISTRATIVE REQUEST GUARDRAIL:\n"
+            "- Official documents, company letterhead, signed/stamped copies, board resolutions, POA, notary letters, or trademark applications gurinchi advance commitments leda promises cheyakandi.\n"
+            "- Veeti gurinchi '24 hours lo pampistham' kani 'team prepare chesthundi' kani promises cheyakandi.\n"
+            "- User document requests adigithe, polite ga cheppandi: 'Nenu AI assistant ni, official documents process/promise cheyalenu. Kani ma Technical Sales Expert, Mr. Karunakar Reddy gariki inform chesanu, aayana mimmalni contact chestharu.' Provide Mr. Karunakar Reddy's contact: +91 90006 66914.\n\n"
+        )
+        paperwork_rule_telugu = (
+            "CRITICAL PAPERWORK & ADMINISTRATIVE REQUEST GUARDRAIL:\n"
+            "- కంపెనీ లెటర్హెడ్, సంతకం/స్టాంప్ చేసిన పత్రాలు, బోర్డ్ రిజల్యూషన్ (board resolution), పవర్ ఆఫ్ అటార్నీ (POA), నోటరీ లేఖలు, ట్రేడ్మార్క్ మొదలైన అధికారిక పత్రాల గురించి ఎటువంటి వాగ్దానాలు లేదా గడువులు (ఉదాహరణకు: 24 గంటల్లో పంపుతాము) చెప్పకండి.\n"
+            "- పత్రాల తయారీ లేదా పంపడం గురించి మీ అంతటగా హామీలు ఇవ్వకండి.\n"
+            "- వినియోగదారు అధికారిక పత్రాలు అడిగినప్పుడు, మర్యాదగా చెప్పండి: 'నేను AI అసిస్టెంట్ ని మాత్రమే, అధికారిక పత్రాలను ప్రాసెస్ చేయలేను. కానీ మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్, మిస్టర్ కరుణాకర్ రెడ్డి గారికి ఈ విషయాన్ని తెలియజేశాను. వారు మిమ్మల్ని సంప్రదిస్తారు.' వారి నంబర్ +91 90006 66914 కూడా ఇవ్వండి.\n\n"
         )
 
         # ENGINE 1: NATIVE TELUGU SCRIPT
@@ -396,7 +425,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- వెబ్‌సైట్: www.fueltracks.in\n"
                 "- ప్రధాన కార్యాలయం: Champapet, Hyderabad (ప్రెస్ కాలనీ, చంపాపేట్, హైదరాబాద్)\n\n"
 
-                + offtopic_rule_telugu +
+                + offtopic_rule_telugu + paperwork_rule_telugu +
                 "CRITICAL PRICING & CLOSING RULES:\n"
                 "- ధర వివరాలను మీ అంతటగా ఊహించి చెప్పకండి.\n"
                 "- యూజర్ డీల్స్ లేదా కోట్ కావాలని అడిగితే మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్, "
@@ -437,7 +466,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- Website: www.fueltracks.in\n"
                 "- Head office address: Press Colony, Champapet, Hyderabad\n\n"
 
-                + offtopic_rule_tenglish +
+                + offtopic_rule_tenglish + paperwork_rule_tenglish +
                 "CRITICAL PRICING & CLOSING RULES:\n"
                 "- Specific pricing package values or numerical cost rates guess cheyakandi.\n"
                 f"- Deal quotes or fleet integrations adigithe: 'Mr. Karunakar Reddy garu 10-15 minutes "
@@ -473,7 +502,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- Website: www.fueltracks.in\n"
                 "- Address: Press Colony, Champapet, Hyderabad, Telangana 500079\n\n"
 
-                + offtopic_rule_english +
+                + offtopic_rule_english + paperwork_rule_english +
                 "CRITICAL PRICING & QUOTE GUARDRAIL:\n"
                 "- NEVER invent, guess, or state specific pricing figures or numerical rates.\n"
                 "- State that our Technical Sales Expert, Mr. Karunakar Reddy, will provide a "
@@ -706,6 +735,63 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
         print(f"Meta Graph Server Response Status: {res.status_code}")
     except Exception as e:
         print(f"Failed to post outgoing message via Meta API: {e}")
+
+
+def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
+    """
+    Checks if the user text or the bot reply indicates that the agent (Karunakar Reddy)
+    needs to be notified or contact is requested, and sends the notification if so.
+    """
+    # Exclude notifications when the message is sent to/by the agent phone itself
+    if user_phone == AGENT_NOTIFY_PHONE:
+        return
+
+    # Prevent duplicate notifications for the same message content using cache
+    cache_key = f"notified_agent_{user_phone}_{hash(user_text)}"
+    if cache.get(cache_key):
+        return
+
+    user_text_lower = user_text.lower()
+    bot_reply_lower = bot_reply.lower() if bot_reply else ""
+
+    # Keywords in user text that warrant agent attention
+    user_escalation_keywords = [
+        "connect", "talk", "speak", "call", "agent", "human", "representative", "expert",
+        "team", "karunakar", "reddy", "notary", "letterhead", "stamped", "signed", "poa",
+        "power of attorney", "resolution", "trademark", "document", "paperwork", "contract",
+        "agreement", "office location", "address"
+    ]
+    
+    # Keywords/phrases in bot reply that imply escalation or notification
+    bot_escalation_keywords = [
+        "notified", "escalated", "will call", "will contact", "call you", "contact you",
+        "reach out", "connect you", "representative", "expert", "reddy garu", "కరుణాకర్ రెడ్డి",
+        "సంప్రదిస్తారు", "కాల్ చేస్తారు"
+    ]
+
+    should_notify = False
+    reason = "User query related to escalation, contact, or official documentation."
+
+    # Check user text keywords
+    if any(kw in user_text_lower for kw in user_escalation_keywords):
+        should_notify = True
+    # Check if bot reply indicates escalation
+    elif any(kw in bot_reply_lower for kw in bot_escalation_keywords):
+        should_notify = True
+        reason = "AI response indicated escalation/contact will occur."
+
+    if should_notify:
+        agent_alert = (
+            f"🚨 Lead & Document Escalation Alert!\n"
+            f"Customer: {customer.owner_name if customer else 'Unknown'}\n"
+            f"Phone: {user_phone}\n"
+            f"Truck: {customer.truck_number if (customer and customer.truck_number) else 'Not provided'}\n"
+            f"User Msg: '{user_text}'\n"
+            f"Bot Reply: '{bot_reply[:150]}...'\n"
+            f"Reason: {reason}"
+        )
+        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+        cache.set(cache_key, True, timeout=600)  # cache for 10 minutes to avoid duplicates
 
 
 @csrf_exempt
@@ -1063,6 +1149,7 @@ def whatsapp_webhook(request):
                             bot_reply = get_ai_response(user_phone, user_text, customer)
                             if bot_reply is not None:
                                 send_whatsapp_message(user_phone, bot_reply)
+                                check_and_notify_agent(customer, user_phone, user_text, bot_reply)
 
                                 # Specific device catalog sending logic
                                 has_telugu_script = any('\u0c00' <= char <= '\u0c7f' for char in clean_text)
