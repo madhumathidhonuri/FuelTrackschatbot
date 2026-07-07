@@ -23,6 +23,7 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
     list_display = (
         'template_name', 
         'description', 
+        'category',
         'has_variables', 
         'has_header', 
         'header_type', 
@@ -34,7 +35,7 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
         'created_at'
     )
     search_fields = ('template_name', 'description', 'custom_system_prompt', 'header_image_url', 'header_media_id')
-    list_filter = ('has_variables', 'has_header', 'header_type')
+    list_filter = ('category', 'has_variables', 'has_header', 'header_type')
     readonly_fields = ('media_id_updated_at',)
     actions = ['upload_header_file_to_meta']
 
@@ -313,10 +314,14 @@ def sync_whatsapp_templates_from_meta():
             for name, info in grouped.items():
                 langs_str = ",".join(sorted(list(info["languages"])))
                 desc = f"Sync'd from Meta: {info['category']}"
+                category_lower = info['category'].lower() if info['category'] else 'marketing'
+                if category_lower not in ('utility', 'marketing', 'authentication'):
+                    category_lower = 'marketing'
                 WhatsAppTemplate.objects.update_or_create(
                     template_name=name,
                     defaults={
                         "description": desc,
+                        "category": category_lower,
                         "has_variables": info["has_variables"],
                         "languages": langs_str,
                         "has_header": info["has_header"],
@@ -486,13 +491,13 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             return redirect(".")
         # Ensure default templates are populated if missing (with correct languages)
         default_templates = [
-            ("hello_world", "Default Greetings", False, "en_US", False, "none", ""),
-            ("gps_tracking_device", "GPS Tracking Devices promo", False, "en_US", False, "none", ""),
-            ("ais_140_gps_mining_device", "AIS 140 mining tracker template", False, "en_US,te", True, "image", ""),
-            ("fuel_alert", "Fuel theft/drop alerts", True, "en_US,te", False, "none", ""),
-            ("fleet_update", "Fleet status summary updates", True, "en_US,te", False, "none", ""),
+            ("hello_world", "Default Greetings", False, "en_US", False, "none", "", "utility"),
+            ("gps_tracking_device", "GPS Tracking Devices promo", False, "en_US", False, "none", "", "marketing"),
+            ("ais_140_gps_mining_device", "AIS 140 mining tracker template", False, "en_US,te", True, "image", "", "marketing"),
+            ("fuel_alert", "Fuel theft/drop alerts", True, "en_US,te", False, "none", "", "utility"),
+            ("fleet_update", "Fleet status summary updates", True, "en_US,te", False, "none", "", "utility"),
         ]
-        for name, desc, has_vars, langs, has_header, header_type, header_img in default_templates:
+        for name, desc, has_vars, langs, has_header, header_type, header_img, category in default_templates:
             WhatsAppTemplate.objects.get_or_create(
                 template_name=name,
                 defaults={
@@ -501,7 +506,8 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                     "languages": langs,
                     "has_header": has_header,
                     "header_type": header_type,
-                    "header_image_url": header_img
+                    "header_image_url": header_img,
+                    "category": category
                 }
             )
 

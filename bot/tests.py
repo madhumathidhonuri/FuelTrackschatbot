@@ -2680,3 +2680,67 @@ class AgentNotificationTests(TestCase):
         self.assertEqual(AgentNotificationLog.objects.count(), 0)
 
 
+class MarketingMessagesAPITests(TestCase):
+    def setUp(self):
+        WhatsAppTemplate.objects.all().delete()
+
+    @patch("bot.broadcast.requests.post")
+    @patch("bot.broadcast.os.getenv")
+    def test_send_whatsapp_template_marketing_uses_marketing_messages_endpoint(self, mock_getenv, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "PHONE_NUMBER_ID": "fake_phone_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Create marketing template
+        WhatsAppTemplate.objects.create(
+            template_name="marketing_promo",
+            category="marketing",
+            has_variables=False
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        from bot.broadcast import send_whatsapp_template, PHONE_NUMBER_ID
+        success, err = send_whatsapp_template("919999999999", "marketing_promo")
+        self.assertTrue(success)
+        self.assertIsNone(err)
+
+        # Check endpoint contains marketing_messages
+        called_url = mock_post.call_args[0][0]
+        self.assertIn("graph.facebook.com", called_url)
+        self.assertIn(f"/{PHONE_NUMBER_ID}/marketing_messages", called_url)
+
+    @patch("bot.broadcast.requests.post")
+    @patch("bot.broadcast.os.getenv")
+    def test_send_whatsapp_template_utility_uses_messages_endpoint(self, mock_getenv, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "PHONE_NUMBER_ID": "fake_phone_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Create utility template
+        WhatsAppTemplate.objects.create(
+            template_name="utility_alert",
+            category="utility",
+            has_variables=False
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        from bot.broadcast import send_whatsapp_template, PHONE_NUMBER_ID
+        success, err = send_whatsapp_template("919999999999", "utility_alert")
+        self.assertTrue(success)
+        self.assertIsNone(err)
+
+        # Check endpoint contains messages (not marketing_messages)
+        called_url = mock_post.call_args[0][0]
+        self.assertIn("graph.facebook.com", called_url)
+        self.assertIn(f"/{PHONE_NUMBER_ID}/messages", called_url)
+        self.assertNotIn("marketing_messages", called_url)
+
+

@@ -108,6 +108,16 @@ class WhatsAppTemplate(models.Model):
         blank=True, 
         help_text="Brief description/label shown in dropdown"
     )
+    category = models.CharField(
+        max_length=50,
+        choices=[
+            ('utility', 'Utility'),
+            ('marketing', 'Marketing'),
+            ('authentication', 'Authentication'),
+        ],
+        default='marketing',
+        help_text="Template category (e.g. marketing, utility)"
+    )
     custom_system_prompt = models.TextField(
         blank=True,
         default='',

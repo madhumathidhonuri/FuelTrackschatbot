@@ -46,18 +46,6 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
     Fires an approved Meta message template to a single customer.
     Returns (success: bool, error_reason: str)
     """
-    url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
-
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json"
-    }
-
-    template_payload = {
-        "name": template_name,
-        "language": {"code": language_code}
-    }
-
     # Check template configuration in database (fallback to hardcoded list if not found or on error)
     has_variables = False
     has_header = False
@@ -65,10 +53,12 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
     header_image_url = ''
     header_file_url = None
     header_media_id = ''
+    category = 'utility'
     try:
         from bot.models import WhatsAppTemplate
         template_obj = WhatsAppTemplate.objects.filter(template_name=template_name).first()
         if template_obj:
+            category = template_obj.category.lower() if template_obj.category else 'utility'
             has_variables = template_obj.has_variables
             has_header = template_obj.has_header
             header_type = template_obj.header_type
@@ -82,8 +72,25 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
                 header_file_url = f"{site_url}{template_obj.header_file.url}"
         else:
             has_variables = template_name in ["fuel_alert", "fleet_update", "promo_blast"]
+            if template_name in ["gps_tracking_device", "ais_140_gps_mining_device", "promo_blast"]:
+                category = 'marketing'
     except Exception:
         has_variables = template_name in ["fuel_alert", "fleet_update", "promo_blast"]
+        if template_name in ["gps_tracking_device", "ais_140_gps_mining_device", "promo_blast"]:
+            category = 'marketing'
+
+    endpoint_path = "marketing_messages" if category == 'marketing' else "messages"
+    url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/{endpoint_path}"
+
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    template_payload = {
+        "name": template_name,
+        "language": {"code": language_code}
+    }
 
     components = []
 
