@@ -216,7 +216,9 @@ CONTACT_KEYWORDS = [
     "speak to agent", "call agent", "talk to an agent", "agent details", "contact human",
     "talk to human", "connect to human", "call human", "speak to human", "human agent",
     "human support", "live agent", "live support", "customer care", "customer support",
-    "support number", "support phone", "support contact", "customer executive", "customer representative"
+    "support number", "support phone", "support contact", "customer executive", "customer representative",
+    "సేల్స్ టీమ్ని సంప్రదించండి", "సేల్స్ టీమ్", "సంప్రదించండి", "సపోర్ట్", "ఏజెంట్‌తో మాట్లాడండి",
+    "ఏజెంట్ తో మాట్లాడండి", "ఏజెంట్"
 ]
 
 
@@ -867,9 +869,13 @@ def whatsapp_webhook(request):
                         cache_key = f"wa_msg_id_{message_id}"
                         cache.set(cache_key, True, timeout=86400)
 
-                    if message_obj.get("type") in ["text", "interactive"]:
+                    if message_obj.get("type") in ["text", "interactive", "button"]:
                         if message_obj.get("type") == "text":
                             user_text = message_obj["text"].get("body", "")
+                        elif message_obj.get("type") == "button":
+                            user_text = message_obj.get("button", {}).get("text", "")
+                            if not user_text and message_obj.get("button", {}).get("payload"):
+                                user_text = message_obj.get("button", {}).get("payload", "")
                         else:
                             interactive_type = message_obj["interactive"].get("type", "")
                             if interactive_type == "button_reply":

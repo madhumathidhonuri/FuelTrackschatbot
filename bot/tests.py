@@ -2347,3 +2347,111 @@ class AdditionalBotFlowTests(TestCase):
         sys_prompt = call_args[1]["messages"][0]["content"]
         self.assertIn("ais_140_gps_mining_device", sys_prompt)
         self.assertIn("focus strictly on our ais 140 certified gps tracking devices approved by the government of telangana mining department", sys_prompt.lower())
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_template_button_click_contact_sales(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Pre-create standard customer
+        customer = FleetCustomer.objects.create(
+            phone_number="1234567890",
+            owner_name="Ravi",
+            truck_number="AP12XX1234",
+            is_active=True
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Payload representing clicking "సేల్స్ టీమ్ని సంప్రదించండి"
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_template_btn_click",
+                                        "type": "button",
+                                        "button": {
+                                            "text": "సేల్స్ టీమ్ని సంప్రదించండి",
+                                            "payload": "contact_sales"
+                                        }
+                                    }
+                                ],
+                                "metadata": {
+                                    "phone_number_id": "fake_id"
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # We expect 3 calls (similar to standard contact request):
+        # 1. Handoff intro text to user
+        # 2. Vcard to user
+        # 3. Notification to AGENT_NOTIFY_PHONE (+919000666914)
+        self.assertEqual(mock_post.call_count, 3)
+        called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
+        self.assertIn("+919000666914", called_numbers)
+
+        # Payload representing clicking "Talk to Sales"
+        payload_en = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "1234567890",
+                                        "id": "msg_template_btn_click_en",
+                                        "type": "button",
+                                        "button": {
+                                            "text": "Talk to Sales",
+                                            "payload": "contact_sales_en"
+                                        }
+                                    }
+                                ],
+                                "metadata": {
+                                    "phone_number_id": "fake_id"
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        mock_post.reset_mock()
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_en),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_post.call_count, 3)
+        called_numbers_en = [call[1]["json"]["to"] for call in mock_post.call_args_list]
+        self.assertIn("+919000666914", called_numbers_en)
+
