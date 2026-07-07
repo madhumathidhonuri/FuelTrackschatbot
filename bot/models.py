@@ -232,3 +232,23 @@ class WhatsAppTemplate(models.Model):
 
     def __str__(self):
         return f"{self.template_name} ({self.description or 'No description'})"
+
+
+class AgentNotificationLog(models.Model):
+    customer = models.ForeignKey('FleetCustomer', on_delete=models.SET_NULL, null=True, blank=True)
+    phone_number = models.CharField(max_length=20)
+    message_content = models.TextField()
+    is_template_reply = models.BooleanField(default=False)
+    template_name = models.CharField(max_length=100, blank=True, null=True)
+    notification_sent = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Agent Notification Log"
+        verbose_name_plural = "Agent Notification Logs"
+
+    def __str__(self):
+        msg_type = "Template Reply" if self.is_template_reply else "Incoming Message"
+        return f"{msg_type} from {self.phone_number} at {self.created_at}"
+

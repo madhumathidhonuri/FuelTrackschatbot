@@ -11,7 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
 from dotenv import load_dotenv
 from groq import Groq
-from .models import ChatMessage, FleetCustomer, AdCampaign
+from .models import ChatMessage, FleetCustomer, AdCampaign, AgentNotificationLog
 
 load_dotenv()
 
@@ -744,13 +744,93 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
         print(f"Failed to post outgoing message via Meta API: {e}")
 
 
+def notify_agent_of_incoming_message(customer, user_phone, user_text):
+    """
+    Sends a WhatsApp notification to the agent when a customer messages the bot or replies to a template,
+    and logs the notification event in AgentNotificationLog.
+    """
+    from django.conf import settings
+    if getattr(settings, 'DISABLE_INCOMING_NOTIFICATIONS', False):
+        return
+
+    clean_user = ''.join(c for c in user_phone if c.isdigit())
+    clean_agent = ''.join(c for c in AGENT_NOTIFY_PHONE if c.isdigit())
+    if clean_user == clean_agent:
+        return
+
+    # Deduplicate notifications using cache
+    cache_key = f"notified_agent_incoming_{user_phone}_{hash(user_text)}"
+    if cache.get(cache_key):
+        return
+
+    # Check if the customer recently received a broadcast template
+    recent_broadcast = ChatMessage.objects.filter(
+        phone_number=user_phone,
+        role='assistant',
+        content__startswith="[System Sent Broadcast:"
+    ).order_by('-id').first()
+
+    template_name = None
+    if recent_broadcast:
+        content = recent_broadcast.content
+        if " - " in content:
+            parts = content.replace("[System Sent Broadcast:", "").replace("]", "").strip().split(" - ")
+            if parts:
+                template_name = parts[0].strip()
+        else:
+            template_name = content.replace("[System Sent Broadcast:", "").replace("]", "").strip()
+
+    is_template_reply = (template_name is not None)
+
+    if is_template_reply:
+        agent_alert = (
+            f"📥 Template Reply Alert!\n"
+            f"Customer: {customer.owner_name if customer else 'Unknown'}\n"
+            f"Phone: {user_phone}\n"
+            f"Truck: {customer.truck_number if (customer and customer.truck_number) else 'Not provided'}\n"
+            f"Template: {template_name}\n"
+            f"User Reply: '{user_text}'"
+        )
+    else:
+        agent_alert = (
+            f"💬 Customer Message Alert!\n"
+            f"Customer: {customer.owner_name if customer else 'Unknown'}\n"
+            f"Phone: {user_phone}\n"
+            f"Truck: {customer.truck_number if (customer and customer.truck_number) else 'Not provided'}\n"
+            f"User Msg: '{user_text}'"
+        )
+
+    notification_sent = False
+    try:
+        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+        notification_sent = True
+    except Exception as e:
+        print(f"[ERROR] Failed to send WhatsApp notification to agent: {e}")
+
+    try:
+        AgentNotificationLog.objects.create(
+            customer=customer,
+            phone_number=user_phone,
+            message_content=user_text,
+            is_template_reply=is_template_reply,
+            template_name=template_name,
+            notification_sent=notification_sent
+        )
+    except Exception as e:
+        print(f"[ERROR] Failed to create AgentNotificationLog entry: {e}")
+
+    cache.set(cache_key, True, timeout=600)  # cache for 10 minutes
+
+
 def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
     """
     Checks if the user text or the bot reply indicates that the agent (Karunakar Reddy)
     needs to be notified or contact is requested, and sends the notification if so.
     """
     # Exclude notifications when the message is sent to/by the agent phone itself
-    if user_phone == AGENT_NOTIFY_PHONE:
+    clean_user = ''.join(c for c in user_phone if c.isdigit())
+    clean_agent = ''.join(c for c in AGENT_NOTIFY_PHONE if c.isdigit())
+    if clean_user == clean_agent:
         return
 
     # Prevent duplicate notifications for the same message content using cache
@@ -911,6 +991,9 @@ def whatsapp_webhook(request):
                             phone_number=user_phone,
                             defaults={"owner_name": "New Fleet Contact", "is_active": True}
                         )
+
+                        # Notify agent of customer message or template reply
+                        notify_agent_of_incoming_message(customer, user_phone, user_text)
 
                         # Check for Meta Facebook Ad Referral payload
                         referral_data = message_obj.get("referral")

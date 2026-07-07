@@ -9,7 +9,7 @@ import json
 import requests
 import threading
 import time
-from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign, WhatsAppTemplate
+from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign, WhatsAppTemplate, AgentNotificationLog
 
 @admin.register(AdCampaign)
 class AdCampaignAdmin(admin.ModelAdmin):
@@ -121,6 +121,31 @@ class ChatMessageAdmin(admin.ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         request._is_changelist = True
         return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(AgentNotificationLog)
+class AgentNotificationLogAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'phone_number_link', 'customer_name', 'message_content_excerpt', 'is_template_reply', 'template_name', 'notification_sent')
+    list_filter = ('is_template_reply', 'template_name', 'notification_sent', 'created_at')
+    search_fields = ('phone_number', 'message_content', 'template_name')
+    readonly_fields = ('created_at',)
+
+    def customer_name(self, obj):
+        if obj.customer:
+            return obj.customer.owner_name
+        return "Unknown"
+    customer_name.short_description = "Customer Name"
+
+    def message_content_excerpt(self, obj):
+        return obj.message_content[:75] + ("..." if len(obj.message_content) > 75 else "")
+    message_content_excerpt.short_description = "Message"
+
+    def phone_number_link(self, obj):
+        from django.utils.html import format_html
+        url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
+        return format_html('<a href="{}">{}</a>', url, obj.phone_number)
+    phone_number_link.short_description = "Phone Number"
+
 
 def run_broadcast_thread(task_id, file_path, template_name, language_code):
     from django.db import connection

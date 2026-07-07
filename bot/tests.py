@@ -1,9 +1,12 @@
 from django.test import TestCase, Client
 from unittest.mock import patch, MagicMock
 from django.urls import reverse
-from bot.models import FleetCustomer, ChatMessage, AdCampaign, WhatsAppTemplate
+from bot.models import FleetCustomer, ChatMessage, AdCampaign, WhatsAppTemplate, AgentNotificationLog
 import json
 import os
+from django.conf import settings
+settings.DISABLE_INCOMING_NOTIFICATIONS = True
+
 
 class WebhookTests(TestCase):
     def setUp(self):
@@ -2454,4 +2457,226 @@ class AdditionalBotFlowTests(TestCase):
         self.assertEqual(mock_post.call_count, 3)
         called_numbers_en = [call[1]["json"]["to"] for call in mock_post.call_args_list]
         self.assertIn("+919000666914", called_numbers_en)
+
+
+class AgentNotificationTests(TestCase):
+    def setUp(self):
+        from django.conf import settings
+        settings.DISABLE_INCOMING_NOTIFICATIONS = False
+        self.client = Client()
+        FleetCustomer.objects.all().delete()
+        ChatMessage.objects.all().delete()
+        AgentNotificationLog.objects.all().delete()
+
+    def tearDown(self):
+        from django.conf import settings
+        settings.DISABLE_INCOMING_NOTIFICATIONS = True
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_incoming_customer_message_notification_and_log(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock AI response
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        mock_ai_instance.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content="Hello! How can I help you today?"))
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # 1. Normal customer messages the bot
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "917777777777",
+                                        "id": "msg_normal_123",
+                                        "type": "text",
+                                        "text": {"body": "I want to buy a GPS tracker"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify that notification was sent to +919000666914
+        called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
+        self.assertIn("+919000666914", called_numbers)
+
+        # Check notification content contains "Customer Message Alert" and user message
+        notification_payloads = [call[1]["json"] for call in mock_post.call_args_list if call[1]["json"]["to"] == "+919000666914"]
+        self.assertTrue(len(notification_payloads) > 0)
+        self.assertIn("Customer Message Alert", notification_payloads[0]["text"]["body"])
+        self.assertIn("I want to buy a GPS tracker", notification_payloads[0]["text"]["body"])
+
+        # Check AgentNotificationLog was created
+        logs = AgentNotificationLog.objects.filter(phone_number="917777777777")
+        self.assertEqual(logs.count(), 1)
+        log = logs.first()
+        self.assertFalse(log.is_template_reply)
+        self.assertIsNone(log.template_name)
+        self.assertEqual(log.message_content, "I want to buy a GPS tracker")
+        self.assertTrue(log.notification_sent)
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_incoming_template_reply_notification_and_log(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock AI response
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        mock_ai_instance.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content="Awesome, thank you."))
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Setup last message sent as a template broadcast
+        ChatMessage.objects.create(
+            phone_number="918888888888",
+            role="assistant",
+            content="[System Sent Broadcast: gps_tracking_device - Description]"
+        )
+
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "918888888888",
+                                        "id": "msg_template_reply_123",
+                                        "type": "text",
+                                        "text": {"body": "Yes, I am interested"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify notification was sent
+        called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
+        self.assertIn("+919000666914", called_numbers)
+
+        # Check notification content contains "Template Reply Alert" and template name
+        notification_payloads = [call[1]["json"] for call in mock_post.call_args_list if call[1]["json"]["to"] == "+919000666914"]
+        self.assertTrue(len(notification_payloads) > 0)
+        self.assertIn("Template Reply Alert", notification_payloads[0]["text"]["body"])
+        self.assertIn("gps_tracking_device", notification_payloads[0]["text"]["body"])
+        self.assertIn("Yes, I am interested", notification_payloads[0]["text"]["body"])
+
+        # Check log creation
+        logs = AgentNotificationLog.objects.filter(phone_number="918888888888")
+        self.assertEqual(logs.count(), 1)
+        log = logs.first()
+        self.assertTrue(log.is_template_reply)
+        self.assertEqual(log.template_name, "gps_tracking_device")
+        self.assertEqual(log.message_content, "Yes, I am interested")
+
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_no_notification_for_agent_himself(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock AI response
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        mock_ai_instance.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content="Hello Agent."))
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Message is sent from AGENT_NOTIFY_PHONE (+919000666914 or 919000666914)
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "919000666914",
+                                        "id": "msg_agent_123",
+                                        "type": "text",
+                                        "text": {"body": "How many leads today?"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify that NO notification was sent to +919000666914
+        called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
+        self.assertNotIn("+919000666914", called_numbers)
+
+        # Check that no AgentNotificationLog was created
+        self.assertEqual(AgentNotificationLog.objects.count(), 0)
+
 
