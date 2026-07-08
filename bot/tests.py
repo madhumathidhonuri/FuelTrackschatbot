@@ -2458,6 +2458,91 @@ class AdditionalBotFlowTests(TestCase):
         called_numbers_en = [call[1]["json"]["to"] for call in mock_post.call_args_list]
         self.assertIn("+919000666914", called_numbers_en)
 
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_name_request_count_limits(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock AI response
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        mock_ai_instance.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content="Here is the info about trackers."))
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # 1. First greeting message (shows welcome message and name request)
+        new_phone = "917777111222"
+        payload_greeting = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_greet_1", "type": "text", "text": {"body": "hello"}}]}}]}]
+        }
+        response = self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_greeting), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+
+        # ChatMessage count for assistant should have 1 name request ("May I know your name, please?")
+        name_asks = ChatMessage.objects.filter(phone_number=new_phone, role="assistant", content__icontains="your name")
+        self.assertEqual(name_asks.count(), 1)
+
+        # 2. Customer replies with something that is NOT a valid name (e.g. "i want trackers")
+        # Since they are in the name flow, the bot attempts to extract name, fails, and sends a retry name request
+        payload_retry = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_retry_1", "type": "text", "text": {"body": "i want trackers"}}]}}]}]
+        }
+        response = self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_retry), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+
+        # ChatMessage count for assistant name requests should now be 2 ("Could you please tell me your name...")
+        name_asks = ChatMessage.objects.filter(phone_number=new_phone, role="assistant", content__icontains="your name")
+        self.assertEqual(name_asks.count(), 2)
+
+        # 3. Customer sends another message (e.g. "solar cam").
+        # Since the request count is >= 2, the bot should NOT trigger the name loop, nor ask for name anymore.
+        # It should invoke Groq and respond normally.
+        mock_post.reset_mock()
+        payload_normal = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": new_phone, "id": "msg_normal_1", "type": "text", "text": {"body": "tell me about solar cam"}}]}}]}]
+        }
+        response = self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_normal), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+
+        # Verify it went to Groq
+        self.assertTrue(mock_ai_instance.chat.completions.create.called)
+
+        # Verify name suffix was NOT appended to the AI response
+        last_msg = ChatMessage.objects.filter(phone_number=new_phone, role="assistant").order_by('-id').first()
+        self.assertNotIn("May I know your name, please?", last_msg.content)
+        self.assertNotIn("మీ పేరు తెలుసుకోవచ్చా", last_msg.content)
+
+        # 4. Verification that if name is already set (e.g. customer name is known), it doesn't ask at all
+        known_phone = "917777333444"
+        FleetCustomer.objects.create(phone_number=known_phone, owner_name="Ravi Kumar", is_active=True)
+        payload_known = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{"from": known_phone, "id": "msg_known_1", "type": "text", "text": {"body": "hello"}}]}}]}]
+        }
+        mock_post.reset_mock()
+        response = self.client.post(reverse("whatsapp_webhook"), data=json.dumps(payload_known), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+
+        # It goes directly to Groq, no name request suffix is appended
+        last_msg_known = ChatMessage.objects.filter(phone_number=known_phone, role="assistant").order_by('-id').first()
+        self.assertNotIn("May I know your name, please?", last_msg_known.content)
+        self.assertNotIn("మీ పేరు తెలుసుకోవచ్చా", last_msg_known.content)
+
+
+
 
 class AgentNotificationTests(TestCase):
     def setUp(self):

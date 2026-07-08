@@ -437,9 +437,8 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 + offtopic_rule_telugu + paperwork_rule_telugu +
                 "CRITICAL PRICING & CLOSING RULES:\n"
                 "- ధర వివరాలను మీ అంతటగా ఊహించి చెప్పకండి.\n"
-                "- యూజర్ డీల్స్ లేదా కోట్ కావాలని అడిగితే మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్, "
-                "మిస్టర్ కరుణాకర్ రెడ్డి గారు 10-15 నిమిషాల్లో మీకు కాల్ చేసి పూర్తి వివరాలు "
-                "అందిస్తారని చెప్పండి. మీరు నేరుగా సంప్రదించవచ్చు: 7337433350, 7337433351, 73337433356, లేదా మిస్టర్ కరుణాకర్ రెడ్డి 9000666914.\n"
+                "- యూజర్ సేల్స్ టీమ్‌ని సంప్రదించాలని లేదా డీల్స్/కోట్ కావాలని అడిగితే, మర్యాదగా ఈ విధంగా సమాధానం చెప్పండి: "
+                "'హలో! మా సేల్స్ టీమ్‌తో మాట్లాడాలని కోరినందుకు ధన్యవాదాలు. మీరు నేరుగా మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్ మిస్టర్ కరుణాకర్ రెడ్డి (+91 90006 66914) కి లేదా మా సపోర్ట్ నంబర్లు: 73374 33350, 73374 33351, 73337 43356 లకు కాల్ చేయవచ్చు.'\n"
                 f"- ఒకవేళ యూజర్ 'సరే', 'ధన్యవాదాలు', లేదా సెలవు చెబితే: "
                 f"'ఫ్యూయల్ ట్రాక్స్ టెక్నాలజీస్‌ను సంప్రదించినందుకు ధన్యవాదాలు, {display_name_telugu} గారు. "
                 "మీకు శుభదినం!'"
@@ -476,8 +475,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 + offtopic_rule_tenglish + paperwork_rule_tenglish +
                 "CRITICAL PRICING & CLOSING RULES:\n"
                 "- Specific pricing package values or numerical cost rates guess cheyakandi.\n"
-                f"- Deal quotes or fleet integrations adigithe: 'Mr. Karunakar Reddy garu 10-15 minutes "
-                f"lo meeku call chesi full commercial proposal isthaaru' ani cheppandi. Meeru direct ga contact cheyavacchu: 7337433350, 7337433351, 73337433356, leda Mr. Karunakar Reddy 9000666914.\n"
+                f"- Deal quotes or fleet integrations adigithe: 'Hello! Sales team ni contact cheyalani korinanduku dhanyavadalu. Meeru direct ga mana Technical Sales Expert Mr. Karunakar Reddy (+91 90006 66914) leda mana support numbers: 73374 33350, 73374 33351, 73337 43356 ki call cheyavacchu.' ani cheppandi.\n"
                 f"- If the user says 'ok', 'thank you', or goodbye, close: "
                 f"'Fuel Tracks Technologies ni contact chesinanduku dhanyavadalu, {display_name} garu. "
                 "Have a great day ahead!'"
@@ -512,9 +510,8 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 + offtopic_rule_english + paperwork_rule_english +
                 "CRITICAL PRICING & QUOTE GUARDRAIL:\n"
                 "- NEVER invent, guess, or state specific pricing figures or numerical rates.\n"
-                "- State that our Technical Sales Expert, Mr. Karunakar Reddy, will provide a "
-                "customized commercial proposal during his call. You can also contact us at "
-                "7337433350, 7337433351, 73337433356, or Mr. Karunakar Reddy at 9000666914.\n\n"
+                "- If the user requests to contact the sales team, respond with: "
+                "'Hello! Thank you for requesting to contact our sales team. You can call our Technical Sales Expert, Mr. Karunakar Reddy at +91 90006 66914 or our support team at 73374 33350, 73374 33351, 73337 43356 directly.'\n\n"
 
                 "CRITICAL CLOSING GUARDRAIL:\n"
                 f"- If the user says goodbye, 'bye', 'thank you', or 'thanks', close: "
@@ -617,16 +614,23 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
         ai_reply = completion.choices[0].message.content
 
-        # If the customer's name is not yet collected (i.e. name is default "New Fleet Contact"),
-        # append a request for their name to the generated AI response.
+        # Count how many times the assistant has asked for the name
+        from django.db.models import Q
+        name_request_count = ChatMessage.objects.filter(
+            phone_number=user_phone,
+            role='assistant'
+        ).filter(
+            Q(content__icontains="your name") | Q(content__icontains="మీ పేరు తెలుసుకోవచ్చా")
+        ).count()
+
         is_new_contact = (
             not customer or 
             not customer.owner_name or 
             customer.owner_name.strip().lower() in ["new fleet contact", "new fleet contact."]
         )
-        if is_new_contact:
+        if is_new_contact and name_request_count < 2:
             if has_telugu_script:
-                name_suffix = "\n\nదయచేసి మీ పేరు తెలుసుకోవచ్చా? (May I know your name, please?)"
+                name_suffix = "\n\nదయచేసి మీ పేరు తెలుసుకోవచ్చా?"
             else:
                 name_suffix = "\n\nMay I know your name, please?"
             ai_reply = f"{ai_reply}{name_suffix}"
@@ -1115,8 +1119,22 @@ def whatsapp_webhook(request):
                                         asked_for_name = True
                                         break
                                     
+                        # Count how many times the assistant has asked for the name
+                        from django.db.models import Q
+                        name_request_count = ChatMessage.objects.filter(
+                            phone_number=user_phone,
+                            role='assistant'
+                        ).filter(
+                            Q(content__icontains="your name") | Q(content__icontains="మీ పేరు తెలుసుకోవచ్చా")
+                        ).count()
+
                         is_contact_request = has_keyword_match(clean_text, CONTACT_KEYWORDS)
-                        handle_name_flow = is_new_unreferred_contact and (asked_for_name or is_greeting) and not is_contact_request
+                        handle_name_flow = (
+                            is_new_unreferred_contact and 
+                            (asked_for_name or is_greeting) and 
+                            not is_contact_request and
+                            name_request_count < 2
+                        )
 
                         if clean_text == "stop":
                             customer.is_active = False
