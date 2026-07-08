@@ -2679,6 +2679,71 @@ class AgentNotificationTests(TestCase):
         # Check that no AgentNotificationLog was created
         self.assertEqual(AgentNotificationLog.objects.count(), 0)
 
+    @patch("bot.views.requests.post")
+    @patch("bot.views.Groq")
+    @patch("bot.views.os.getenv")
+    def test_incoming_message_deduplication(self, mock_getenv, mock_groq, mock_post):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_APP_SECRET": None,
+            "GROQ_API_KEY": "fake_key",
+            "PHONE_NUMBER_ID": "fake_id",
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock AI response
+        mock_ai_instance = MagicMock()
+        mock_groq.return_value = mock_ai_instance
+        mock_ai_instance.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content="Hello!"))
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Post 3 consecutive messages
+        messages = ["Hi", "Babu", "dash cam"]
+        for idx, text in enumerate(messages):
+            payload = {
+                "object": "whatsapp_business_account",
+                "entry": [
+                    {
+                        "changes": [
+                            {
+                                "value": {
+                                    "messages": [
+                                        {
+                                            "from": "917777777777",
+                                            "id": f"msg_dedup_{idx}",
+                                            "type": "text",
+                                            "text": {"body": text}
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            response = self.client.post(
+                reverse("whatsapp_webhook"),
+                data=json.dumps(payload),
+                content_type="application/json"
+            )
+            self.assertEqual(response.status_code, 200)
+
+        # Check notification logs in DB
+        logs = AgentNotificationLog.objects.filter(phone_number="917777777777")
+        self.assertEqual(logs.count(), 1)
+        log = logs.first()
+        self.assertEqual(log.message_content, "Hi\nBabu\ndash cam")
+
+        # Verify that only 1 notification was sent to agent (+919000666914)
+        agent_notifications = [call[1]["json"] for call in mock_post.call_args_list if call[1].get("json", {}).get("to") == "+919000666914"]
+        self.assertEqual(len(agent_notifications), 1)
+
+
+
 
 class MarketingMessagesAPITests(TestCase):
     def setUp(self):

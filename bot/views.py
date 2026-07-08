@@ -758,9 +758,48 @@ def notify_agent_of_incoming_message(customer, user_phone, user_text):
     if clean_user == clean_agent:
         return
 
-    # Deduplicate notifications using cache
-    cache_key = f"notified_agent_incoming_{user_phone}_{hash(user_text)}"
-    if cache.get(cache_key):
+    # Check if a log entry was created for this user within the last 15 minutes
+    from django.utils import timezone
+    from datetime import timedelta
+    time_threshold = timezone.now() - timedelta(minutes=15)
+    recent_log = AgentNotificationLog.objects.filter(
+        phone_number=user_phone,
+        created_at__gte=time_threshold
+    ).first()
+
+    # If a recent log exists, append the message content and update details if needed
+    if recent_log:
+        try:
+            if recent_log.message_content:
+                recent_log.message_content = f"{recent_log.message_content}\n{user_text}"
+            else:
+                recent_log.message_content = user_text
+
+            # Check if this new message can be matched to a recent broadcast template
+            recent_broadcast = ChatMessage.objects.filter(
+                phone_number=user_phone,
+                role='assistant',
+                content__startswith="[System Sent Broadcast:"
+            ).order_by('-id').first()
+
+            template_name = None
+            if recent_broadcast:
+                content = recent_broadcast.content
+                if " - " in content:
+                    parts = content.replace("[System Sent Broadcast:", "").replace("]", "").strip().split(" - ")
+                    if parts:
+                        template_name = parts[0].strip()
+                else:
+                    template_name = content.replace("[System Sent Broadcast:", "").replace("]", "").strip()
+
+            if template_name:
+                recent_log.is_template_reply = True
+                recent_log.template_name = template_name
+
+            recent_log.save()
+            print(f"[INFO] Appended message from {user_phone} to existing AgentNotificationLog {recent_log.id}.")
+        except Exception as e:
+            print(f"[ERROR] Failed to update existing AgentNotificationLog entry: {e}")
         return
 
     # Check if the customer recently received a broadcast template
@@ -818,8 +857,6 @@ def notify_agent_of_incoming_message(customer, user_phone, user_text):
         )
     except Exception as e:
         print(f"[ERROR] Failed to create AgentNotificationLog entry: {e}")
-
-    cache.set(cache_key, True, timeout=600)  # cache for 10 minutes
 
 
 def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
