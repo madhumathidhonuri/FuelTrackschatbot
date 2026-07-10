@@ -2120,7 +2120,7 @@ class AdditionalBotFlowTests(TestCase):
         welcome_text = kwargs_welcome["json"]["interactive"]["body"]["text"]
         self.assertIn("73374 33350", welcome_text)
         self.assertIn("73374 33351", welcome_text)
-        self.assertIn("73337 43356", welcome_text)
+        self.assertIn("73374 33356", welcome_text)
 
         # 2. Check talk to an agent numbers
         mock_post.reset_mock()
@@ -2140,7 +2140,7 @@ class AdditionalBotFlowTests(TestCase):
         agent_body = kwargs_agent["json"]["text"]["body"]
         self.assertIn("7337433350", agent_body)
         self.assertIn("7337433351", agent_body)
-        self.assertIn("73337433356", agent_body)
+        self.assertIn("7337433356", agent_body)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")

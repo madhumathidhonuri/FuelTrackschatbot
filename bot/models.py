@@ -262,3 +262,16 @@ class AgentNotificationLog(models.Model):
         msg_type = "Template Reply" if self.is_template_reply else "Incoming Message"
         return f"{msg_type} from {self.phone_number} at {self.created_at}"
 
+
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
+
+@receiver(pre_delete, sender=FleetCustomer)
+def delete_related_chats(sender, instance, **kwargs):
+    """
+    Deletes all ChatMessages matching the FleetCustomer's phone_number
+    when the FleetCustomer is deleted.
+    """
+    ChatMessage.objects.filter(phone_number=instance.phone_number).delete()
+
+

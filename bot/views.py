@@ -60,7 +60,8 @@ def is_simple_greeting(text):
     """
     greetings = {
         "hi", "hello", "namaste", "start", "hey", "yo", "good morning", "good afternoon",
-        "good evening", "hlo", "hi sir", "hello sir", "హాయ్", "హలో", "నమస్తే", "నమస్కారం"
+        "good evening", "hlo", "hi sir", "hello sir", "హాయ్", "హలో", "నమస్తే", "నమస్కారం",
+        "hii", "hiii", "helloo", "helo"
     }
     # Remove simple punctuation like question marks or exclamation marks and trim whitespace
     cleaned = "".join(c for c in text.lower() if c.isalnum() or c.isspace()).strip()
@@ -411,18 +412,20 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "   Before deciding a message is \"out of scope,\" check the last 1-3 messages for context. Short follow-ups like \"price\", \"how much\", \"cost\", \"details\", \"features\", \"warranty\", \"specs\" almost always refer to the product just discussed — NOT a new topic. Never fire the scope-refusal on a follow-up about a product you already introduced in this conversation.\n"
             "2. PRICING QUESTIONS ARE ALWAYS IN SCOPE\n"
             "   - Never respond to a pricing question with the generic \"I can only assist with Fuel Tracks products\" refusal.\n"
-            "   - If exact pricing depends on configuration (number of vehicles, tanks, sensor type, subscription plan, etc.), do not refuse — ask the 1-2 specific questions needed to give a quote (e.g. \"How many vehicles do you want to monitor, and do you need live theft alerts included?\").\n"
-            "   - Do not commit to a final binding price without configuration details; instead give a starting range or say a sales representative will confirm the exact quote once requirements are known. This is a scoping step, not a refusal.\n"
+            "   - If the user asks for pricing, cost, or a quote, DO NOT provide numerical price estimations, ranges, or exact quotes yourself.\n"
+            "   - Instead, politely inform the user that our Technical Sales Expert, Mr. Karunakar Reddy, handles all pricing and detailed quotes. Provide his contact number (+91 90006 66914) and say he will assist them directly.\n"
             "3. SCOPE REFUSAL — NARROW USE ONLY\n"
             "   Use the redirect message (\"Sir/Madam garu, I can only assist with Fuel Tracks Technologies products and services...\") ONLY for messages with no reasonable connection to any product or service offered (general chit-chat, unrelated companies/personal topics). NEVER send this exact message twice in a row. If the user repeats or rephrases their question after a refusal, that means you misunderstood them — change your approach, don't repeat the line.\n"
             "4. NEVER PAIR A REFUSAL WITH SENT MATERIAL\n"
             "   Do not send a catalog/PDF/document in the same turn as a scope refusal. Either answer the question (and share material if relevant) or redirect — never both in one response.\n"
-            "5. HANDLING FRUSTRATION\n"
-            "   If the user sounds frustrated, annoyed, or uses short/curt/angry language, do NOT repeat your standard scripted response verbatim. Acknowledge briefly, ask one clarifying question only if truly needed, or move to escalation (Rule 7). Never send the identical message twice in a row under any circumstance.\n"
+            "5. HANDLING FRUSTRATION & ANGER\n"
+            "   If the customer sounds irritated, angry, frustrated, or uses short/curt language, DO NOT repeat scripted robotic responses. Be empathetic, apologize briefly if needed, and IMMEDIATELY offer to connect them directly with Mr. Karunakar Reddy. Your primary goal is to ensure they feel heard, respected, and never annoyed by repetitive AI loops. Never send the identical message twice in a row under any circumstance.\n"
             "6. NAME PERSONALIZATION\n"
             "   Once the user has given their name, use it naturally. Do not ask for their name again if it's already known from the conversation.\n"
             "7. ESCALATION\n"
-            "   If you fail to understand or resolve the same question twice in a row, stop repeating yourself. Instead, offer to connect the user with a human sales representative.\n\n"
+            "   If you fail to understand or resolve the same question twice in a row, stop repeating yourself. Instead, offer to connect the user with a human sales representative.\n"
+            "8. WHATSAPP FORMATTING\n"
+            "   Use a single asterisk for *bold text* instead of double asterisks (**bold**). Double asterisks do not render correctly in WhatsApp.\n\n"
         )
 
         # ENGINE 1: NATIVE TELUGU SCRIPT
@@ -449,7 +452,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- Accessories: AC Temperature Sensor for Truck (ఏసి టెంపరేచర్ మానిటరింగ్), Car LCD Monitor (4.3\" డిస్ప్లే), మరియు Relay Cutoff Switch (12V 40A రిమోట్ ఇంజన్/ఫ్యూయల్ పవర్ కట్).\n\n"
 
                 "FUEL TRACKS OFFICIAL CONTACT INFO (TELUGU SCRIPT):\n"
-                "- ఫోన్ నంబర్: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n"
+                "- ఫోన్ నంబర్: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73374 33356\n"
                 "- ఈమెయిల్: info@fueltracks.in\n"
                 "- వెబ్‌సైట్: www.fueltracks.in\n"
                 "- ప్రధాన కార్యాలయం: Champapet, Hyderabad (ప్రెస్ కాలనీ, చంపాపేట్, హైదరాబాద్)\n\n"
@@ -457,7 +460,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 + offtopic_rule_telugu + paperwork_rule_telugu + core_behavior_rules +
                 "CLOSING RULES:\n"
                 "- యూజర్ సేల్స్ టీమ్‌ని సంప్రదించాలని లేదా డీల్స్/కోట్ కావాలని అడిగితే, మర్యాదగా ఈ విధంగా సమాధానం చెప్పండి: "
-                "'హలో! మా సేల్స్ టీమ్‌తో మాట్లాడాలని కోరినందుకు ధన్యవాదాలు. మీరు నేరుగా మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్ మిస్టర్ కరుణాకర్ రెడ్డి (+91 90006 66914) కి లేదా మా సపోర్ట్ నంబర్లు: 73374 33350, 73374 33351, 73337 43356 లకు కాల్ చేయవచ్చు.'\n"
+                "'హలో! మా సేల్స్ టీమ్‌తో మాట్లాడాలని కోరినందుకు ధన్యవాదాలు. మీరు నేరుగా మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్ మిస్టర్ కరుణాకర్ రెడ్డి (+91 90006 66914) కి లేదా మా సపోర్ట్ నంబర్లు: 73374 33350, 73374 33351, 73374 33356 లకు కాల్ చేయవచ్చు.'\n"
                 f"- ఒకవేళ యూజర్ 'సరే', 'ధన్యవాదాలు', లేదా సెలవు చెబితే: "
                 f"'ఫ్యూయల్ ట్రాక్స్ టెక్నాలజీస్‌ను సంప్రదించినందుకు ధన్యవాదాలు, {display_name_telugu} గారు. "
                 "మీకు శుభదినం!'"
@@ -486,14 +489,14 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 f"- Accessories: AC Temperature Sensor for Truck, Car LCD Monitor (4.3 inch screen), mariyu Relay Cutoff Switch (12V 40A remote power disconnection switch for fuel/ignition prevention).\n\n"
 
                 "OFFICIAL CONTACT INFO IN TENGLISH:\n"
-                "- Phone Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n"
+                "- Phone Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73374 33356\n"
                 "- Email: info@fueltracks.in\n"
                 "- Website: www.fueltracks.in\n"
                 "- Head office address: Press Colony, Champapet, Hyderabad\n\n"
 
                 + offtopic_rule_tenglish + paperwork_rule_tenglish + core_behavior_rules +
                 "CLOSING RULES:\n"
-                f"- Deal quotes or fleet integrations adigithe: 'Hello! Sales team ni contact cheyalani korinanduku dhanyavadalu. Meeru direct ga mana Technical Sales Expert Mr. Karunakar Reddy (+91 90006 66914) leda mana support numbers: 73374 33350, 73374 33351, 73337 43356 ki call cheyavacchu.' ani cheppandi.\n"
+                f"- Deal quotes or fleet integrations adigithe: 'Hello! Sales team ni contact cheyalani korinanduku dhanyavadalu. Meeru direct ga mana Technical Sales Expert Mr. Karunakar Reddy (+91 90006 66914) leda mana support numbers: 73374 33350, 73374 33351, 73374 33356 ki call cheyavacchu.' ani cheppandi.\n"
                 f"- If the user says 'ok', 'thank you', or goodbye, close: "
                 f"'Fuel Tracks Technologies ni contact chesinanduku dhanyavadalu, {display_name} garu. "
                 "Have a great day ahead!'"
@@ -520,7 +523,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "- Accessories: AC Temperature Sensor for Truck, Car LCD Monitor (4.3\" TFT kit with reversing priority), and Relay Cutoff Switch (12V 40A remote engine/fuel system cutoff).\n\n"
 
                 "FUEL TRACKS OFFICIAL CONTACT INFO:\n"
-                "- Phone Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n"
+                "- Phone Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73374 33356\n"
                 "- Email: info@fueltracks.in\n"
                 "- Website: www.fueltracks.in\n"
                 "- Address: Press Colony, Champapet, Hyderabad, Telangana 500079\n\n"
@@ -528,7 +531,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 + offtopic_rule_english + paperwork_rule_english + core_behavior_rules +
                 "CLOSING GUARDRAIL:\n"
                 "- If the user requests to contact the sales team, respond with: "
-                "'Hello! Thank you for requesting to contact our sales team. You can call our Technical Sales Expert, Mr. Karunakar Reddy at +91 90006 66914 or our support team at 73374 33350, 73374 33351, 73337 43356 directly.'\n\n"
+                "'Hello! Thank you for requesting to contact our sales team. You can call our Technical Sales Expert, Mr. Karunakar Reddy at +91 90006 66914 or our support team at 73374 33350, 73374 33351, 73374 33356 directly.'\n\n"
                 "- If the user says goodbye, 'bye', 'thank you', or 'thanks', close: "
                 f"'Thank you for contacting Fuel Tracks Technologies, {display_name} garu. "
                 "Have a great day ahead!'\n\n"
@@ -585,7 +588,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 if template_prompt:
                     template_context = (
                         f"\n\nCRITICAL CONTEXT: The customer recently received the broadcast template: '{template_name}'. "
-                        f"You MUST focus your conversation strictly and response style on the product/topic of this template: {template_prompt}. "
+                        f"You MUST strictly focus your conversation and response style on the product/topic of this template: {template_prompt}. "
                         f"Do NOT offer, pitch, or discuss other company products unless the customer explicitly asks about them."
                     )
                     system_prompt += template_context
@@ -763,7 +766,7 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
         print(f"Failed to post outgoing message via Meta API: {e}")
 
 
-def notify_agent_of_incoming_message(customer, user_phone, user_text):
+def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_alert=False):
     """
     Sends a WhatsApp notification to the agent when a customer messages the bot or replies to a template,
     and logs the notification event in AgentNotificationLog.
@@ -859,11 +862,12 @@ def notify_agent_of_incoming_message(customer, user_phone, user_text):
         )
 
     notification_sent = False
-    try:
-        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
-        notification_sent = True
-    except Exception as e:
-        print(f"[ERROR] Failed to send WhatsApp notification to agent: {e}")
+    if not suppress_alert:
+        try:
+            send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+            notification_sent = True
+        except Exception as e:
+            print(f"[ERROR] Failed to send WhatsApp notification to agent: {e}")
 
     try:
         AgentNotificationLog.objects.create(
@@ -1034,22 +1038,32 @@ def whatsapp_webhook(request):
                             if last_line_clean in ["products", "office location", "talk to an agent", "start", "stop"]:
                                 clean_text = last_line_clean
 
-                        # Opt-out compliance: if customer is registered and inactive, ignore all unless "start"
-                        customer_exists = FleetCustomer.objects.filter(phone_number=user_phone).exists()
-                        if customer_exists:
-                            customer = FleetCustomer.objects.get(phone_number=user_phone)
-                            if not customer.is_active and clean_text != "start":
-                                print(f"[INACTIVE] Inactive customer {user_phone} ignored (except START).")
-                                return JsonResponse({"status": "success"})
-
                         # Initialize or fetch customer identity
                         customer, created = FleetCustomer.objects.get_or_create(
                             phone_number=user_phone,
                             defaults={"owner_name": "New Fleet Contact", "is_active": True}
                         )
 
+                        # Opt-out compliance: if customer is inactive, ignore all unless "start"
+                        if not created and not customer.is_active and clean_text != "start":
+                            print(f"[INACTIVE] Inactive customer {user_phone} ignored (except START).")
+                            return JsonResponse({"status": "success"})
+
+                        # Determine if we should suppress the generic agent alert 
+                        # (because a more specific alert will be sent later in the flow)
+                        is_talk_to_agent = clean_text == "talk to an agent"
+                        is_contact_req = has_keyword_match(clean_text, CONTACT_KEYWORDS)
+                        user_escalation_kws = [
+                            "connect", "talk", "speak", "call", "agent", "human", "representative", "expert",
+                            "team", "karunakar", "reddy", "notary", "letterhead", "stamped", "signed", "poa",
+                            "power of attorney", "resolution", "trademark", "document", "paperwork", "contract",
+                            "agreement", "office location", "address"
+                        ]
+                        is_escalation = any(kw in clean_text for kw in user_escalation_kws)
+                        suppress_generic_alert = is_talk_to_agent or is_contact_req or is_escalation
+
                         # Notify agent of customer message or template reply
-                        notify_agent_of_incoming_message(customer, user_phone, user_text)
+                        notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_alert=suppress_generic_alert)
 
                         # Check for Meta Facebook Ad Referral payload
                         referral_data = message_obj.get("referral")
@@ -1126,6 +1140,10 @@ def whatsapp_webhook(request):
                             customer.owner_name == "New Fleet Contact" and 
                             not customer.referred_by
                         )
+                        
+                        has_history = ChatMessage.objects.filter(phone_number=user_phone).exists()
+                        is_first_message = not has_history
+                        
                         if is_new_unreferred_contact:
                             history = ChatMessage.objects.filter(phone_number=user_phone, role='assistant').order_by('-id')
                             if history.exists():
@@ -1211,7 +1229,7 @@ def whatsapp_webhook(request):
                             agent_text = (
                                 "Our Expert, Mr. Karunakar Reddy, has been notified of your request! 📞 "
                                 "He will call or message you natively in 10-15 minutes.\n\n"
-                                "You can also contact us at: 7337433350, 7337433351, 73337433356, or Mr. Karunakar Reddy at 9000666914."
+                                "You can also contact us at: 7337433350, 7337433351, 7337433356, or Mr. Karunakar Reddy at 9000666914."
                             )
                             ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=agent_text)
                             send_whatsapp_message(user_phone, agent_text)
@@ -1236,7 +1254,7 @@ def whatsapp_webhook(request):
                                     "AIS 140 Certified Devices, and Smart Fuel Monitoring Solutions "
                                     "designed to eliminate fuel theft and optimize fleet operations.\n\n"
                                     "🌐 Website: www.fueltracks.in\n"
-                                    "📞 Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73337 43356\n\n"
+                                    "📞 Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73374 33356\n\n"
                                     "How can we help your business today? Select an option below:"
                                 )
                                 ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=professional_welcome)
