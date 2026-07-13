@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div id="content-main">
+    <form action="" method="post">
+        {% csrf_token %}
+        <div>
+            <fieldset class="module aligned">
+                <h2>Export Agent Notification Logs to Excel</h2>
+                <div class="form-row">
+                    <label for="from_date">From Date:</label>
+                    <input type="date" id="from_date" name="from_date" required>
+                </div>
+                <div class="form-row">
+                    <label for="from_time">From Time (optional):</label>
+                    <input type="time" id="from_time" name="from_time">
+                </div>
+                <div class="form-row">
+                    <label for="to_date">To Date (optional):</label>
+                    <input type="date" id="to_date" name="to_date">
+                </div>
+                <div class="form-row">
+                    <label for="to_time">To Time (optional):</label>
+                    <input type="time" id="to_time" name="to_time">
+                </div>
+            </fieldset>
+            <div class="submit-row">
+                <input type="submit" value="Download Excel" class="default">
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

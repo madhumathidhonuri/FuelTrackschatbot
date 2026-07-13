@@ -130,6 +130,7 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
     list_filter = ('is_template_reply', 'template_name', 'notification_sent', 'created_at')
     search_fields = ('phone_number', 'message_content', 'template_name')
     readonly_fields = ('created_at',)
+    change_list_template = "admin/agentnotificationlog_changelist.html"
 
     def customer_name(self, obj):
         if obj.customer:
@@ -146,6 +147,67 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
         url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('export-excel/', self.admin_site.admin_view(self.export_excel), name='bot_agentnotificationlog_export_excel'),
+        ]
+        return custom_urls + urls
+
+    def export_excel(self, request):
+        if request.method == "POST":
+            import pandas as pd
+            from django.http import HttpResponse
+            import datetime
+            from django.utils import timezone
+            
+            from_date = request.POST.get('from_date')
+            from_time = request.POST.get('from_time')
+            to_date = request.POST.get('to_date')
+            to_time = request.POST.get('to_time')
+            
+            qs = self.get_queryset(request)
+            
+            if from_date:
+                if from_time:
+                    try:
+                        start_dt = timezone.make_aware(datetime.datetime.strptime(f"{from_date} {from_time}", "%Y-%m-%d %H:%M"))
+                    except ValueError:
+                        start_dt = timezone.make_aware(datetime.datetime.strptime(f"{from_date} {from_time}", "%Y-%m-%d %H:%M:%S"))
+                else:
+                    start_dt = timezone.make_aware(datetime.datetime.strptime(f"{from_date} 00:00:00", "%Y-%m-%d %H:%M:%S"))
+                qs = qs.filter(created_at__gte=start_dt)
+                
+            if to_date:
+                if to_time:
+                    try:
+                        end_dt = timezone.make_aware(datetime.datetime.strptime(f"{to_date} {to_time}", "%Y-%m-%d %H:%M"))
+                    except ValueError:
+                        end_dt = timezone.make_aware(datetime.datetime.strptime(f"{to_date} {to_time}", "%Y-%m-%d %H:%M:%S"))
+                else:
+                    end_dt = timezone.make_aware(datetime.datetime.strptime(f"{to_date} 23:59:59", "%Y-%m-%d %H:%M:%S"))
+                qs = qs.filter(created_at__lte=end_dt)
+                
+            data = list(qs.values('created_at', 'phone_number', 'customer__owner_name', 'message_content', 'is_template_reply', 'template_name', 'notification_sent'))
+            df = pd.DataFrame(data)
+            
+            if not df.empty and 'created_at' in df.columns:
+                df['created_at'] = df['created_at'].dt.tz_localize(None)
+                
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="agent_notification_logs_{timezone.now().strftime("%Y%m%d%H%M%S")}.xlsx"'
+            
+            with pd.ExcelWriter(response, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Logs')
+                
+            return response
+            
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Export Agent Notification Logs to Excel',
+        }
+        return render(request, "admin/agentnotificationlog_export.html", context)
 
 
 def run_broadcast_thread(task_id, file_path, template_name, language_code):
