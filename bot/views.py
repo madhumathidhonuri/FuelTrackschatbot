@@ -766,7 +766,7 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
         print(f"Failed to post outgoing message via Meta API: {e}")
 
 
-def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_alert=False):
+def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_alert=False, is_button_reply=False):
     """
     Sends a WhatsApp notification to the agent when a customer messages the bot or replies to a template,
     and logs the notification event in AgentNotificationLog.
@@ -798,15 +798,14 @@ def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_a
                 recent_log.message_content = user_text
 
             # Check if this new message can be matched to a recent broadcast template
-            recent_broadcast = ChatMessage.objects.filter(
+            recent_assistant_msg = ChatMessage.objects.filter(
                 phone_number=user_phone,
-                role='assistant',
-                content__startswith="[System Sent Broadcast:"
+                role='assistant'
             ).order_by('-id').first()
 
             template_name = None
-            if recent_broadcast:
-                content = recent_broadcast.content
+            if recent_assistant_msg and recent_assistant_msg.content.startswith("[System Sent Broadcast:"):
+                content = recent_assistant_msg.content
                 if " - " in content:
                     parts = content.replace("[System Sent Broadcast:", "").replace("]", "").strip().split(" - ")
                     if parts:
@@ -814,9 +813,10 @@ def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_a
                 else:
                     template_name = content.replace("[System Sent Broadcast:", "").replace("]", "").strip()
 
-            if template_name:
+            if template_name or is_button_reply:
                 recent_log.is_template_reply = True
-                recent_log.template_name = template_name
+                if template_name:
+                    recent_log.template_name = template_name
 
             recent_log.save()
             print(f"[INFO] Appended message from {user_phone} to existing AgentNotificationLog {recent_log.id}.")
@@ -825,15 +825,14 @@ def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_a
         return
 
     # Check if the customer recently received a broadcast template
-    recent_broadcast = ChatMessage.objects.filter(
+    recent_assistant_msg = ChatMessage.objects.filter(
         phone_number=user_phone,
-        role='assistant',
-        content__startswith="[System Sent Broadcast:"
+        role='assistant'
     ).order_by('-id').first()
 
     template_name = None
-    if recent_broadcast:
-        content = recent_broadcast.content
+    if recent_assistant_msg and recent_assistant_msg.content.startswith("[System Sent Broadcast:"):
+        content = recent_assistant_msg.content
         if " - " in content:
             parts = content.replace("[System Sent Broadcast:", "").replace("]", "").strip().split(" - ")
             if parts:
@@ -841,7 +840,7 @@ def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_a
         else:
             template_name = content.replace("[System Sent Broadcast:", "").replace("]", "").strip()
 
-    is_template_reply = (template_name is not None)
+    is_template_reply = is_button_reply or (template_name is not None)
 
     if is_template_reply:
         agent_alert = (
@@ -1061,9 +1060,17 @@ def whatsapp_webhook(request):
                         ]
                         is_escalation = any(kw in clean_text for kw in user_escalation_kws)
                         suppress_generic_alert = is_talk_to_agent or is_contact_req or is_escalation
+                        
+                        is_button_reply = message_obj.get("type") in ["button", "interactive"]
 
                         # Notify agent of customer message or template reply
-                        notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_alert=suppress_generic_alert)
+                        notify_agent_of_incoming_message(
+                            customer, 
+                            user_phone, 
+                            user_text, 
+                            suppress_alert=suppress_generic_alert,
+                            is_button_reply=is_button_reply
+                        )
 
                         # Check for Meta Facebook Ad Referral payload
                         referral_data = message_obj.get("referral")

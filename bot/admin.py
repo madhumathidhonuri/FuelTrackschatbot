@@ -189,11 +189,18 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
                     end_dt = timezone.make_aware(datetime.datetime.strptime(f"{to_date} 23:59:59", "%Y-%m-%d %H:%M:%S"))
                 qs = qs.filter(created_at__lte=end_dt)
                 
-            data = list(qs.values('created_at', 'phone_number', 'customer__owner_name', 'message_content', 'is_template_reply', 'template_name', 'notification_sent'))
+            data = list(qs.values('customer__owner_name', 'phone_number', 'message_content', 'created_at'))
             df = pd.DataFrame(data)
             
-            if not df.empty and 'created_at' in df.columns:
-                df['created_at'] = df['created_at'].dt.tz_localize(None)
+            if not df.empty:
+                if 'created_at' in df.columns:
+                    df['created_at'] = df['created_at'].dt.tz_localize(None)
+                df.rename(columns={
+                    'customer__owner_name': 'Customer Name',
+                    'phone_number': 'Phone Number',
+                    'message_content': 'Message',
+                    'created_at': 'Time'
+                }, inplace=True)
                 
             response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
             response['Content-Disposition'] = f'attachment; filename="agent_notification_logs_{timezone.now().strftime("%Y%m%d%H%M%S")}.xlsx"'
