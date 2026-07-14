@@ -636,21 +636,35 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         
     def api_chat_list(self, request):
         from bot.models import ChatMessage
-        customers = FleetCustomer.objects.all().order_by('-created_at')
+        from django.db.models import OuterRef, Subquery
+
+        # Fetch the single most recent message for each phone number
+        latest_message_ids = ChatMessage.objects.filter(
+            phone_number=OuterRef('phone_number')
+        ).order_by('-timestamp').values('id')[:1]
+
+        # Get those latest messages, sorted from newest to oldest
+        latest_messages = ChatMessage.objects.filter(
+            id__in=Subquery(latest_message_ids)
+        ).order_by('-timestamp')[:100]
+
+        # Fetch corresponding customer records
+        phone_numbers = [msg.phone_number for msg in latest_messages]
+        customers = FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        customer_map = {c.phone_number: c for c in customers}
+
         data = []
-        for c in customers:
-            last_msg = ChatMessage.objects.filter(phone_number=c.phone_number).order_by('-timestamp').first()
-            if not last_msg:
-                continue
+        for msg in latest_messages:
+            c = customer_map.get(msg.phone_number)
             data.append({
-                "phone_number": c.phone_number,
-                "owner_name": c.owner_name or "Unknown",
-                "is_bot_paused": c.is_bot_paused,
-                "last_message": last_msg.content[:50] + ("..." if len(last_msg.content) > 50 else ""),
-                "last_message_time": last_msg.timestamp.isoformat(),
-                "timestamp_val": last_msg.timestamp.timestamp()
+                "phone_number": msg.phone_number,
+                "owner_name": c.owner_name if c else "Unknown",
+                "is_bot_paused": c.is_bot_paused if c else False,
+                "last_message": msg.content[:50] + ("..." if len(msg.content) > 50 else ""),
+                "last_message_time": msg.timestamp.isoformat(),
+                "timestamp_val": msg.timestamp.timestamp()
             })
-        data.sort(key=lambda x: x["timestamp_val"], reverse=True)
+
         return JsonResponse({"customers": data})
 
     def api_chat_history(self, request, phone_number):
