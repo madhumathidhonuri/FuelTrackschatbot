@@ -62,6 +62,20 @@ class FleetCustomer(models.Model):
     is_bot_paused = models.BooleanField(default=False, help_text="Pause the AI for this customer")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def clean(self):
+        super().clean()
+        if self.phone_number:
+            phone = ''.join(filter(str.isdigit, str(self.phone_number)))
+            if len(phone) == 10:
+                phone = '91' + phone
+            elif len(phone) == 11 and phone.startswith('0'):
+                phone = '91' + phone[1:]
+            self.phone_number = phone
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.owner_name} ({self.truck_number})"
 

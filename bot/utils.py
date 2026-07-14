@@ -56,8 +56,15 @@ def parse_excel_or_csv(file_path_or_buffer, filename=None):
         if phone.endswith('.0'):
             phone = phone[:-2]
         phone = ''.join(filter(str.isdigit, phone))
+        
         if not phone:
             continue
+            
+        # Standardize Indian numbers to include '91' country code
+        if len(phone) == 10:
+            phone = '91' + phone
+        elif len(phone) == 11 and phone.startswith('0'):
+            phone = '91' + phone[1:]
 
         name = str(row[name_col]).strip() if name_col and pd.notna(row[name_col]) else None
         # Clean string formats for name/truck
