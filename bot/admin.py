@@ -427,6 +427,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             path('live-chat/api/list/', self.admin_site.admin_view(self.api_chat_list), name='bot_fleetcustomer_chat_list'),
             path('live-chat/api/messages/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_history), name='bot_fleetcustomer_chat_history'),
             path('live-chat/api/send/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_send), name='bot_fleetcustomer_chat_send'),
+            path('live-chat/api/send-media/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_send_media), name='bot_fleetcustomer_chat_send_media'),
             path('live-chat/api/toggle-pause/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_toggle_pause), name='bot_fleetcustomer_chat_toggle_pause'),
         ]
         return custom_urls + urls
@@ -719,6 +720,72 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=content)
                 return JsonResponse({"success": True})
         return JsonResponse({"success": False, "error": "Invalid request method"})
+
+    def api_chat_send_media(self, request, phone_number):
+        if request.method == "POST" and request.FILES.get('file'):
+            upload_file = request.FILES['file']
+            file_name = upload_file.name
+            content_type = upload_file.content_type
+
+            # Determine media type for WhatsApp API
+            if content_type.startswith('image/'):
+                media_type = 'image'
+            elif content_type.startswith('video/'):
+                media_type = 'video'
+            elif content_type.startswith('audio/'):
+                media_type = 'audio'
+            else:
+                media_type = 'document'
+            
+            from bot.models import ChatMessage
+            from bot.views import send_whatsapp_message, WHATSAPP_TOKEN, PHONE_NUMBER_ID
+            import requests
+            import os
+            
+            # Step 1: Upload media to Meta
+            url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/media"
+            headers = {
+                "Authorization": f"Bearer {WHATSAPP_TOKEN}"
+            }
+            # We must pass messaging_product as a regular field, and the file as the file field
+            files = {
+                'file': (file_name, upload_file.read(), content_type)
+            }
+            data = {
+                'messaging_product': 'whatsapp'
+            }
+            
+            try:
+                upload_res = requests.post(url, headers=headers, files=files, data=data)
+                upload_data = upload_res.json()
+                if 'id' not in upload_data:
+                    return JsonResponse({"success": False, "error": f"Upload failed: {upload_data}"})
+                media_id = upload_data['id']
+            except Exception as e:
+                return JsonResponse({"success": False, "error": f"Failed to upload media: {str(e)}"})
+            
+            # Step 2: Send the media to the customer
+            try:
+                caption_text = request.POST.get("caption", "").strip()
+                # For document, we need to pass the filename
+                send_whatsapp_message(
+                    to_phone=phone_number, 
+                    text_content=caption_text if caption_text else None, 
+                    media_id=media_id, 
+                    media_type=media_type,
+                    document_filename=file_name if media_type == 'document' else None
+                )
+            except Exception as e:
+                return JsonResponse({"success": False, "error": str(e)})
+
+            # Step 3: Log in chat history
+            log_content = f"[{media_type.capitalize()} Sent: {file_name}]"
+            if caption_text:
+                log_content += f"\nCaption: {caption_text}"
+            ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=log_content)
+            return JsonResponse({"success": True})
+            
+        return JsonResponse({"success": False, "error": "Invalid request or missing file"})
 
     def api_chat_toggle_pause(self, request, phone_number):
         if request.method == "POST":

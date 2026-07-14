@@ -256,6 +256,27 @@
         background-color: #a8a8a8;
         cursor: not-allowed;
     }
+    
+    .attach-btn {
+        background-color: transparent;
+        color: #54656f;
+        border: none;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        border-radius: 50%;
+        transition: background 0.2s;
+    }
+    .attach-btn:hover {
+        background-color: #d1d7db;
+    }
+    .attach-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 
     /* Loader */
     .loader {
@@ -328,6 +349,12 @@
             </div>
 
             <div class="chat-input-container">
+                <input type="file" id="mediaInput" class="hidden" accept="image/*,video/*,.pdf,.doc,.docx" onchange="handleMediaSelect(event)">
+                <button id="attachBtn" class="attach-btn" onclick="document.getElementById('mediaInput').click()">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.959.958 2.423 1.053 3.263.215l5.511-5.512c.28-.28.267-.722.053-.936l-.244-.244c-.191-.191-.567-.349-.957.04l-5.506 5.506c-.18.18-.635.127-.976-.214-.098-.097-.576-.613-.213-.973l7.915-7.917c.818-.817 2.267-.699 3.23.262.5.501.802 1.1.849 1.685.051.573-.156 1.111-.589 1.543l-9.547 9.549a3.97 3.97 0 0 1-2.829 1.171 3.975 3.975 0 0 1-2.83-1.173 3.973 3.973 0 0 1-1.172-2.828c0-1.071.415-2.076 1.172-2.83l7.209-7.211c.157-.157.264-.579.028-.814L11.5 4.36a.572.572 0 0 0-.834.018l-7.205 7.207a5.577 5.577 0 0 0-1.645 3.971z"></path>
+                    </svg>
+                </button>
                 <textarea id="messageInput" class="chat-input" placeholder="Type a message..." rows="1" onkeydown="handleEnter(event)"></textarea>
                 <button id="sendBtn" class="send-btn" onclick="sendMessage()">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
@@ -416,6 +443,61 @@
         } finally {
             input.disabled = false;
             document.getElementById('sendBtn').disabled = false;
+            input.focus();
+        }
+    }
+
+    async function handleMediaSelect(event) {
+        const file = event.target.files[0];
+        if (!file || !currentPhone) return;
+
+        // Ensure file is within size limits (e.g. 16MB for video, 5MB for image, 100MB for docs)
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB > 100) {
+            alert("File is too large. Maximum allowed size is 100MB.");
+            return;
+        }
+
+        const caption = prompt("Add a caption (optional):");
+        if (caption === null) return; // User cancelled
+        
+        const attachBtn = document.getElementById('attachBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const input = document.getElementById('messageInput');
+        
+        attachBtn.disabled = true;
+        sendBtn.disabled = true;
+        input.disabled = true;
+        
+        const originalInputVal = input.placeholder;
+        input.placeholder = `Uploading ${file.name}... Please wait.`;
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            if (caption) formData.append('caption', caption);
+
+            const res = await fetch(`api/send-media/${currentPhone}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                await fetchMessages(currentPhone);
+            } else {
+                alert("Failed to send media: " + data.error);
+            }
+        } catch (e) {
+            alert("Network error while sending media");
+        } finally {
+            attachBtn.disabled = false;
+            sendBtn.disabled = false;
+            input.disabled = false;
+            input.placeholder = originalInputVal;
+            event.target.value = ''; // Reset file input
             input.focus();
         }
     }

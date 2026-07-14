@@ -663,7 +663,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
 def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=None,
                           document_filename=None, location_data=None, list_data=None,
-                          contact_data=None, phone_number_id=None):
+                          contact_data=None, phone_number_id=None, media_id=None, media_type="document"):
     """Dispatches payload structures cleanly to Meta Graph Servers."""
     to_phone = str(to_phone).replace("+", "")
     active_phone_number_id = phone_number_id or _phone_number_id_ctx.get() or PHONE_NUMBER_ID
@@ -722,6 +722,20 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
                 "address": location_data.get("address", "Office Location")
             }
         }
+    elif media_id:
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to_phone,
+            "type": media_type,
+            media_type: {
+                "id": media_id
+            }
+        }
+        if document_filename and media_type == "document":
+            payload["document"]["filename"] = document_filename
+        if text_content:
+            payload[media_type]["caption"] = text_content
     elif document_url:
         payload = {
             "messaging_product": "whatsapp",
