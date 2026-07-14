@@ -1049,6 +1049,12 @@ def whatsapp_webhook(request):
                             print(f"[INACTIVE] Inactive customer {user_phone} ignored (except START).")
                             return JsonResponse({"status": "success"})
 
+                        # If human agent paused the bot, just log message and return
+                        if customer.is_bot_paused:
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            print(f"[PAUSED] Bot is paused for {user_phone}. Ignored automatic processing.")
+                            return JsonResponse({"status": "success"})
+
                         # Determine if we should suppress the generic agent alert 
                         # (because a more specific alert will be sent later in the flow)
                         is_talk_to_agent = clean_text == "talk to an agent"

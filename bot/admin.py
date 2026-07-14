@@ -405,8 +405,8 @@ def sync_whatsapp_templates_from_meta():
 
 @admin.register(FleetCustomer)
 class FleetCustomerAdmin(admin.ModelAdmin):
-    list_display = ('owner_name', 'phone_number_link', 'truck_number', 'is_active', 'referred_by', 'created_at')
-    list_filter = ('is_active', 'referred_by')
+    list_display = ('owner_name', 'phone_number_link', 'truck_number', 'is_active', 'is_bot_paused', 'referred_by', 'created_at')
+    list_filter = ('is_active', 'is_bot_paused', 'referred_by')
     search_fields = ('owner_name', 'phone_number', 'truck_number')
     
     def phone_number_link(self, obj):
@@ -423,6 +423,11 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             path('upload-excel/', self.admin_site.admin_view(self.upload_excel), name='bot_fleetcustomer_upload_excel'),
             path('broadcast/', self.admin_site.admin_view(self.broadcast), name='bot_fleetcustomer_broadcast'),
             path('broadcast-status/<int:task_id>/', self.admin_site.admin_view(self.broadcast_status), name='bot_fleetcustomer_broadcast_status'),
+            path('live-chat/', self.admin_site.admin_view(self.live_chat_view), name='bot_fleetcustomer_live_chat'),
+            path('live-chat/api/list/', self.admin_site.admin_view(self.api_chat_list), name='bot_fleetcustomer_chat_list'),
+            path('live-chat/api/messages/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_history), name='bot_fleetcustomer_chat_history'),
+            path('live-chat/api/send/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_send), name='bot_fleetcustomer_chat_send'),
+            path('live-chat/api/toggle-pause/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_toggle_pause), name='bot_fleetcustomer_chat_toggle_pause'),
         ]
         return custom_urls + urls
         
@@ -620,4 +625,82 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 "failed_details": failed_list,
             })
         except BroadcastTask.DoesNotExist:
-            return JsonResponse({"error": "Task not found"}, status=404)
+            return JsonResponse({"error": "Task not found"}, status=404)
+
+    def live_chat_view(self, request):
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Live Chat Dashboard',
+        }
+        return render(request, "admin/live_chat.html", context)
+        
+    def api_chat_list(self, request):
+        from bot.models import ChatMessage
+        customers = FleetCustomer.objects.all().order_by('-created_at')
+        data = []
+        for c in customers:
+            last_msg = ChatMessage.objects.filter(phone_number=c.phone_number).order_by('-timestamp').first()
+            if not last_msg:
+                continue
+            data.append({
+                "phone_number": c.phone_number,
+                "owner_name": c.owner_name or "Unknown",
+                "is_bot_paused": c.is_bot_paused,
+                "last_message": last_msg.content[:50] + ("..." if len(last_msg.content) > 50 else ""),
+                "last_message_time": last_msg.timestamp.isoformat(),
+                "timestamp_val": last_msg.timestamp.timestamp()
+            })
+        data.sort(key=lambda x: x["timestamp_val"], reverse=True)
+        return JsonResponse({"customers": data})
+
+    def api_chat_history(self, request, phone_number):
+        from bot.models import ChatMessage
+        messages = ChatMessage.objects.filter(phone_number=phone_number).order_by('timestamp')
+        data = []
+        for m in messages:
+            data.append({
+                "role": m.role,
+                "content": m.content,
+                "timestamp": m.timestamp.isoformat()
+            })
+        return JsonResponse({"messages": data})
+
+    def api_chat_send(self, request, phone_number):
+        if request.method == "POST":
+            import json
+            try:
+                data = json.loads(request.body)
+                content = data.get("message", "").strip()
+            except Exception:
+                content = request.POST.get("message", "").strip()
+                
+            if not content:
+                return JsonResponse({"success": False, "error": "Message is empty"})
+                
+            from bot.models import ChatMessage
+            from bot.views import send_whatsapp_message
+            
+            # Send message using WhatsApp Graph API
+            success = False
+            try:
+                # We reuse the existing send_whatsapp_message utility
+                send_whatsapp_message(phone_number, content)
+                success = True
+            except Exception as e:
+                return JsonResponse({"success": False, "error": str(e)})
+                
+            if success:
+                ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=content)
+                return JsonResponse({"success": True})
+        return JsonResponse({"success": False, "error": "Invalid request method"})
+
+    def api_chat_toggle_pause(self, request, phone_number):
+        if request.method == "POST":
+            try:
+                customer = FleetCustomer.objects.get(phone_number=phone_number)
+                customer.is_bot_paused = not customer.is_bot_paused
+                customer.save()
+                return JsonResponse({"success": True, "is_bot_paused": customer.is_bot_paused})
+            except FleetCustomer.DoesNotExist:
+                return JsonResponse({"success": False, "error": "Customer not found"})
+        return JsonResponse({"success": False, "error": "Invalid request method"})

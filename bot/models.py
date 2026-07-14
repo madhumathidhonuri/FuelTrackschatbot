@@ -59,6 +59,7 @@ class FleetCustomer(models.Model):
         on_delete=models.SET_NULL, 
         related_name='referred_customers'
     )
+    is_bot_paused = models.BooleanField(default=False, help_text="Pause the AI for this customer")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

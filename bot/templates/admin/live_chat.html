@@ -1,0 +1,581 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    /* Reset & Base */
+    #content {
+        padding: 0 !important;
+        margin: 0 !important;
+        height: calc(100vh - 60px); /* Adjust based on django admin header */
+        display: flex;
+        flex-direction: column;
+    }
+    .chat-container {
+        display: flex;
+        height: 100%;
+        background-color: #f0f2f5;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Left Sidebar: Customer List */
+    .chat-sidebar {
+        width: 350px;
+        background: #fff;
+        border-right: 1px solid #d1d7db;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .chat-sidebar-header {
+        padding: 15px;
+        background: #f0f2f5;
+        border-bottom: 1px solid #d1d7db;
+        font-weight: bold;
+        font-size: 16px;
+        color: #111b21;
+    }
+    .customer-list {
+        flex-grow: 1;
+        overflow-y: auto;
+    }
+    .customer-item {
+        padding: 15px;
+        border-bottom: 1px solid #f0f2f5;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        transition: background 0.2s;
+    }
+    .customer-item:hover {
+        background-color: #f5f6f6;
+    }
+    .customer-item.active {
+        background-color: #f0f2f5;
+    }
+    .customer-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    .customer-name {
+        font-weight: 600;
+        color: #111b21;
+        font-size: 15px;
+    }
+    .customer-time {
+        font-size: 12px;
+        color: #667781;
+    }
+    .customer-preview {
+        font-size: 13px;
+        color: #667781;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .bot-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 12px;
+        background-color: #e2e8f0;
+        color: #475569;
+        font-weight: bold;
+        margin-left: 8px;
+    }
+    .bot-badge.paused {
+        background-color: #fee2e2;
+        color: #ef4444;
+    }
+
+    /* Right Main Chat */
+    .chat-main {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        background-color: #efeae2; /* Whatsapp-ish background */
+        position: relative;
+    }
+    
+    .chat-header {
+        padding: 15px 20px;
+        background: #f0f2f5;
+        border-bottom: 1px solid #d1d7db;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .chat-header-info {
+        display: flex;
+        flex-direction: column;
+    }
+    .chat-header-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #111b21;
+    }
+    .chat-header-phone {
+        font-size: 13px;
+        color: #667781;
+    }
+    .chat-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    /* Toggle Switch */
+    .switch-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #111b21;
+    }
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+    }
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #10b981; /* Green when active */
+        transition: .4s;
+        border-radius: 24px;
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+    input:checked + .slider {
+        background-color: #ef4444; /* Red when paused */
+    }
+    input:checked + .slider:before {
+        transform: translateX(20px);
+    }
+    .switch-label-text {
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .chat-messages {
+        flex-grow: 1;
+        padding: 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .message {
+        max-width: 65%;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 14.5px;
+        line-height: 1.4;
+        position: relative;
+        color: #111b21;
+        word-wrap: break-word;
+    }
+    .message-time {
+        font-size: 11px;
+        color: rgba(17, 27, 33, 0.6);
+        text-align: right;
+        margin-top: 4px;
+        margin-bottom: -4px;
+    }
+    .msg-user {
+        background-color: #fff;
+        align-self: flex-start;
+        border-top-left-radius: 0;
+        box-shadow: 0 1px 0.5px rgba(11,20,26,.13);
+    }
+    .msg-assistant {
+        background-color: #d9fdd3;
+        align-self: flex-end;
+        border-top-right-radius: 0;
+        box-shadow: 0 1px 0.5px rgba(11,20,26,.13);
+    }
+
+    .chat-input-container {
+        padding: 15px;
+        background: #f0f2f5;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    .chat-input {
+        flex-grow: 1;
+        padding: 12px 15px;
+        border: none;
+        border-radius: 8px;
+        background: #fff;
+        font-size: 15px;
+        outline: none;
+        resize: none;
+        height: 24px;
+        font-family: inherit;
+    }
+    .send-btn {
+        background-color: #00a884;
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .send-btn:hover {
+        background-color: #008f6f;
+    }
+    .send-btn:disabled {
+        background-color: #a8a8a8;
+        cursor: not-allowed;
+    }
+
+    /* Loader */
+    .loader {
+        display: none;
+        align-self: center;
+        margin-top: 20px;
+        color: #667781;
+    }
+    .no-selection {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        color: #667781;
+        font-size: 16px;
+    }
+    
+    /* Utility */
+    .hidden {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <!-- Left Sidebar -->
+    <div class="chat-sidebar">
+        <div class="chat-sidebar-header">
+            Active Chats
+        </div>
+        <div class="customer-list" id="customerList">
+            <!-- Customers will be populated here via JS -->
+            <div style="padding:20px;text-align:center;color:#667;font-size:14px;">Loading chats...</div>
+        </div>
+    </div>
+
+    <!-- Right Chat Area -->
+    <div class="chat-main">
+        <!-- Default Empty State -->
+        <div id="noSelectionState" class="no-selection">
+            <svg viewBox="0 0 24 24" width="80" height="80" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5; margin-bottom: 20px;">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Select a customer to start chatting
+        </div>
+
+        <!-- Active Chat State -->
+        <div id="activeChatState" class="hidden" style="display:flex;flex-direction:column;height:100%;">
+            <div class="chat-header">
+                <div class="chat-header-info">
+                    <span class="chat-header-name" id="chatHeaderName">Customer Name</span>
+                    <span class="chat-header-phone" id="chatHeaderPhone">+91XXXXXXXXXX</span>
+                </div>
+                <div class="chat-header-actions">
+                    <div class="switch-container">
+                        <span class="switch-label-text" id="botStatusText">AI Active</span>
+                        <label class="switch">
+                            <input type="checkbox" id="pauseBotToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="loader" id="chatLoader">Loading messages...</div>
+                <!-- Messages go here -->
+            </div>
+
+            <div class="chat-input-container">
+                <textarea id="messageInput" class="chat-input" placeholder="Type a message..." rows="1" onkeydown="handleEnter(event)"></textarea>
+                <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- State ---
+    let currentPhone = null;
+    let pollInterval = null;
+    let lastMessageCount = 0;
+    
+    // --- CSRF ---
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // --- API Calls ---
+    async function fetchCustomers() {
+        try {
+            const res = await fetch('api/list/');
+            const data = await res.json();
+            renderCustomerList(data.customers);
+        } catch (e) {
+            console.error("Failed to fetch customers", e);
+        }
+    }
+
+    async function fetchMessages(phone) {
+        if (!phone) return;
+        try {
+            const res = await fetch(\`api/messages/\${phone}/\`);
+            const data = await res.json();
+            renderMessages(data.messages);
+        } catch (e) {
+            console.error("Failed to fetch messages", e);
+        }
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const text = input.value.trim();
+        if (!text || !currentPhone) return;
+
+        // Disable input while sending
+        input.disabled = true;
+        document.getElementById('sendBtn').disabled = true;
+
+        try {
+            const res = await fetch(\`api/send/\${currentPhone}/\`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ message: text })
+            });
+            const data = await res.json();
+            if (data.success) {
+                input.value = '';
+                // Immediately fetch messages to show the sent message
+                await fetchMessages(currentPhone);
+                // Also auto-pause bot if agent replies? (Optional, let's leave it manual or do it via toggle)
+            } else {
+                alert("Failed to send message: " + data.error);
+            }
+        } catch (e) {
+            alert("Network error while sending message");
+        } finally {
+            input.disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            input.focus();
+        }
+    }
+
+    async function toggleBotStatus() {
+        if (!currentPhone) return;
+        const toggle = document.getElementById('pauseBotToggle');
+        // Revert UI optimistically, will be set correctly upon response
+        toggle.disabled = true;
+        
+        try {
+            const res = await fetch(\`api/toggle-pause/\${currentPhone}/\`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                updateBotStatusUI(data.is_bot_paused);
+                // Refresh list to update badge
+                fetchCustomers();
+            }
+        } catch (e) {
+            console.error("Failed to toggle bot", e);
+            toggle.checked = !toggle.checked; // revert
+        } finally {
+            toggle.disabled = false;
+        }
+    }
+
+    // --- Rendering ---
+    function formatTime(isoString) {
+        if (!isoString) return '';
+        const d = new Date(isoString);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderCustomerList(customers) {
+        const listDiv = document.getElementById('customerList');
+        if (customers.length === 0) {
+            listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#667;">No active chats</div>';
+            return;
+        }
+
+        listDiv.innerHTML = '';
+        customers.forEach(c => {
+            const item = document.createElement('div');
+            item.className = \`customer-item \${c.phone_number === currentPhone ? 'active' : ''}\`;
+            item.onclick = () => selectCustomer(c);
+            
+            const badge = c.is_bot_paused 
+                ? '<span class="bot-badge paused">AI Paused</span>' 
+                : '<span class="bot-badge">AI Active</span>';
+
+            item.innerHTML = \`
+                <div class="customer-header-row">
+                    <div class="customer-name">\${c.owner_name} \${badge}</div>
+                    <div class="customer-time">\${formatTime(c.last_message_time)}</div>
+                </div>
+                <div class="customer-preview">\${c.last_message}</div>
+            \`;
+            listDiv.appendChild(item);
+        });
+    }
+
+    function renderMessages(messages) {
+        const chatBox = document.getElementById('chatMessages');
+        
+        // Check if we need to auto-scroll (only if new messages arrived)
+        const isNewMessages = messages.length > lastMessageCount;
+        lastMessageCount = messages.length;
+
+        // Save scroll position
+        const isScrolledToBottom = chatBox.scrollHeight - chatBox.clientHeight <= chatBox.scrollTop + 50;
+
+        chatBox.innerHTML = '';
+        messages.forEach(m => {
+            const div = document.createElement('div');
+            // user = customer (msg-user), assistant = bot/agent (msg-assistant)
+            div.className = \`message \${m.role === 'user' ? 'msg-user' : 'msg-assistant'}\`;
+            
+            // Render newlines properly
+            const safeContent = m.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\\n/g, "<br>");
+            
+            div.innerHTML = \`
+                \${safeContent}
+                <div class="message-time">\${formatTime(m.timestamp)}</div>
+            \`;
+            chatBox.appendChild(div);
+        });
+
+        // Auto-scroll if it's the first load, or if user was already at bottom
+        if (isNewMessages && isScrolledToBottom) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        } else if (isNewMessages && lastMessageCount <= 10) {
+             chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+
+    function updateBotStatusUI(isPaused) {
+        const toggle = document.getElementById('pauseBotToggle');
+        const text = document.getElementById('botStatusText');
+        toggle.checked = isPaused;
+        if (isPaused) {
+            text.innerText = 'AI Paused';
+            text.style.color = '#ef4444';
+        } else {
+            text.innerText = 'AI Active';
+            text.style.color = '#10b981';
+        }
+    }
+
+    function selectCustomer(customer) {
+        currentPhone = customer.phone_number;
+        
+        // UI State changes
+        document.getElementById('noSelectionState').classList.add('hidden');
+        document.getElementById('activeChatState').classList.remove('hidden');
+        
+        document.getElementById('chatHeaderName').innerText = customer.owner_name;
+        document.getElementById('chatHeaderPhone').innerText = customer.phone_number;
+        
+        updateBotStatusUI(customer.is_bot_paused);
+        
+        // Highlight active item
+        fetchCustomers(); 
+        
+        // Load messages
+        document.getElementById('chatMessages').innerHTML = '<div class="loader" style="display:block;">Loading messages...</div>';
+        lastMessageCount = 0;
+        fetchMessages(currentPhone).then(() => {
+            const chatBox = document.getElementById('chatMessages');
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+
+        // Setup polling for this chat
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(() => {
+            fetchCustomers();
+            if (currentPhone) fetchMessages(currentPhone);
+        }, 3000); // Poll every 3 seconds
+    }
+
+    // --- Helpers ---
+    function handleEnter(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    }
+
+    // Attach listeners
+    document.getElementById('pauseBotToggle').addEventListener('change', toggleBotStatus);
+
+    // Initial load
+    fetchCustomers();
+    // Poll customer list if no chat selected
+    setInterval(() => {
+        if (!currentPhone) fetchCustomers();
+    }, 5000);
+</script>
+{% endblock %}
