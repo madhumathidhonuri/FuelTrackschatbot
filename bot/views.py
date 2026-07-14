@@ -665,6 +665,7 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
                           document_filename=None, location_data=None, list_data=None,
                           contact_data=None, phone_number_id=None):
     """Dispatches payload structures cleanly to Meta Graph Servers."""
+    to_phone = str(to_phone).replace("+", "")
     active_phone_number_id = phone_number_id or _phone_number_id_ctx.get() or PHONE_NUMBER_ID
     url = f"https://graph.facebook.com/v19.0/{active_phone_number_id}/messages"
     headers = {
