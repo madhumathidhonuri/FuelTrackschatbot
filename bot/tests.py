@@ -686,7 +686,7 @@ class WebhookTests(TestCase):
         self.assertEqual(response.status_code, 200)
         
         # Verify customer's name is saved
-        customer = FleetCustomer.objects.get(phone_number=new_phone)
+        customer = FleetCustomer.objects.get(phone_number="91" + new_phone)
         self.assertEqual(customer.owner_name, "Madhu")
 
         # Verify friendly text reply was sent
@@ -2336,7 +2336,7 @@ class AdditionalBotFlowTests(TestCase):
             header_type="image"
         )
         ChatMessage.objects.create(
-            phone_number="1234567890",
+            phone_number="911234567890",
             role="assistant",
             content="[System Sent Broadcast: ais_140_gps_mining_device - Description]"
         )

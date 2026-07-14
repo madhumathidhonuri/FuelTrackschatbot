@@ -27,7 +27,7 @@ def parse_excel_or_csv(file_path_or_buffer, filename=None):
     # Map possible columns to target fields
     phone_cols = ['phone_number', 'phone', 'mobile', 'mobile_number', 'phone_no', 'ph_no', 'ph']
     name_cols = ['owner_name', 'customer_name', 'name', 'owner', 'customer']
-    truck_cols = ['truck_number', 'vehicle_number', 'truck', 'vehicle', 'truck_no', 'vehicle_no']
+    truck_cols = ['truck_number', 'vehicle_number', 'truck', 'vehicle', 'truck_no', 'vehicle_no', 'registration_number', 'registration_no', 'reg_number', 'reg_no', 'registration']
     active_cols = ['is_active', 'active', 'status']
 
     # Helper to find matching column

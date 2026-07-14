@@ -282,17 +282,9 @@ def get_ai_response(user_phone, new_user_message, customer=None):
         test_text = new_user_message.strip()
         test_text_lower = test_text.lower()
 
-        # 👤 DYNAMIC NAME RESOLUTION LOGIC
-        invalid_names = {
-            "new fleet contact", "naku", "nak", "naku oka", "nak oka", "sir/madam",
-            "karunakar reddy", "mr. karunakar reddy", "karunakar", "reddy",
-            "fuel tracks", "fuel tracks technologies"
-        }
-        if (customer and customer.owner_name and
-                customer.owner_name.strip().lower() not in invalid_names):
-            display_name = customer.owner_name.strip()
-        else:
-            display_name = "Sir"
+        # 👤 STATIC NAME RESOLUTION LOGIC
+        # Always use "Sir" instead of customer.owner_name to avoid addressing users by their business name.
+        display_name = "Sir"
 
         # 🌟 HIGH-PRIORITY OVERRIDE 1: Contact Card Hijack
         if has_keyword_match(test_text_lower, CONTACT_KEYWORDS):
@@ -1003,7 +995,16 @@ def whatsapp_webhook(request):
 
                 if "messages" in value:
                     message_obj = value["messages"][0]
-                    user_phone = message_obj["from"]
+                    user_phone = str(message_obj["from"])
+                    
+                    # Sanitize user_phone to always be formatted as 91...
+                    clean_phone = ''.join(filter(str.isdigit, user_phone))
+                    if len(clean_phone) == 10:
+                        user_phone = '91' + clean_phone
+                    elif len(clean_phone) == 11 and clean_phone.startswith('0'):
+                        user_phone = '91' + clean_phone[1:]
+                    else:
+                        user_phone = clean_phone
                     domain_url = request.scheme + "://" + request.get_host()
 
                     # Deduplicate Meta webhook replays using Database (persists across container restarts/processes)
