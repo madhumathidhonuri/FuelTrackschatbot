@@ -636,25 +636,26 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         
     def api_chat_list(self, request):
         from bot.models import ChatMessage
-        from django.db.models import OuterRef, Subquery
 
-        # Fetch the single most recent message for each phone number
-        latest_message_ids = ChatMessage.objects.filter(
-            phone_number=OuterRef('phone_number')
-        ).order_by('-timestamp').values('id')[:1]
-
-        # Get those latest messages, sorted from newest to oldest
-        latest_messages = ChatMessage.objects.filter(
-            id__in=Subquery(latest_message_ids)
-        ).order_by('-timestamp')[:100]
+        # Fetch up to 2000 most recent messages. This is a single, very fast query.
+        messages = ChatMessage.objects.order_by('-timestamp')[:2000]
+        
+        seen = set()
+        latest_msgs = []
+        for msg in messages:
+            if msg.phone_number not in seen:
+                seen.add(msg.phone_number)
+                latest_msgs.append(msg)
+            if len(latest_msgs) >= 100:
+                break
 
         # Fetch corresponding customer records
-        phone_numbers = [msg.phone_number for msg in latest_messages]
+        phone_numbers = [msg.phone_number for msg in latest_msgs]
         customers = FleetCustomer.objects.filter(phone_number__in=phone_numbers)
         customer_map = {c.phone_number: c for c in customers}
 
         data = []
-        for msg in latest_messages:
+        for msg in latest_msgs:
             c = customer_map.get(msg.phone_number)
             data.append({
                 "phone_number": msg.phone_number,
