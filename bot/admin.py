@@ -635,35 +635,46 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return render(request, "admin/live_chat.html", context)
         
     def api_chat_list(self, request):
-        from bot.models import ChatMessage
-
-        # Fetch up to 2000 most recent messages. This is a single, very fast query.
-        messages = ChatMessage.objects.order_by('-timestamp')[:2000]
+        from bot.models import ChatMessage, AgentNotificationLog
         
-        seen = set()
-        latest_msgs = []
-        for msg in messages:
-            if msg.phone_number not in seen:
-                seen.add(msg.phone_number)
-                latest_msgs.append(msg)
-            if len(latest_msgs) >= 100:
+        # 1. Fetch recent phone numbers that needed agent attention
+        logs = AgentNotificationLog.objects.order_by('-id')[:2000]
+        seen_phones = set()
+        latest_phones = []
+        for log in logs:
+            if log.phone_number not in seen_phones:
+                seen_phones.add(log.phone_number)
+                latest_phones.append(log.phone_number)
+            if len(latest_phones) >= 100:
+                break
+                
+        # 2. Fetch customers for these phone numbers in one query
+        customers = FleetCustomer.objects.filter(phone_number__in=latest_phones)
+        customer_map = {c.phone_number: c for c in customers}
+        
+        # 3. Fetch the latest ChatMessage for each phone in one query
+        all_messages = ChatMessage.objects.filter(phone_number__in=latest_phones).order_by('-id')
+        msg_map = {}
+        for m in all_messages:
+            if m.phone_number not in msg_map:
+                msg_map[m.phone_number] = m
+            if len(msg_map) == len(latest_phones):
                 break
 
-        # Fetch corresponding customer records
-        phone_numbers = [msg.phone_number for msg in latest_msgs]
-        customers = FleetCustomer.objects.filter(phone_number__in=phone_numbers)
-        customer_map = {c.phone_number: c for c in customers}
-
         data = []
-        for msg in latest_msgs:
-            c = customer_map.get(msg.phone_number)
+        for phone in latest_phones:
+            c = customer_map.get(phone)
+            last_msg = msg_map.get(phone)
+            if not last_msg:
+                continue
+                
             data.append({
-                "phone_number": msg.phone_number,
+                "phone_number": phone,
                 "owner_name": c.owner_name if c else "Unknown",
                 "is_bot_paused": c.is_bot_paused if c else False,
-                "last_message": msg.content[:50] + ("..." if len(msg.content) > 50 else ""),
-                "last_message_time": msg.timestamp.isoformat(),
-                "timestamp_val": msg.timestamp.timestamp()
+                "last_message": last_msg.content[:50] + ("..." if len(last_msg.content) > 50 else ""),
+                "last_message_time": last_msg.timestamp.isoformat(),
+                "timestamp_val": last_msg.timestamp.timestamp()
             })
 
         return JsonResponse({"customers": data})
