@@ -423,6 +423,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             path('upload-excel/', self.admin_site.admin_view(self.upload_excel), name='bot_fleetcustomer_upload_excel'),
             path('broadcast/', self.admin_site.admin_view(self.broadcast), name='bot_fleetcustomer_broadcast'),
             path('broadcast-status/<int:task_id>/', self.admin_site.admin_view(self.broadcast_status), name='bot_fleetcustomer_broadcast_status'),
+            path('download-broadcast-logs/', self.admin_site.admin_view(self.download_broadcast_logs), name='bot_fleetcustomer_download_broadcast_logs'),
             path('live-chat/', self.admin_site.admin_view(self.live_chat_view), name='bot_fleetcustomer_live_chat'),
             path('live-chat/api/list/', self.admin_site.admin_view(self.api_chat_list), name='bot_fleetcustomer_chat_list'),
             path('live-chat/api/messages/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_history), name='bot_fleetcustomer_chat_history'),
@@ -627,6 +628,68 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             })
         except BroadcastTask.DoesNotExist:
             return JsonResponse({"error": "Task not found"}, status=404)
+
+    def download_broadcast_logs(self, request):
+        import pandas as pd
+        from django.http import HttpResponse
+        import datetime
+        from django.utils import timezone
+        
+        date_str = request.GET.get('date')
+        if not date_str:
+            messages.error(request, "Please select a date.")
+            return redirect('admin:bot_fleetcustomer_broadcast')
+            
+        try:
+            target_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, "Invalid date format.")
+            return redirect('admin:bot_fleetcustomer_broadcast')
+            
+        start_datetime = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.min))
+        end_datetime = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.max))
+        
+        qs = ChatMessage.objects.filter(
+            role='assistant',
+            content__startswith='[System Sent Broadcast:',
+            timestamp__range=(start_datetime, end_datetime)
+        ).order_by('timestamp')
+        
+        data = []
+        phone_numbers = qs.values_list('phone_number', flat=True).distinct()
+        customers = FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        customer_map = {c.phone_number: c.owner_name for c in customers}
+        
+        for msg in qs:
+            template_name = "Unknown"
+            if " - " in msg.content:
+                parts = msg.content.replace("[System Sent Broadcast:", "").replace("]", "").strip().split(" - ")
+                if parts:
+                    template_name = parts[0].strip()
+            else:
+                template_name = msg.content.replace("[System Sent Broadcast:", "").replace("]", "").strip()
+                
+            data.append({
+                'Phone Number': msg.phone_number,
+                'Customer Name': customer_map.get(msg.phone_number, 'Unknown'),
+                'Template': template_name,
+                'Time': msg.timestamp.astimezone().replace(tzinfo=None)
+            })
+            
+        df = pd.DataFrame(data)
+        
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="broadcast_logs_{date_str}.xlsx"'
+        
+        if not df.empty:
+            with pd.ExcelWriter(response, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Sent Templates')
+        else:
+            with pd.ExcelWriter(response, engine='openpyxl') as writer:
+                df = pd.DataFrame(columns=['Phone Number', 'Customer Name', 'Template', 'Time'])
+                df.to_excel(writer, index=False, sheet_name='Sent Templates')
+                
+        return response
 
     def live_chat_view(self, request):
         context = {
