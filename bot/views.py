@@ -1222,17 +1222,15 @@ def whatsapp_webhook(request):
                             f"[INACTIVE] Inactive customer {user_phone} ignored (except START).")
                         return JsonResponse({"status": "success"})
 
-                    # If human agent paused the bot, just log message and
-                    # return
-                    if customer.is_bot_paused:
-                        ChatMessage.objects.create(
-                            phone_number=user_phone,
-                            role='user',
-                            content=user_text,
-                            message_id=message_id)
-                        print(
-                            f"[PAUSED] Bot is paused for {user_phone}. Ignored automatic processing.")
-                        return JsonResponse({"status": "success"})
+                    # Auto-unpause logic after 24 hours
+                    if customer.is_bot_paused and customer.bot_paused_at:
+                        from django.utils import timezone
+                        from datetime import timedelta
+                        if timezone.now() > customer.bot_paused_at + timedelta(hours=24):
+                            customer.is_bot_paused = False
+                            customer.bot_paused_at = None
+                            customer.save()
+                            print(f"[UNPAUSED] Auto-unpaused bot for {user_phone} after 24 hours.")
 
                     # Determine if we should suppress the generic agent alert
                     # (because a more specific alert will be sent later in the flow)
@@ -1336,6 +1334,17 @@ def whatsapp_webhook(request):
                                         message_id=msg_id
                                     )
                                 return JsonResponse({"status": "success"})
+
+                    # If human agent paused the bot, just log message and return
+                    if customer.is_bot_paused:
+                        ChatMessage.objects.create(
+                            phone_number=user_phone,
+                            role='user',
+                            content=user_text,
+                            message_id=message_id)
+                        print(
+                            f"[PAUSED] Bot is paused for {user_phone}. Ignored automatic processing.")
+                        return JsonResponse({"status": "success"})
 
                     # 🌟 INTERCEPTION: Native Map Pin Routing
                     location_triggers = [

@@ -119,7 +119,7 @@ class ChatMessageAdmin(admin.ModelAdmin):
 
     def phone_number_link(self, obj):
         from django.utils.html import format_html
-        url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
+        url = f"/admin/bot/fleetcustomer/live-chat/?phone={obj.phone_number}"
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
 
@@ -175,7 +175,7 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
 
     def phone_number_link(self, obj):
         from django.utils.html import format_html
-        url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
+        url = f"/admin/bot/fleetcustomer/live-chat/?phone={obj.phone_number}"
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
 
@@ -484,7 +484,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
 
     def phone_number_link(self, obj):
         from django.utils.html import format_html
-        url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
+        url = f"/admin/bot/fleetcustomer/live-chat/?phone={obj.phone_number}"
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
 
@@ -1032,7 +1032,12 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         if request.method == "POST":
             try:
                 customer = FleetCustomer.objects.get(phone_number=phone_number)
+                from django.utils import timezone
                 customer.is_bot_paused = not customer.is_bot_paused
+                if customer.is_bot_paused:
+                    customer.bot_paused_at = timezone.now()
+                else:
+                    customer.bot_paused_at = None
                 customer.save()
                 return JsonResponse(
                     {"success": True, "is_bot_paused": customer.is_bot_paused})

@@ -514,6 +514,7 @@
     let allCustomers = [];
     let lastCustomerPayload = '';
     let lastMessagesPayload = '';
+    let initialChatSelected = false;
     
     // Recording state
     let mediaRecorder = null;
@@ -582,6 +583,20 @@
             const data = await res.json();
             allCustomers = data.customers;
             filterCustomers();
+            
+            if (!initialChatSelected) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const phoneToSelect = urlParams.get('phone');
+                if (phoneToSelect) {
+                    const matchedCustomer = allCustomers.find(c => c.phone_number === phoneToSelect);
+                    if (matchedCustomer) {
+                        selectCustomer(matchedCustomer);
+                        initialChatSelected = true;
+                    }
+                } else {
+                    initialChatSelected = true;
+                }
+            }
         } catch (e) {
             console.error("Failed to fetch customers", e);
         }

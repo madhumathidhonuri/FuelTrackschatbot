@@ -77,6 +77,8 @@ class FleetCustomer(models.Model):
     )
     is_bot_paused = models.BooleanField(
         default=False, help_text="Pause the AI for this customer")
+    bot_paused_at = models.DateTimeField(
+        null=True, blank=True, help_text="Timestamp when the bot was paused")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def clean(self):
