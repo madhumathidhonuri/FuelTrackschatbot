@@ -29,6 +29,10 @@ class ChatMessage(models.Model):
 
     class Meta:
         ordering = ['timestamp']
+        indexes = [
+            models.Index(fields=['phone_number', '-id']),
+            models.Index(fields=['phone_number', '-timestamp']),
+        ]
 
     def __str__(self):
         return f"{self.phone_number} - {self.role}: {self.content[:30]}"
@@ -294,7 +298,7 @@ class AgentNotificationLog(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True)
-    phone_number = models.CharField(max_length=20)
+    phone_number = models.CharField(max_length=20, db_index=True)
     message_content = models.TextField()
     is_template_reply = models.BooleanField(default=False)
     template_name = models.CharField(max_length=100, blank=True, null=True)
@@ -305,6 +309,9 @@ class AgentNotificationLog(models.Model):
         ordering = ['-created_at']
         verbose_name = "Agent Notification Log"
         verbose_name_plural = "Agent Notification Logs"
+        indexes = [
+            models.Index(fields=['phone_number', '-created_at']),
+        ]
 
     def __str__(self):
         msg_type = "Template Reply" if self.is_template_reply else "Incoming Message"

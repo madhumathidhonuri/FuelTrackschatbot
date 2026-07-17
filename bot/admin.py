@@ -849,21 +849,23 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return render(request, "admin/live_chat.html", context)
 
     def api_chat_list(self, request):
-        from django.db.models import Subquery, OuterRef
+        from django.db.models import Subquery, OuterRef, Q
+
+        q = request.GET.get('q', '').strip().lower()
 
         # Correlated subquery: for each FleetCustomer, find the id of their latest ChatMessage
         latest_msg_subquery = ChatMessage.objects.filter(
             phone_number=OuterRef('phone_number')
         ).order_by('-id').values('id')[:1]
 
-        # Get ALL customers who have at least one message, annotated with their latest message id.
-        # Evaluate once into a list to avoid hitting the DB twice.
-        customers_list = list(
-            FleetCustomer.objects
-            .annotate(last_msg_id=Subquery(latest_msg_subquery))
-            .filter(last_msg_id__isnull=False)
-            .order_by('-last_msg_id')
-        )
+        qs = FleetCustomer.objects.annotate(last_msg_id=Subquery(latest_msg_subquery)).filter(last_msg_id__isnull=False)
+
+        if q:
+            qs = qs.filter(Q(owner_name__icontains=q) | Q(phone_number__icontains=q)).order_by('-last_msg_id')[:50]
+        else:
+            qs = qs.order_by('-last_msg_id')[:150]
+
+        customers_list = list(qs)
 
         if not customers_list:
             return JsonResponse({"customers": []})

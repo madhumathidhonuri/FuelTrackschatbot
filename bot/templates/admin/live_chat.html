@@ -589,12 +589,17 @@
     const csrftoken = getCookie('csrftoken');
 
     // --- API Calls ---
-    async function fetchCustomers() {
+    let searchTimeout = null;
+
+    async function fetchCustomers(searchQuery = '') {
         try {
-            const res = await fetch(API_LIST_URL);
+            const url = searchQuery
+                ? `${API_LIST_URL}?q=${encodeURIComponent(searchQuery)}`
+                : API_LIST_URL;
+            const res = await fetch(url);
             const data = await res.json();
             allCustomers = data.customers;
-            filterCustomers();
+            renderCustomerList(allCustomers);
             
             if (!initialChatSelected) {
                 const urlParams = new URLSearchParams(window.location.search);
@@ -613,10 +618,9 @@
                             if (cData.found) {
                                 // Add to local list so sidebar shows them
                                 allCustomers.unshift(cData);
-                                filterCustomers();
+                                renderCustomerList(allCustomers);
                                 selectCustomer(cData);
                             } else {
-                                // No FleetCustomer or ChatMessage for this phone
                                 console.warn('Phone from URL not found in database:', phoneToSelect);
                             }
                         } catch (lookupErr) {
@@ -636,25 +640,11 @@
     }
 
     function filterCustomers() {
-        const query = document.getElementById('searchInput').value.toLowerCase().trim();
-        if (!query) {
-            renderCustomerList(allCustomers);
-            return;
-        }
-
-        const filtered = allCustomers.filter(c => {
-            const name = (c.owner_name || '').toLowerCase();
-            const phone = (c.phone_number || '').toLowerCase();
-            const timeStr = formatTime(c.last_message_time).toLowerCase();
-            
-            // Format date for searching (e.g. DD/MM/YYYY or YYYY-MM-DD depending on locale)
-            const dateStr = c.last_message_time ? new Date(c.last_message_time).toLocaleDateString().toLowerCase() : '';
-            const dateStr2 = c.last_message_time ? new Date(c.last_message_time).toDateString().toLowerCase() : '';
-
-            return name.includes(query) || phone.includes(query) || timeStr.includes(query) || dateStr.includes(query) || dateStr2.includes(query);
-        });
-
-        renderCustomerList(filtered);
+        const query = document.getElementById('searchInput').value.trim();
+        if (searchTimeout) clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            fetchCustomers(query);
+        }, 300);
     }
 
     async function fetchMessages(phone) {
