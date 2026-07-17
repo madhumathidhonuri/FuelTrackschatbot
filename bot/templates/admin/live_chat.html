@@ -41,12 +41,54 @@
         overflow-y: auto;
     }
     .customer-item {
-        padding: 15px;
+        padding: 12px 15px;
         border-bottom: 1px solid #f0f2f5;
         cursor: pointer;
         display: flex;
-        flex-direction: column;
+        align-items: center;
+        gap: 15px;
         transition: background 0.2s;
+    }
+    .customer-avatar {
+        width: 49px;
+        height: 49px;
+        border-radius: 50%;
+        background-color: #a8a8a8;
+        flex-shrink: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+    .customer-details {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    .search-container {
+        padding: 8px 12px;
+        background: #fff;
+        border-bottom: 1px solid #f0f2f5;
+    }
+    .search-box {
+        background: #f0f2f5;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        height: 35px;
+    }
+    .search-box input {
+        border: none;
+        background: transparent;
+        outline: none;
+        width: 100%;
+        font-size: 14px;
+        padding-left: 10px;
+    }
+    .search-icon {
+        color: #54656f;
     }
     .customer-item:hover {
         background-color: #f5f6f6;
@@ -196,40 +238,69 @@
 
     .chat-messages {
         flex-grow: 1;
-        padding: 20px;
+        padding: 20px 40px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
+        background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+        background-repeat: repeat;
+        background-size: 400px;
+        background-attachment: local;
     }
     .message {
         max-width: 65%;
-        padding: 8px 12px;
-        border-radius: 8px;
-        font-size: 14.5px;
-        line-height: 1.4;
+        padding: 6px 7px 8px 9px;
+        border-radius: 7.5px;
+        font-size: 14.2px;
+        line-height: 19px;
         position: relative;
         color: #111b21;
         word-wrap: break-word;
+        margin-bottom: 2px;
+        box-shadow: 0 1px 0.5px rgba(11,20,26,.13);
     }
     .message-time {
         font-size: 11px;
-        color: rgba(17, 27, 33, 0.6);
-        text-align: right;
+        color: #667781;
+        float: right;
         margin-top: 4px;
-        margin-bottom: -4px;
+        margin-left: 10px;
+        margin-bottom: -5px;
+        position: relative;
+        bottom: -2px;
     }
     .msg-user {
         background-color: #fff;
         align-self: flex-start;
         border-top-left-radius: 0;
-        box-shadow: 0 1px 0.5px rgba(11,20,26,.13);
+    }
+    .msg-user::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -8px;
+        width: 0;
+        height: 0;
+        border-top: 0px solid transparent;
+        border-right: 8px solid #fff;
+        border-bottom: 13px solid transparent;
     }
     .msg-assistant {
         background-color: #d9fdd3;
         align-self: flex-end;
         border-top-right-radius: 0;
-        box-shadow: 0 1px 0.5px rgba(11,20,26,.13);
+    }
+    .msg-assistant::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: -8px;
+        width: 0;
+        height: 0;
+        border-top: 0px solid transparent;
+        border-left: 8px solid #d9fdd3;
+        border-bottom: 13px solid transparent;
     }
 
     .chat-input-container {
@@ -321,11 +392,20 @@
 <div class="chat-container">
     <!-- Left Sidebar -->
     <div class="chat-sidebar">
-        <div class="chat-sidebar-header">
-            Active Chats
+        <div class="chat-sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
+            <div class="customer-avatar" style="width: 40px; height: 40px; background-color: #d1d7db;">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="#fff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"></path></svg>
+            </div>
+            <div style="font-size: 16px;">Chats</div>
+            <div style="width: 40px;"></div> <!-- Spacer -->
         </div>
-        <div style="padding: 10px; background: #fff; border-bottom: 1px solid #d1d7db;">
-            <input type="text" id="searchInput" placeholder="Search by name, phone, date..." style="width: 100%; padding: 8px; border: 1px solid #d1d7db; border-radius: 6px; box-sizing: border-box; outline: none;" oninput="filterCustomers()">
+        <div class="search-container">
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" class="search-icon">
+                    <path d="M15.009 13.805h-.636l-.22-.219a5.184 5.184 0 0 0 1.256-3.386 5.207 5.207 0 1 0-5.207 5.208 5.183 5.183 0 0 0 3.385-1.255l.221.22v.635l4.004 3.999 1.194-1.195-3.997-4.007zm-5.6-1.165a4.04 4.04 0 1 1 0-8.079 4.04 4.04 0 0 1 0 8.08z"></path>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search or start new chat" oninput="filterCustomers()">
+            </div>
         </div>
         <div class="customer-list" id="customerList">
             <!-- Customers will be populated here via JS -->
@@ -346,9 +426,14 @@
         <!-- Active Chat State -->
         <div id="activeChatState" class="hidden" style="display:flex;flex-direction:column;height:100%;">
             <div class="chat-header">
-                <div class="chat-header-info">
-                    <span class="chat-header-name" id="chatHeaderName">Customer Name</span>
-                    <span class="chat-header-phone" id="chatHeaderPhone">+91XXXXXXXXXX</span>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div class="customer-avatar" style="width: 40px; height: 40px; background-color: #d1d7db;">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="#fff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"></path></svg>
+                    </div>
+                    <div class="chat-header-info">
+                        <span class="chat-header-name" id="chatHeaderName">Customer Name</span>
+                        <span class="chat-header-phone" id="chatHeaderPhone">+91XXXXXXXXXX</span>
+                    </div>
                 </div>
                 <div class="chat-header-actions">
                     <div class="switch-container">
@@ -373,10 +458,15 @@
                         <path d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.959.958 2.423 1.053 3.263.215l5.511-5.512c.28-.28.267-.722.053-.936l-.244-.244c-.191-.191-.567-.349-.957.04l-5.506 5.506c-.18.18-.635.127-.976-.214-.098-.097-.576-.613-.213-.973l7.915-7.917c.818-.817 2.267-.699 3.23.262.5.501.802 1.1.849 1.685.051.573-.156 1.111-.589 1.543l-9.547 9.549a3.97 3.97 0 0 1-2.829 1.171 3.975 3.975 0 0 1-2.83-1.173 3.973 3.973 0 0 1-1.172-2.828c0-1.071.415-2.076 1.172-2.83l7.209-7.211c.157-.157.264-.579.028-.814L11.5 4.36a.572.572 0 0 0-.834.018l-7.205 7.207a5.577 5.577 0 0 0-1.645 3.971z"></path>
                     </svg>
                 </button>
-                <textarea id="messageInput" class="chat-input" placeholder="Type a message..." rows="1" onkeydown="handleEnter(event)"></textarea>
-                <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                <textarea id="messageInput" class="chat-input" placeholder="Type a message..." rows="1" onkeydown="handleEnter(event)" oninput="toggleSendMicIcon()"></textarea>
+                <button id="sendBtn" class="send-btn hidden" onclick="sendMessage()">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                         <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                    </svg>
+                </button>
+                <button id="recordBtn" class="send-btn" onclick="toggleRecording()">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M11.999 14.942c2.001 0 3.531-1.53 3.531-3.531V4.35c0-2.001-1.53-3.531-3.531-3.531S8.469 2.35 8.469 4.35v7.061c0 2.001 1.53 3.531 3.53 3.531zm6.238-3.53c0 3.531-2.942 6.002-6.237 6.002s-6.237-2.471-6.237-6.002H3.761c0 4.001 3.178 7.297 7.061 7.885v3.884h2.354v-3.884c3.884-.588 7.061-3.884 7.061-7.885h-2.002z"></path>
                     </svg>
                 </button>
             </div>
@@ -388,8 +478,14 @@
     // --- State ---
     let currentPhone = null;
     let pollInterval = null;
-    let lastMessageCount = 0;
     let allCustomers = [];
+    let lastCustomerPayload = '';
+    let lastMessagesPayload = '';
+    
+    // Recording state
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
     
     // --- CSRF ---
     function getCookie(name) {
@@ -458,9 +554,19 @@
         const text = input.value.trim();
         if (!text || !currentPhone) return;
 
-        // Disable input while sending
-        input.disabled = true;
-        document.getElementById('sendBtn').disabled = true;
+        // Optimistic UI Append
+        const chatBox = document.getElementById('chatMessages');
+        const tempDiv = document.createElement('div');
+        tempDiv.className = 'message msg-assistant';
+        tempDiv.style.opacity = '0.6';
+        const safeContent = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+        tempDiv.innerHTML = `${safeContent}<div class="message-time">Sending...</div>`;
+        chatBox.appendChild(tempDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        input.value = '';
+        input.focus(); // Keep focus immediately
+        toggleSendMicIcon(); // Switch back to mic icon
 
         try {
             const res = await fetch(`api/send/${currentPhone}/`, {
@@ -473,43 +579,37 @@
             });
             const data = await res.json();
             if (data.success) {
-                input.value = '';
-                // Immediately fetch messages to show the sent message
                 await fetchMessages(currentPhone);
-                // Also auto-pause bot if agent replies? (Optional, let's leave it manual or do it via toggle)
             } else {
                 alert("Failed to send message: " + data.error);
+                tempDiv.remove();
             }
         } catch (e) {
             alert("Network error while sending message");
-        } finally {
-            input.disabled = false;
-            document.getElementById('sendBtn').disabled = false;
-            input.focus();
+            tempDiv.remove();
         }
     }
 
-    async function handleMediaSelect(event) {
-        const file = event.target.files[0];
-        if (!file || !currentPhone) return;
-
-        // Ensure file is within size limits (e.g. 16MB for video, 5MB for image, 100MB for docs)
-        const fileSizeMB = file.size / (1024 * 1024);
-        if (fileSizeMB > 100) {
-            alert("File is too large. Maximum allowed size is 100MB.");
-            return;
+    function toggleSendMicIcon() {
+        const text = document.getElementById('messageInput').value.trim();
+        if (text.length > 0) {
+            document.getElementById('sendBtn').classList.remove('hidden');
+            document.getElementById('recordBtn').classList.add('hidden');
+        } else {
+            document.getElementById('sendBtn').classList.add('hidden');
+            document.getElementById('recordBtn').classList.remove('hidden');
         }
+    }
 
-        const caption = prompt("Add a caption (optional):");
-        if (caption === null) return; // User cancelled
-        
+    async function sendMediaFile(file, caption) {
         const attachBtn = document.getElementById('attachBtn');
         const sendBtn = document.getElementById('sendBtn');
+        const recordBtn = document.getElementById('recordBtn');
         const input = document.getElementById('messageInput');
         
         attachBtn.disabled = true;
         sendBtn.disabled = true;
-        input.disabled = true;
+        recordBtn.disabled = true;
         
         const originalInputVal = input.placeholder;
         input.placeholder = `Uploading ${file.name}... Please wait.`;
@@ -537,10 +637,73 @@
         } finally {
             attachBtn.disabled = false;
             sendBtn.disabled = false;
-            input.disabled = false;
+            recordBtn.disabled = false;
             input.placeholder = originalInputVal;
-            event.target.value = ''; // Reset file input
             input.focus();
+        }
+    }
+
+    async function handleMediaSelect(event) {
+        const file = event.target.files[0];
+        if (!file || !currentPhone) return;
+
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB > 100) {
+            alert("File is too large. Maximum allowed size is 100MB.");
+            return;
+        }
+
+        const caption = prompt("Add a caption (optional):");
+        if (caption === null) return;
+        
+        await sendMediaFile(file, caption);
+        event.target.value = '';
+    }
+
+    async function toggleRecording() {
+        if (!currentPhone) return;
+        
+        const recordBtn = document.getElementById('recordBtn');
+        const input = document.getElementById('messageInput');
+        
+        if (!isRecording) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    const audioFile = new File([audioBlob], `voice_message_${Date.now()}.webm`, { type: 'audio/webm' });
+                    await sendMediaFile(audioFile, null);
+                };
+                
+                audioChunks = [];
+                mediaRecorder.start();
+                isRecording = true;
+                
+                recordBtn.style.backgroundColor = '#ef4444'; // Red for recording
+                input.placeholder = "Recording... Click mic to send.";
+                input.disabled = true;
+                
+            } catch (err) {
+                console.error("Error accessing microphone", err);
+                alert("Microphone access denied or not available. Please check browser permissions.");
+            }
+        } else {
+            mediaRecorder.stop();
+            isRecording = false;
+            recordBtn.style.backgroundColor = '#00a884'; // Default green
+            input.placeholder = "Type a message...";
+            input.disabled = false;
         }
     }
 
@@ -579,6 +742,10 @@
     }
 
     function renderCustomerList(customers) {
+        const payloadStr = JSON.stringify(customers);
+        if (lastCustomerPayload === payloadStr) return;
+        lastCustomerPayload = payloadStr;
+
         const listDiv = document.getElementById('customerList');
         if (customers.length === 0) {
             listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#667;">No active chats</div>';
@@ -594,38 +761,49 @@
             const badge = c.is_bot_paused 
                 ? '<span class="bot-badge paused">AI Paused</span>' 
                 : '<span class="bot-badge">AI Active</span>';
+                
+            // Generate a simple avatar with the first letter
+            const firstLetter = (c.owner_name || '?').charAt(0).toUpperCase();
+            // Deterministic color based on phone number for variety
+            const colors = ['#00a884', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'];
+            const colorIdx = (c.phone_number ? c.phone_number.charCodeAt(c.phone_number.length - 1) : 0) % colors.length;
+            const avatarColor = colors[colorIdx];
 
             item.innerHTML = `
-                <div class="customer-header-row">
-                    <div class="customer-name">
-                        <span class="customer-name-text">${c.owner_name}</span>
-                        ${badge}
-                    </div>
-                    <div class="customer-time">${formatTime(c.last_message_time)}</div>
+                <div class="customer-avatar" style="background-color: ${avatarColor}">
+                    <span style="font-size:18px; color:#fff; font-weight:500;">${firstLetter}</span>
                 </div>
-                <div class="customer-preview">${c.last_message}</div>
+                <div class="customer-details">
+                    <div class="customer-header-row">
+                        <div class="customer-name">
+                            <span class="customer-name-text">${c.owner_name}</span>
+                            ${badge}
+                        </div>
+                        <div class="customer-time">${formatTime(c.last_message_time)}</div>
+                    </div>
+                    <div class="customer-preview">${c.last_message}</div>
+                </div>
             `;
             listDiv.appendChild(item);
         });
     }
 
     function renderMessages(messages) {
+        const payloadStr = JSON.stringify(messages);
+        if (lastMessagesPayload === payloadStr) return;
+        lastMessagesPayload = payloadStr;
+
         const chatBox = document.getElementById('chatMessages');
         
-        // Check if we need to auto-scroll (only if new messages arrived)
-        const isNewMessages = messages.length > lastMessageCount;
-        lastMessageCount = messages.length;
-
-        // Save scroll position
+        // Save scroll position before mutating
         const isScrolledToBottom = chatBox.scrollHeight - chatBox.clientHeight <= chatBox.scrollTop + 50;
+        const isFirstLoad = chatBox.innerHTML.includes('loader');
 
         chatBox.innerHTML = '';
         messages.forEach(m => {
             const div = document.createElement('div');
-            // user = customer (msg-user), assistant = bot/agent (msg-assistant)
             div.className = `message ${m.role === 'user' ? 'msg-user' : 'msg-assistant'}`;
             
-            // Render newlines properly
             const safeContent = m.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
             
             div.innerHTML = `
@@ -636,10 +814,8 @@
         });
 
         // Auto-scroll if it's the first load, or if user was already at bottom
-        if (isNewMessages && isScrolledToBottom) {
+        if (isFirstLoad || isScrolledToBottom) {
             chatBox.scrollTop = chatBox.scrollHeight;
-        } else if (isNewMessages && lastMessageCount <= 10) {
-             chatBox.scrollTop = chatBox.scrollHeight;
         }
     }
 
@@ -659,6 +835,10 @@
     function selectCustomer(customer) {
         currentPhone = customer.phone_number;
         
+        // Force re-renders for highlighting and message fetching
+        lastCustomerPayload = '';
+        lastMessagesPayload = '';
+        
         // UI State changes
         document.getElementById('noSelectionState').classList.add('hidden');
         document.getElementById('activeChatState').classList.remove('hidden');
@@ -673,7 +853,6 @@
         
         // Load messages
         document.getElementById('chatMessages').innerHTML = '<div class="loader" style="display:block;">Loading messages...</div>';
-        lastMessageCount = 0;
         fetchMessages(currentPhone).then(() => {
             const chatBox = document.getElementById('chatMessages');
             chatBox.scrollTop = chatBox.scrollHeight;
