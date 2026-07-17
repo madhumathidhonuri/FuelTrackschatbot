@@ -324,6 +324,9 @@
         <div class="chat-sidebar-header">
             Active Chats
         </div>
+        <div style="padding: 10px; background: #fff; border-bottom: 1px solid #d1d7db;">
+            <input type="text" id="searchInput" placeholder="Search by name, phone, date..." style="width: 100%; padding: 8px; border: 1px solid #d1d7db; border-radius: 6px; box-sizing: border-box; outline: none;" oninput="filterCustomers()">
+        </div>
         <div class="customer-list" id="customerList">
             <!-- Customers will be populated here via JS -->
             <div style="padding:20px;text-align:center;color:#667;font-size:14px;">Loading chats...</div>
@@ -386,6 +389,7 @@
     let currentPhone = null;
     let pollInterval = null;
     let lastMessageCount = 0;
+    let allCustomers = [];
     
     // --- CSRF ---
     function getCookie(name) {
@@ -409,10 +413,33 @@
         try {
             const res = await fetch('api/list/');
             const data = await res.json();
-            renderCustomerList(data.customers);
+            allCustomers = data.customers;
+            filterCustomers();
         } catch (e) {
             console.error("Failed to fetch customers", e);
         }
+    }
+
+    function filterCustomers() {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        if (!query) {
+            renderCustomerList(allCustomers);
+            return;
+        }
+
+        const filtered = allCustomers.filter(c => {
+            const name = (c.owner_name || '').toLowerCase();
+            const phone = (c.phone_number || '').toLowerCase();
+            const timeStr = formatTime(c.last_message_time).toLowerCase();
+            
+            // Format date for searching (e.g. DD/MM/YYYY or YYYY-MM-DD depending on locale)
+            const dateStr = c.last_message_time ? new Date(c.last_message_time).toLocaleDateString().toLowerCase() : '';
+            const dateStr2 = c.last_message_time ? new Date(c.last_message_time).toDateString().toLowerCase() : '';
+
+            return name.includes(query) || phone.includes(query) || timeStr.includes(query) || dateStr.includes(query) || dateStr2.includes(query);
+        });
+
+        renderCustomerList(filtered);
     }
 
     async function fetchMessages(phone) {
@@ -670,6 +697,34 @@
 
     // Attach listeners
     document.getElementById('pauseBotToggle').addEventListener('change', toggleBotStatus);
+
+    // Global paste handler for quick chat opening
+    document.addEventListener('paste', function(e) {
+        if (e.target.id === 'messageInput') {
+            return; // Allow pasting into chat message normally
+        }
+        
+        const pastedData = (e.clipboardData || window.clipboardData).getData('text');
+        if (!pastedData) return;
+        
+        const cleanPaste = pastedData.trim();
+        const digitsOnly = cleanPaste.replace(/\D/g, '');
+        
+        // If it looks like a phone number (at least 8 digits)
+        if (digitsOnly.length >= 8) {
+            const matchingCustomer = allCustomers.find(c => {
+                const phoneDigits = (c.phone_number || '').replace(/\D/g, '');
+                return phoneDigits.includes(digitsOnly) || digitsOnly.includes(phoneDigits);
+            });
+            
+            if (matchingCustomer) {
+                e.preventDefault();
+                document.getElementById('searchInput').value = cleanPaste;
+                filterCustomers();
+                selectCustomer(matchingCustomer);
+            }
+        }
+    });
 
     // Initial load
     fetchCustomers();
