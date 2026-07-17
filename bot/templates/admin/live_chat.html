@@ -604,6 +604,7 @@
                         selectCustomer(matchedCustomer);
                         initialChatSelected = true;
                     }
+                    // If not found yet (list still populating), will retry on next poll tick
                 } else {
                     initialChatSelected = true;
                 }

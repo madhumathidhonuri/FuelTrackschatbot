@@ -843,47 +843,48 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return render(request, "admin/live_chat.html", context)
 
     def api_chat_list(self, request):
-        # Pull the last 500 messages by id DESC, then deduplicate by phone
-        # in Python — one fast indexed scan, no GROUP BY aggregation on a huge table.
-        recent_msgs = ChatMessage.objects.order_by('-id').values(
-            'id', 'phone_number', 'content', 'timestamp'
-        )[:500]
+        from django.db.models import Subquery, OuterRef
 
-        seen = set()
-        phone_numbers = []
-        msg_rows = []
-        for m in recent_msgs:
-            p = m['phone_number']
-            if p not in seen:
-                seen.add(p)
-                phone_numbers.append(p)
-                msg_rows.append(m)
-            if len(msg_rows) >= 50:
-                break
+        # Correlated subquery: for each FleetCustomer, find the id of their latest ChatMessage
+        latest_msg_subquery = ChatMessage.objects.filter(
+            phone_number=OuterRef('phone_number')
+        ).order_by('-id').values('id')[:1]
 
-        if not msg_rows:
+        # Get ALL customers who have at least one message, annotated with their latest message id.
+        # Evaluate once into a list to avoid hitting the DB twice.
+        customers_list = list(
+            FleetCustomer.objects
+            .annotate(last_msg_id=Subquery(latest_msg_subquery))
+            .filter(last_msg_id__isnull=False)
+            .order_by('-last_msg_id')
+        )
+
+        if not customers_list:
             return JsonResponse({"customers": []})
 
-        # Batch-fetch customer info in one query
-        customers = {
-            c.phone_number: c
-            for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        # Batch-fetch all the "latest" messages in one query
+        msg_id_to_msg = {
+            m.id: m
+            for m in ChatMessage.objects.filter(
+                id__in=[c.last_msg_id for c in customers_list]
+            ).only('id', 'phone_number', 'content', 'timestamp')
         }
 
         result = []
-        for m in msg_rows:
-            c = customers.get(m['phone_number'])
-            content = m['content'] or ''
+        for customer in customers_list:
+            msg = msg_id_to_msg.get(customer.last_msg_id)
+            if not msg:
+                continue
+            content = msg.content or ''
             result.append({
-                "phone_number": m['phone_number'],
-                "owner_name": (c.owner_name if c and c.owner_name else "Unknown"),
-                "is_bot_paused": (c.is_bot_paused if c else False),
+                "phone_number": customer.phone_number,
+                "owner_name": customer.owner_name or "Unknown",
+                "is_bot_paused": customer.is_bot_paused,
                 "last_message": content[:50] + ("..." if len(content) > 50 else ""),
-                "last_message_time": m['timestamp'].isoformat() if m['timestamp'] else "",
-                "timestamp_val": m['timestamp'].timestamp() if m['timestamp'] else 0,
+                "last_message_time": msg.timestamp.isoformat() if msg.timestamp else "",
+                "timestamp_val": msg.timestamp.timestamp() if msg.timestamp else 0,
             })
 
-        # Already sorted descending (most recent first) because we scanned by -id
         return JsonResponse({"customers": result})
 
     def api_chat_history(self, request, phone_number):
