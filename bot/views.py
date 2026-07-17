@@ -1051,6 +1051,9 @@ def whatsapp_webhook(request):
                                 user_text = message_obj["interactive"]["list_reply"].get("title", "")
                             else:
                                 user_text = ""
+                        elif message_obj.get("type") in ["audio", "image", "video", "document"]:
+                            media_type = message_obj.get("type")
+                            user_text = f"[{media_type.capitalize()} Message Received]"
 
                         if not user_text.strip():
                             return JsonResponse({"status": "success"})

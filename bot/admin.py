@@ -699,49 +699,26 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return render(request, "admin/live_chat.html", context)
         
     def api_chat_list(self, request):
-        from bot.models import ChatMessage, AgentNotificationLog
+        from bot.models import ChatMessage, FleetCustomer
         
-        # 1. Fetch recent phone numbers that needed agent attention
-        logs = AgentNotificationLog.objects.order_by('-id')[:2000]
-        seen_phones = set()
-        latest_phones = []
-        for log in logs:
-            if log.phone_number not in seen_phones:
-                seen_phones.add(log.phone_number)
-                latest_phones.append(log.phone_number)
-            if len(latest_phones) >= 100:
-                break
-                
-        # 2. Fetch customers for these phone numbers in one query
-        customers = FleetCustomer.objects.filter(phone_number__in=latest_phones)
-        customer_map = {c.phone_number: c for c in customers}
-        
-        # 3. Fetch the latest ChatMessage for each phone in one query
-        all_messages = ChatMessage.objects.filter(phone_number__in=latest_phones).order_by('-id')
-        msg_map = {}
-        for m in all_messages:
-            if m.phone_number not in msg_map:
-                msg_map[m.phone_number] = m
-            if len(msg_map) == len(latest_phones):
-                break
-
+        customers = FleetCustomer.objects.all()
         data = []
-        for phone in latest_phones:
-            c = customer_map.get(phone)
-            last_msg = msg_map.get(phone)
+        for c in customers:
+            last_msg = ChatMessage.objects.filter(phone_number=c.phone_number).order_by('-id').first()
             if not last_msg:
                 continue
                 
             data.append({
-                "phone_number": phone,
-                "owner_name": c.owner_name if c else "Unknown",
-                "is_bot_paused": c.is_bot_paused if c else False,
+                "phone_number": c.phone_number,
+                "owner_name": c.owner_name if c.owner_name else "Unknown",
+                "is_bot_paused": c.is_bot_paused,
                 "last_message": last_msg.content[:50] + ("..." if len(last_msg.content) > 50 else ""),
                 "last_message_time": last_msg.timestamp.isoformat(),
                 "timestamp_val": last_msg.timestamp.timestamp()
             })
-
-        return JsonResponse({"customers": data})
+            
+        data.sort(key=lambda x: x["timestamp_val"], reverse=True)
+        return JsonResponse({"customers": data[:100]})
 
     def api_chat_history(self, request, phone_number):
         from bot.models import ChatMessage
@@ -807,6 +784,36 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             import requests
             import os
             
+            import tempfile
+            import imageio_ffmpeg
+            import subprocess
+
+            converted_file_path = None
+            if media_type == 'audio':
+                try:
+                    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_webm:
+                        temp_webm.write(upload_file.read())
+                        temp_webm_path = temp_webm.name
+                    
+                    converted_file_path = temp_webm_path.replace(".webm", ".mp4")
+                    subprocess.run([
+                        ffmpeg_exe, "-y", "-i", temp_webm_path, "-c:a", "aac", "-b:a", "128k", converted_file_path
+                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    
+                    file_name = file_name.replace(".webm", ".mp4").replace(".mp4", "") + ".mp4"
+                    content_type = "audio/mp4"
+                    with open(converted_file_path, "rb") as f:
+                        file_data = f.read()
+                        
+                    os.remove(temp_webm_path)
+                except Exception as e:
+                    print(f"Audio conversion failed: {e}")
+                    upload_file.seek(0)
+                    file_data = upload_file.read()
+            else:
+                file_data = upload_file.read()
+
             # Step 1: Upload media to Meta
             url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/media"
             headers = {
@@ -814,7 +821,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             }
             # We must pass messaging_product as a regular field, and the file as the file field
             files = {
-                'file': (file_name, upload_file.read(), content_type)
+                'file': (file_name, file_data, content_type)
             }
             data = {
                 'messaging_product': 'whatsapp'
@@ -843,6 +850,9 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 )
             except Exception as e:
                 return JsonResponse({"success": False, "error": str(e)})
+            finally:
+                if converted_file_path and os.path.exists(converted_file_path):
+                    os.remove(converted_file_path)
 
             # Step 3: Log in chat history
             log_content = f"[{media_type.capitalize()} Sent: {file_name}]"
@@ -862,4 +872,4 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 return JsonResponse({"success": True, "is_bot_paused": customer.is_bot_paused})
             except FleetCustomer.DoesNotExist:
                 return JsonResponse({"success": False, "error": "Customer not found"})
-        return JsonResponse({"success": False, "error": "Invalid request method"})
+        return JsonResponse({"success": False, "error": "Invalid request method"})
