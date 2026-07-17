@@ -13,6 +13,10 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='whatsapptemplate',
             name='header_media_id',
-            field=models.CharField(blank=True, default='', help_text="Meta's media ID once uploaded", max_length=100),
+            field=models.CharField(
+                blank=True,
+                default='',
+                help_text="Meta's media ID once uploaded",
+                max_length=100),
         ),
     ]

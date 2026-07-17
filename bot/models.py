@@ -1,16 +1,24 @@
+from django.dispatch import receiver
+from django.db.models.signals import pre_delete
 from django.db import models
 
 # Create your models here.
+
+
 class ChatMessage(models.Model):
     ROLE_CHOICES = [
         ('user', 'User'),
         ('assistant', 'Assistant'),
     ]
-    
+
     phone_number = models.CharField(max_length=20, db_index=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
-    message_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    message_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True)
     status = models.CharField(max_length=20, default='sent', choices=[
         ('sent', 'Sent'),
         ('delivered', 'Delivered'),
@@ -24,27 +32,27 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"{self.phone_number} - {self.role}: {self.content[:30]}"
-    
-    
+
+
 class AdCampaign(models.Model):
     campaign_name = models.CharField(max_length=100)
     ad_id = models.CharField(max_length=100, blank=True, db_index=True)
     headline_keywords = models.CharField(
-        max_length=255, 
-        blank=True, 
+        max_length=255,
+        blank=True,
         help_text="Comma-separated keywords to match in referral ad headline or body."
     )
     welcome_message = models.TextField(
-        blank=True, 
+        blank=True,
         help_text="Optional custom greeting message sent immediately on ad click."
     )
     custom_system_prompt = models.TextField(
-        blank=True, 
+        blank=True,
         help_text="Custom instructions to inject into the AI agent prompt."
     )
     catalog_file = models.CharField(
-        max_length=100, 
-        blank=True, 
+        max_length=100,
+        blank=True,
         help_text="Catalog PDF file name to send (e.g. Wifi_Camera_Catalog.pdf)"
     )
     is_active = models.BooleanField(default=True)
@@ -58,15 +66,17 @@ class FleetCustomer(models.Model):
     phone_number = models.CharField(max_length=20, unique=True, db_index=True)
     owner_name = models.CharField(max_length=100, blank=True, null=True)
     truck_number = models.CharField(max_length=30, blank=True, null=True)
-    is_active = models.BooleanField(default=True) # Easily drop un-subscribed or past clients
+    # Easily drop un-subscribed or past clients
+    is_active = models.BooleanField(default=True)
     referred_by = models.ForeignKey(
-        'AdCampaign', 
-        null=True, 
-        blank=True, 
-        on_delete=models.SET_NULL, 
+        'AdCampaign',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
         related_name='referred_customers'
     )
-    is_bot_paused = models.BooleanField(default=False, help_text="Pause the AI for this customer")
+    is_bot_paused = models.BooleanField(
+        default=False, help_text="Pause the AI for this customer")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def clean(self):
@@ -94,16 +104,20 @@ class BroadcastTask(models.Model):
         ('completed', 'Completed'),
         ('failed', 'Failed'),
     ]
-    
+
     template_name = models.CharField(max_length=100)
     language_code = models.CharField(max_length=10, default='en')
     excel_file_name = models.CharField(max_length=255, blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending')
     total_records = models.IntegerField(default=0)
     processed_records = models.IntegerField(default=0)
     success_count = models.IntegerField(default=0)
     failed_count = models.IntegerField(default=0)
-    failed_details = models.TextField(blank=True, null=True)  # JSON list of errors/successes
+    failed_details = models.TextField(
+        blank=True, null=True)  # JSON list of errors/successes
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -121,13 +135,13 @@ class ProcessedMessage(models.Model):
 
 class WhatsAppTemplate(models.Model):
     template_name = models.CharField(
-        max_length=100, 
-        unique=True, 
+        max_length=100,
+        unique=True,
         help_text="Approved Meta template name (e.g. gps_tracking_device)"
     )
     description = models.CharField(
-        max_length=255, 
-        blank=True, 
+        max_length=255,
+        blank=True,
         help_text="Brief description/label shown in dropdown"
     )
     category = models.CharField(
@@ -146,7 +160,7 @@ class WhatsAppTemplate(models.Model):
         help_text="Custom instructions to inject into the AI agent prompt when a customer responds to this template."
     )
     has_variables = models.BooleanField(
-        default=False, 
+        default=False,
         help_text="Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)"
     )
     has_header = models.BooleanField(
@@ -199,7 +213,7 @@ class WhatsAppTemplate(models.Model):
         import logging
         import os
         logger = logging.getLogger(__name__)
-        
+
         try:
             # Check if header_file has changed or was newly uploaded
             is_changed = False
@@ -219,16 +233,19 @@ class WhatsAppTemplate(models.Model):
                     file_exists = False
                     try:
                         from django.core.files.uploadedfile import UploadedFile
-                        if hasattr(self.header_file, 'file') and isinstance(self.header_file.file, UploadedFile):
+                        if hasattr(self.header_file, 'file') and isinstance(
+                                self.header_file.file, UploadedFile):
                             file_exists = True
                         elif hasattr(self.header_file, 'path') and os.path.exists(self.header_file.path):
                             file_exists = True
                     except Exception as check_err:
-                        logger.warning(f"Error checking if header_file exists: {check_err}")
+                        logger.warning(
+                            f"Error checking if header_file exists: {check_err}")
                         file_exists = False
-                    
+
                     if not file_exists:
-                        logger.warning("The template header file does not physically exist on the server's disk. Left header_media_id blank.")
+                        logger.warning(
+                            "The template header file does not physically exist on the server's disk. Left header_media_id blank.")
                         self.header_media_id = ''
                         self.media_id_updated_at = None
                     else:
@@ -244,16 +261,19 @@ class WhatsAppTemplate(models.Model):
                                 self.header_media_id = ''
                                 self.media_id_updated_at = None
                         except Exception as upload_err:
-                            logger.error(f"[ERROR] Meta upload failed: {upload_err}")
+                            logger.error(
+                                f"[ERROR] Meta upload failed: {upload_err}")
                             self.header_media_id = ''
                             self.media_id_updated_at = None
                 else:
                     self.header_media_id = ''
                     self.media_id_updated_at = None
         except Exception as outer_err:
-            logger.error(f"[ERROR] WhatsAppTemplate save hook failed: {outer_err}")
+            logger.error(
+                f"[ERROR] WhatsAppTemplate save hook failed: {outer_err}")
             try:
-                if not hasattr(self, 'header_media_id') or not self.header_media_id:
+                if not hasattr(
+                        self, 'header_media_id') or not self.header_media_id:
                     self.header_media_id = ''
                 if not hasattr(self, 'media_id_updated_at'):
                     self.media_id_updated_at = None
@@ -267,7 +287,11 @@ class WhatsAppTemplate(models.Model):
 
 
 class AgentNotificationLog(models.Model):
-    customer = models.ForeignKey('FleetCustomer', on_delete=models.SET_NULL, null=True, blank=True)
+    customer = models.ForeignKey(
+        'FleetCustomer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True)
     phone_number = models.CharField(max_length=20)
     message_content = models.TextField()
     is_template_reply = models.BooleanField(default=False)
@@ -285,9 +309,6 @@ class AgentNotificationLog(models.Model):
         return f"{msg_type} from {self.phone_number} at {self.created_at}"
 
 
-from django.db.models.signals import pre_delete
-from django.dispatch import receiver
-
 @receiver(pre_delete, sender=FleetCustomer)
 def delete_related_chats(sender, instance, **kwargs):
     """
@@ -295,5 +316,3 @@ def delete_related_chats(sender, instance, **kwargs):
     when the FleetCustomer is deleted.
     """
     ChatMessage.objects.filter(phone_number=instance.phone_number).delete()
-
-

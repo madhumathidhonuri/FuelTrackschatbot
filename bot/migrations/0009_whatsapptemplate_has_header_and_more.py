@@ -13,17 +13,36 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='whatsapptemplate',
             name='has_header',
-            field=models.BooleanField(default=False, help_text='Does this template have a header?'),
+            field=models.BooleanField(
+                default=False, help_text='Does this template have a header?'),
         ),
         migrations.AddField(
             model_name='whatsapptemplate',
             name='header_image_url',
-            field=models.CharField(blank=True, default='', help_text='URL or Meta Media ID of the header image if header type is Image/Video/Document', max_length=500),
+            field=models.CharField(
+                blank=True,
+                default='',
+                help_text='URL or Meta Media ID of the header image if header type is Image/Video/Document',
+                max_length=500),
         ),
         migrations.AddField(
             model_name='whatsapptemplate',
             name='header_type',
-            field=models.CharField(choices=[('none', 'None'), ('image', 'Image'), ('text', 'Text'), ('video', 'Video'), ('document', 'Document')], default='none', help_text='Type of header template requires', max_length=20),
+            field=models.CharField(
+                choices=[
+                    ('none',
+                     'None'),
+                    ('image',
+                     'Image'),
+                    ('text',
+                     'Text'),
+                    ('video',
+                     'Video'),
+                    ('document',
+                     'Document')],
+                default='none',
+                help_text='Type of header template requires',
+                max_length=20),
         ),
         migrations.AlterField(
             model_name='broadcasttask',

@@ -13,11 +13,26 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='chatmessage',
             name='message_id',
-            field=models.CharField(blank=True, db_index=True, max_length=255, null=True),
+            field=models.CharField(
+                blank=True,
+                db_index=True,
+                max_length=255,
+                null=True),
         ),
         migrations.AddField(
             model_name='chatmessage',
             name='status',
-            field=models.CharField(choices=[('sent', 'Sent'), ('delivered', 'Delivered'), ('read', 'Read'), ('failed', 'Failed')], default='sent', max_length=20),
+            field=models.CharField(
+                choices=[
+                    ('sent',
+                     'Sent'),
+                    ('delivered',
+                     'Delivered'),
+                    ('read',
+                     'Read'),
+                    ('failed',
+                     'Failed')],
+                default='sent',
+                max_length=20),
         ),
     ]

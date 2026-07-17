@@ -13,36 +13,63 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='whatsapptemplate',
             name='languages',
-            field=models.CharField(default='en_US', help_text='Comma-separated approved language codes (e.g. en_US,te)', max_length=255),
+            field=models.CharField(
+                default='en_US',
+                help_text='Comma-separated approved language codes (e.g. en_US,te)',
+                max_length=255),
         ),
         migrations.AlterField(
             model_name='adcampaign',
             name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.AutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='broadcasttask',
             name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.AutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='chatmessage',
             name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.AutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='fleetcustomer',
             name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.AutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='processedmessage',
             name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.AutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='whatsapptemplate',
             name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.AutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
     ]

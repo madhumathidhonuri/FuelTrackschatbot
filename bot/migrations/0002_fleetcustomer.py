@@ -13,10 +13,14 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='FleetCustomer',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('phone_number', models.CharField(db_index=True, max_length=20, unique=True)),
-                ('owner_name', models.CharField(blank=True, max_length=100, null=True)),
-                ('truck_number', models.CharField(blank=True, max_length=30, null=True)),
+                ('id', models.BigAutoField(auto_created=True,
+                 primary_key=True, serialize=False, verbose_name='ID')),
+                ('phone_number', models.CharField(
+                    db_index=True, max_length=20, unique=True)),
+                ('owner_name', models.CharField(
+                    blank=True, max_length=100, null=True)),
+                ('truck_number', models.CharField(
+                    blank=True, max_length=30, null=True)),
                 ('is_active', models.BooleanField(default=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],

@@ -13,10 +13,20 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='WhatsAppTemplate',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('template_name', models.CharField(help_text='Approved Meta template name (e.g. gps_tracking_device)', max_length=100, unique=True)),
-                ('description', models.CharField(blank=True, help_text='Brief description/label shown in dropdown', max_length=255)),
-                ('has_variables', models.BooleanField(default=False, help_text='Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)')),
+                ('id', models.BigAutoField(auto_created=True,
+                 primary_key=True, serialize=False, verbose_name='ID')),
+                (
+                    'template_name',
+                    models.CharField(
+                        help_text='Approved Meta template name (e.g. gps_tracking_device)',
+                        max_length=100,
+                        unique=True)),
+                ('description',
+                 models.CharField(blank=True,
+                                  help_text='Brief description/label shown in dropdown',
+                                  max_length=255)),
+                ('has_variables', models.BooleanField(default=False,
+                 help_text='Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
         ),

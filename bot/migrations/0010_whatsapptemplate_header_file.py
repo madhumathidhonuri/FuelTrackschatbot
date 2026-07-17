@@ -13,6 +13,10 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='whatsapptemplate',
             name='header_file',
-            field=models.FileField(blank=True, help_text='Upload header file (image, video, document) from local system', null=True, upload_to='whatsapp_templates/'),
+            field=models.FileField(
+                blank=True,
+                help_text='Upload header file (image, video, document) from local system',
+                null=True,
+                upload_to='whatsapp_templates/'),
         ),
     ]

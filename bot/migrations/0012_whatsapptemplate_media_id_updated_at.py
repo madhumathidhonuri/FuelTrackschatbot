@@ -13,6 +13,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='whatsapptemplate',
             name='media_id_updated_at',
-            field=models.DateTimeField(blank=True, help_text='Timestamp when the Meta media ID was last refreshed/uploaded', null=True),
+            field=models.DateTimeField(
+                blank=True,
+                help_text='Timestamp when the Meta media ID was last refreshed/uploaded',
+                null=True),
         ),
     ]

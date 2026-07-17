@@ -13,6 +13,16 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='whatsapptemplate',
             name='category',
-            field=models.CharField(choices=[('utility', 'Utility'), ('marketing', 'Marketing'), ('authentication', 'Authentication')], default='marketing', help_text='Template category (e.g. marketing, utility)', max_length=50),
+            field=models.CharField(
+                choices=[
+                    ('utility',
+                     'Utility'),
+                    ('marketing',
+                     'Marketing'),
+                    ('authentication',
+                     'Authentication')],
+                default='marketing',
+                help_text='Template category (e.g. marketing, utility)',
+                max_length=50),
         ),
     ]

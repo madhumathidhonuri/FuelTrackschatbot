@@ -13,6 +13,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='whatsapptemplate',
             name='custom_system_prompt',
-            field=models.TextField(blank=True, default='', help_text='Custom instructions to inject into the AI agent prompt when a customer responds to this template.'),
+            field=models.TextField(
+                blank=True,
+                default='',
+                help_text='Custom instructions to inject into the AI agent prompt when a customer responds to this template.'),
         ),
     ]

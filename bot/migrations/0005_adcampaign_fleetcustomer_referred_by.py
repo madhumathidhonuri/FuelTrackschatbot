@@ -14,13 +14,24 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='AdCampaign',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True,
+                 primary_key=True, serialize=False, verbose_name='ID')),
                 ('campaign_name', models.CharField(max_length=100)),
                 ('ad_id', models.CharField(blank=True, db_index=True, max_length=100)),
-                ('headline_keywords', models.CharField(blank=True, help_text='Comma-separated keywords to match in referral ad headline or body.', max_length=255)),
-                ('welcome_message', models.TextField(blank=True, help_text='Optional custom greeting message sent immediately on ad click.')),
-                ('custom_system_prompt', models.TextField(blank=True, help_text='Custom instructions to inject into the AI agent prompt.')),
-                ('catalog_file', models.CharField(blank=True, help_text='Catalog PDF file name to send (e.g. Wifi_Camera_Catalog.pdf)', max_length=100)),
+                (
+                    'headline_keywords',
+                    models.CharField(
+                        blank=True,
+                        help_text='Comma-separated keywords to match in referral ad headline or body.',
+                        max_length=255)),
+                ('welcome_message', models.TextField(
+                    blank=True, help_text='Optional custom greeting message sent immediately on ad click.')),
+                ('custom_system_prompt', models.TextField(
+                    blank=True, help_text='Custom instructions to inject into the AI agent prompt.')),
+                ('catalog_file',
+                 models.CharField(blank=True,
+                                  help_text='Catalog PDF file name to send (e.g. Wifi_Camera_Catalog.pdf)',
+                                  max_length=100)),
                 ('is_active', models.BooleanField(default=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
@@ -28,6 +39,11 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='fleetcustomer',
             name='referred_by',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='referred_customers', to='bot.adcampaign'),
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name='referred_customers',
+                to='bot.adcampaign'),
         ),
     ]

@@ -11,9 +11,16 @@ import threading
 import time
 from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign, WhatsAppTemplate, AgentNotificationLog
 
+
 @admin.register(AdCampaign)
 class AdCampaignAdmin(admin.ModelAdmin):
-    list_display = ('campaign_name', 'ad_id', 'headline_keywords', 'catalog_file', 'is_active', 'created_at')
+    list_display = (
+        'campaign_name',
+        'ad_id',
+        'headline_keywords',
+        'catalog_file',
+        'is_active',
+        'created_at')
     list_filter = ('is_active',)
     search_fields = ('campaign_name', 'ad_id', 'headline_keywords')
 
@@ -21,20 +28,25 @@ class AdCampaignAdmin(admin.ModelAdmin):
 @admin.register(WhatsAppTemplate)
 class WhatsAppTemplateAdmin(admin.ModelAdmin):
     list_display = (
-        'template_name', 
-        'description', 
+        'template_name',
+        'description',
         'category',
-        'has_variables', 
-        'has_header', 
-        'header_type', 
-        'header_image_url', 
+        'has_variables',
+        'has_header',
+        'header_type',
+        'header_image_url',
         'header_file',
         'header_media_id',
         'media_id_updated_at',
-        'languages', 
+        'languages',
         'created_at'
     )
-    search_fields = ('template_name', 'description', 'custom_system_prompt', 'header_image_url', 'header_media_id')
+    search_fields = (
+        'template_name',
+        'description',
+        'custom_system_prompt',
+        'header_image_url',
+        'header_media_id')
     list_filter = ('category', 'has_variables', 'has_header', 'header_type')
     readonly_fields = ('media_id_updated_at',)
     actions = ['upload_header_file_to_meta']
@@ -45,8 +57,9 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
         for template in queryset:
             if not template.header_file:
                 self.message_user(
-                    request, 
-                    f"Template '{template.template_name}' has no header file configured.", 
+                    request,
+                    f"Template '{
+                        template.template_name}' has no header file configured.",
                     level=messages.WARNING
                 )
                 continue
@@ -61,9 +74,10 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
 
             if not exists:
                 self.message_user(
-                    request, 
-                    f"Template '{template.template_name}' header file does not physically exist on the server's disk. "
-                    f"Please re-upload the image file manually via the admin first.", 
+                    request,
+                    f"Template '{
+                        template.template_name}' header file does not physically exist on the server's disk. "
+                    f"Please re-upload the image file manually via the admin first.",
                     level=messages.ERROR
                 )
                 continue
@@ -79,17 +93,22 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
                     success_count += 1
             except Exception as e:
                 self.message_user(
-                    request, 
-                    f"Failed to upload '{template.template_name}' to Meta: {str(e)}", 
+                    request,
+                    f"Failed to upload '{
+                        template.template_name}' to Meta: {
+                        str(e)}",
                     level=messages.ERROR
                 )
 
         if success_count > 0:
-            self.message_user(request, f"Successfully uploaded {success_count} templates' header media to Meta.")
+            self.message_user(
+                request,
+                f"Successfully uploaded {success_count} templates' header media to Meta.")
 
 
 class ExcelUploadForm(forms.Form):
     excel_file = forms.FileField(label="Select Excel or CSV File")
+
 
 @admin.register(ChatMessage)
 class ChatMessageAdmin(admin.ModelAdmin):
@@ -126,8 +145,19 @@ class ChatMessageAdmin(admin.ModelAdmin):
 
 @admin.register(AgentNotificationLog)
 class AgentNotificationLogAdmin(admin.ModelAdmin):
-    list_display = ('created_at', 'phone_number_link', 'customer_name', 'message_content_excerpt', 'is_template_reply', 'template_name', 'notification_sent')
-    list_filter = ('is_template_reply', 'template_name', 'notification_sent', 'created_at')
+    list_display = (
+        'created_at',
+        'phone_number_link',
+        'customer_name',
+        'message_content_excerpt',
+        'is_template_reply',
+        'template_name',
+        'notification_sent')
+    list_filter = (
+        'is_template_reply',
+        'template_name',
+        'notification_sent',
+        'created_at')
     search_fields = ('phone_number', 'message_content', 'template_name')
     readonly_fields = ('created_at',)
     change_list_template = "admin/agentnotificationlog_changelist.html"
@@ -139,7 +169,8 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
     customer_name.short_description = "Customer Name"
 
     def message_content_excerpt(self, obj):
-        return obj.message_content[:75] + ("..." if len(obj.message_content) > 75 else "")
+        return obj.message_content[:75] + \
+            ("..." if len(obj.message_content) > 75 else "")
     message_content_excerpt.short_description = "Message"
 
     def phone_number_link(self, obj):
@@ -151,7 +182,11 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('export-excel/', self.admin_site.admin_view(self.export_excel), name='bot_agentnotificationlog_export_excel'),
+            path(
+                'export-excel/',
+                self.admin_site.admin_view(
+                    self.export_excel),
+                name='bot_agentnotificationlog_export_excel'),
         ]
         return custom_urls + urls
 
@@ -161,37 +196,58 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
             from django.http import HttpResponse
             import datetime
             from django.utils import timezone
-            
+
             from_date = request.POST.get('from_date')
             from_time = request.POST.get('from_time')
             to_date = request.POST.get('to_date')
             to_time = request.POST.get('to_time')
-            
+
             qs = self.get_queryset(request)
-            
+
             if from_date:
                 if from_time:
                     try:
-                        start_dt = timezone.make_aware(datetime.datetime.strptime(f"{from_date} {from_time}", "%Y-%m-%d %H:%M"))
+                        start_dt = timezone.make_aware(
+                            datetime.datetime.strptime(
+                                f"{from_date} {from_time}", "%Y-%m-%d %H:%M"))
                     except ValueError:
-                        start_dt = timezone.make_aware(datetime.datetime.strptime(f"{from_date} {from_time}", "%Y-%m-%d %H:%M:%S"))
+                        start_dt = timezone.make_aware(
+                            datetime.datetime.strptime(
+                                f"{from_date} {from_time}",
+                                "%Y-%m-%d %H:%M:%S"))
                 else:
-                    start_dt = timezone.make_aware(datetime.datetime.strptime(f"{from_date} 00:00:00", "%Y-%m-%d %H:%M:%S"))
+                    start_dt = timezone.make_aware(
+                        datetime.datetime.strptime(
+                            f"{from_date} 00:00:00",
+                            "%Y-%m-%d %H:%M:%S"))
                 qs = qs.filter(created_at__gte=start_dt)
-                
+
             if to_date:
                 if to_time:
                     try:
-                        end_dt = timezone.make_aware(datetime.datetime.strptime(f"{to_date} {to_time}", "%Y-%m-%d %H:%M"))
+                        end_dt = timezone.make_aware(
+                            datetime.datetime.strptime(
+                                f"{to_date} {to_time}", "%Y-%m-%d %H:%M"))
                     except ValueError:
-                        end_dt = timezone.make_aware(datetime.datetime.strptime(f"{to_date} {to_time}", "%Y-%m-%d %H:%M:%S"))
+                        end_dt = timezone.make_aware(
+                            datetime.datetime.strptime(
+                                f"{to_date} {to_time}",
+                                "%Y-%m-%d %H:%M:%S"))
                 else:
-                    end_dt = timezone.make_aware(datetime.datetime.strptime(f"{to_date} 23:59:59", "%Y-%m-%d %H:%M:%S"))
+                    end_dt = timezone.make_aware(
+                        datetime.datetime.strptime(
+                            f"{to_date} 23:59:59",
+                            "%Y-%m-%d %H:%M:%S"))
                 qs = qs.filter(created_at__lte=end_dt)
-                
-            data = list(qs.values('customer__owner_name', 'phone_number', 'message_content', 'created_at'))
+
+            data = list(
+                qs.values(
+                    'customer__owner_name',
+                    'phone_number',
+                    'message_content',
+                    'created_at'))
             df = pd.DataFrame(data)
-            
+
             if not df.empty:
                 if 'created_at' in df.columns:
                     df['created_at'] = df['created_at'].dt.tz_localize(None)
@@ -201,37 +257,40 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
                     'message_content': 'Message',
                     'created_at': 'Time'
                 }, inplace=True)
-                
-            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            response['Content-Disposition'] = f'attachment; filename="agent_notification_logs_{timezone.now().strftime("%Y%m%d%H%M%S")}.xlsx"'
-            
+
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="agent_notification_logs_{
+                timezone.now().strftime("%Y%m%d%H%M%S")}.xlsx"'
+
             with pd.ExcelWriter(response, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Logs')
-                
+
             return response
-            
+
         context = {
             **self.admin_site.each_context(request),
             'title': 'Export Agent Notification Logs to Excel',
         }
-        return render(request, "admin/agentnotificationlog_export.html", context)
+        return render(
+            request, "admin/agentnotificationlog_export.html", context)
 
 
 def run_broadcast_thread(task_id, file_path, template_name, language_code):
     from django.db import connection
     connection.close()
-    
+
     try:
         from bot.models import BroadcastTask, FleetCustomer
         from bot.utils import parse_excel_or_csv
         from bot.broadcast import send_whatsapp_template
-        
+
         task = BroadcastTask.objects.get(id=task_id)
         task.status = 'running'
         task.save()
-        
+
         customers_data = parse_excel_or_csv(file_path)
-        
+
         target_phone_numbers = []
         for cust in customers_data:
             customer, created = FleetCustomer.objects.update_or_create(
@@ -244,23 +303,24 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             )
             if customer.is_active:
                 target_phone_numbers.append(customer.phone_number)
-                
-        active_customers = FleetCustomer.objects.filter(phone_number__in=target_phone_numbers, is_active=True)
+
+        active_customers = FleetCustomer.objects.filter(
+            phone_number__in=target_phone_numbers, is_active=True)
         total_count = active_customers.count()
-        
+
         task.total_records = total_count
         task.save()
-        
+
         success_count = 0
         failed_count = 0
         failed_details = []
-        
+
         for index, customer in enumerate(active_customers, 1):
             try:
                 task = BroadcastTask.objects.get(id=task_id)
             except BroadcastTask.DoesNotExist:
                 break
-                
+
             success, error_reason = send_whatsapp_template(
                 to_phone=customer.phone_number,
                 template_name=template_name,
@@ -268,7 +328,7 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                 vehicle_number=customer.truck_number,
                 language_code=language_code
             )
-            
+
             if success:
                 success_count += 1
             else:
@@ -278,33 +338,36 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                     'name': customer.owner_name,
                     'reason': error_reason
                 })
-                
+
             task.processed_records = index
             task.success_count = success_count
             task.failed_count = failed_count
             task.failed_details = json.dumps(failed_details)
             task.save()
-            
+
             time.sleep(0.02)
-            
+
         task = BroadcastTask.objects.get(id=task_id)
         task.status = 'completed'
         task.save()
-        
+
         if failed_details:
             try:
-                failed_broadcast_txt_path = os.path.join(os.path.dirname(file_path), "failed_broadcast.txt")
+                failed_broadcast_txt_path = os.path.join(
+                    os.path.dirname(file_path), "failed_broadcast.txt")
                 with open(failed_broadcast_txt_path, "w") as f:
                     for fail in failed_details:
-                        f.write(f"{fail['phone_number']} | {fail['name']} | {fail['reason']}\n")
+                        f.write(
+                            f"{fail['phone_number']} | {fail['name']} | {fail['reason']}\n")
             except Exception:
                 pass
-                
+
     except Exception as e:
         try:
             task = BroadcastTask.objects.get(id=task_id)
             task.status = 'failed'
-            task.failed_details = json.dumps([{'phone_number': 'N/A', 'name': 'N/A', 'reason': str(e)}])
+            task.failed_details = json.dumps(
+                [{'phone_number': 'N/A', 'name': 'N/A', 'reason': str(e)}])
             task.save()
         except Exception:
             pass
@@ -318,7 +381,7 @@ def sync_whatsapp_templates_from_meta():
     Synchronizes them into the local database and returns a dict mapping
     template name to a list of approved language codes, e.g.
     {'gps_tracking_device': ['en_US', 'te'], ...}
-    
+
     If WABA ID or Token is missing, or the call fails, returns None.
     """
     import os
@@ -341,7 +404,7 @@ def sync_whatsapp_templates_from_meta():
         response = requests.get(url, headers=headers, params=params, timeout=5)
         if response.status_code == 200:
             templates_data = response.json().get("data", [])
-            
+
             # Group by template name
             grouped = {}
             for item in templates_data:
@@ -351,7 +414,7 @@ def sync_whatsapp_templates_from_meta():
                 lang = item.get("language")
                 if not name or not lang:
                     continue
-                
+
                 # Check if it has variables and headers
                 has_vars = False
                 has_header = False
@@ -363,7 +426,7 @@ def sync_whatsapp_templates_from_meta():
                     if comp.get("type") == "HEADER":
                         has_header = True
                         header_type = comp.get("format", "TEXT").lower()
-                        
+
                 if name not in grouped:
                     grouped[name] = {
                         "languages": set(),
@@ -378,13 +441,15 @@ def sync_whatsapp_templates_from_meta():
                 if has_header:
                     grouped[name]["has_header"] = True
                     grouped[name]["header_type"] = header_type
-            
+
             # Now update the database
             for name, info in grouped.items():
                 langs_str = ",".join(sorted(list(info["languages"])))
                 desc = f"Sync'd from Meta: {info['category']}"
-                category_lower = info['category'].lower() if info['category'] else 'marketing'
-                if category_lower not in ('utility', 'marketing', 'authentication'):
+                category_lower = info['category'].lower(
+                ) if info['category'] else 'marketing'
+                if category_lower not in (
+                        'utility', 'marketing', 'authentication'):
                     category_lower = 'marketing'
                 WhatsAppTemplate.objects.update_or_create(
                     template_name=name,
@@ -397,7 +462,8 @@ def sync_whatsapp_templates_from_meta():
                         "header_type": info["header_type"]
                     }
                 )
-            return {name: sorted(list(info["languages"])) for name, info in grouped.items()}
+            return {name: sorted(list(info["languages"]))
+                    for name, info in grouped.items()}
     except Exception as e:
         print(f"Error syncing templates from Meta API: {e}")
     return None
@@ -405,34 +471,81 @@ def sync_whatsapp_templates_from_meta():
 
 @admin.register(FleetCustomer)
 class FleetCustomerAdmin(admin.ModelAdmin):
-    list_display = ('owner_name', 'phone_number_link', 'truck_number', 'is_active', 'is_bot_paused', 'referred_by', 'created_at')
+    list_display = (
+        'owner_name',
+        'phone_number_link',
+        'truck_number',
+        'is_active',
+        'is_bot_paused',
+        'referred_by',
+        'created_at')
     list_filter = ('is_active', 'is_bot_paused', 'referred_by')
     search_fields = ('owner_name', 'phone_number', 'truck_number')
-    
+
     def phone_number_link(self, obj):
         from django.utils.html import format_html
         url = f"/admin/bot/chatmessage/?phone_number={obj.phone_number}"
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
-    
+
     change_list_template = "admin/fleetcustomer_changelist.html"
-    
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('upload-excel/', self.admin_site.admin_view(self.upload_excel), name='bot_fleetcustomer_upload_excel'),
-            path('broadcast/', self.admin_site.admin_view(self.broadcast), name='bot_fleetcustomer_broadcast'),
-            path('broadcast-status/<int:task_id>/', self.admin_site.admin_view(self.broadcast_status), name='bot_fleetcustomer_broadcast_status'),
-            path('download-broadcast-logs/', self.admin_site.admin_view(self.download_broadcast_logs), name='bot_fleetcustomer_download_broadcast_logs'),
-            path('live-chat/', self.admin_site.admin_view(self.live_chat_view), name='bot_fleetcustomer_live_chat'),
-            path('live-chat/api/list/', self.admin_site.admin_view(self.api_chat_list), name='bot_fleetcustomer_chat_list'),
-            path('live-chat/api/messages/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_history), name='bot_fleetcustomer_chat_history'),
-            path('live-chat/api/send/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_send), name='bot_fleetcustomer_chat_send'),
-            path('live-chat/api/send-media/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_send_media), name='bot_fleetcustomer_chat_send_media'),
-            path('live-chat/api/toggle-pause/<str:phone_number>/', self.admin_site.admin_view(self.api_chat_toggle_pause), name='bot_fleetcustomer_chat_toggle_pause'),
+            path(
+                'upload-excel/',
+                self.admin_site.admin_view(
+                    self.upload_excel),
+                name='bot_fleetcustomer_upload_excel'),
+            path(
+                'broadcast/',
+                self.admin_site.admin_view(
+                    self.broadcast),
+                name='bot_fleetcustomer_broadcast'),
+            path(
+                'broadcast-status/<int:task_id>/',
+                self.admin_site.admin_view(
+                    self.broadcast_status),
+                name='bot_fleetcustomer_broadcast_status'),
+            path(
+                'download-broadcast-logs/',
+                self.admin_site.admin_view(
+                    self.download_broadcast_logs),
+                name='bot_fleetcustomer_download_broadcast_logs'),
+            path(
+                'live-chat/',
+                self.admin_site.admin_view(
+                    self.live_chat_view),
+                name='bot_fleetcustomer_live_chat'),
+            path(
+                'live-chat/api/list/',
+                self.admin_site.admin_view(
+                    self.api_chat_list),
+                name='bot_fleetcustomer_chat_list'),
+            path(
+                'live-chat/api/messages/<str:phone_number>/',
+                self.admin_site.admin_view(
+                    self.api_chat_history),
+                name='bot_fleetcustomer_chat_history'),
+            path(
+                'live-chat/api/send/<str:phone_number>/',
+                self.admin_site.admin_view(
+                    self.api_chat_send),
+                name='bot_fleetcustomer_chat_send'),
+            path(
+                'live-chat/api/send-media/<str:phone_number>/',
+                self.admin_site.admin_view(
+                    self.api_chat_send_media),
+                name='bot_fleetcustomer_chat_send_media'),
+            path(
+                'live-chat/api/toggle-pause/<str:phone_number>/',
+                self.admin_site.admin_view(
+                    self.api_chat_toggle_pause),
+                name='bot_fleetcustomer_chat_toggle_pause'),
         ]
         return custom_urls + urls
-        
+
     def upload_excel(self, request):
         if request.method == "POST":
             form = ExcelUploadForm(request.POST, request.FILES)
@@ -441,33 +554,36 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 from django.conf import settings
                 media_dir = os.path.join(settings.BASE_DIR, 'media')
                 os.makedirs(media_dir, exist_ok=True)
-                
+
                 # Determine extension
                 ext = os.path.splitext(file.name)[1].lower()
                 if ext not in ('.xlsx', '.xls', '.csv'):
-                    messages.error(request, "Invalid file format. Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.")
+                    messages.error(
+                        request,
+                        "Invalid file format. Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.")
                     return redirect("..")
-                    
+
                 target_path = os.path.join(media_dir, f"broadcast_list{ext}")
-                
+
                 # Clean up existing broadcast_list files to prevent confusion
                 for existing_ext in ('.xlsx', '.xls', '.csv'):
-                    p = os.path.join(media_dir, f"broadcast_list{existing_ext}")
+                    p = os.path.join(
+                        media_dir, f"broadcast_list{existing_ext}")
                     if os.path.exists(p):
                         try:
                             os.remove(p)
                         except Exception:
                             pass
-                            
+
                 with open(target_path, 'wb+') as destination:
                     for chunk in file.chunks():
                         destination.write(chunk)
-                
+
                 # Import customers from the uploaded file
                 try:
                     from bot.utils import parse_excel_or_csv
                     customers_data = parse_excel_or_csv(target_path)
-                    
+
                     created_count = 0
                     updated_count = 0
                     for cust in customers_data:
@@ -483,19 +599,19 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                             created_count += 1
                         else:
                             updated_count += 1
-                            
+
                     messages.success(
-                        request, 
+                        request,
                         f"Successfully uploaded file. Imported {created_count} new customers and updated {updated_count} existing customers. "
                         f"Saved file to {target_path}. You can now run the broadcast script."
                     )
                 except Exception as e:
                     messages.error(request, f"Error processing file: {e}")
-                    
+
                 return redirect("..")
         else:
             form = ExcelUploadForm()
-            
+
         context = {
             **self.admin_site.each_context(request),
             'form': form,
@@ -505,35 +621,41 @@ class FleetCustomerAdmin(admin.ModelAdmin):
 
     def broadcast(self, request):
         if request.method == "POST":
-            is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.POST.get('is_ajax')
-            
+            is_ajax = request.headers.get(
+                'x-requested-with') == 'XMLHttpRequest' or request.POST.get('is_ajax')
+
             excel_file = request.FILES.get('excel_file')
             template_name = request.POST.get('template_name')
             custom_template_name = request.POST.get('custom_template_name')
             language_code = request.POST.get('language_code', 'en_US')
-            
+
             if template_name == 'custom' and custom_template_name:
                 template_name = custom_template_name.strip()
-                
+
             if not excel_file or not template_name:
                 if is_ajax:
-                    return JsonResponse({"success": False, "error": "Excel file and template name are required."})
-                messages.error(request, "Excel file and template name are required.")
+                    return JsonResponse(
+                        {"success": False, "error": "Excel file and template name are required."})
+                messages.error(
+                    request, "Excel file and template name are required.")
                 return redirect(".")
-                
+
             ext = os.path.splitext(excel_file.name)[1].lower()
             if ext not in ('.xlsx', '.xls', '.csv'):
                 if is_ajax:
-                    return JsonResponse({"success": False, "error": "Invalid file format. Upload Excel or CSV."})
-                messages.error(request, "Invalid file format. Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.")
+                    return JsonResponse(
+                        {"success": False, "error": "Invalid file format. Upload Excel or CSV."})
+                messages.error(
+                    request,
+                    "Invalid file format. Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.")
                 return redirect(".")
-                
+
             from django.conf import settings
             media_dir = os.path.join(settings.BASE_DIR, 'media')
             os.makedirs(media_dir, exist_ok=True)
-            
+
             target_path = os.path.join(media_dir, f"broadcast_list{ext}")
-            
+
             for existing_ext in ('.xlsx', '.xls', '.csv'):
                 p = os.path.join(media_dir, f"broadcast_list{existing_ext}")
                 if os.path.exists(p):
@@ -541,37 +663,45 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                         os.remove(p)
                     except Exception:
                         pass
-                        
+
             with open(target_path, 'wb+') as destination:
                 for chunk in excel_file.chunks():
                     destination.write(chunk)
-                    
+
             task = BroadcastTask.objects.create(
                 template_name=template_name,
                 language_code=language_code,
                 excel_file_name=excel_file.name,
                 status='pending'
             )
-            
+
             thread = threading.Thread(
-                target=run_broadcast_thread, 
+                target=run_broadcast_thread,
                 args=(task.id, target_path, template_name, language_code)
             )
             thread.daemon = True
             thread.start()
-            
+
             if is_ajax:
                 return JsonResponse({"success": True, "task_id": task.id})
-                
-            messages.success(request, f"Broadcast task #{task.id} started successfully!")
+
+            messages.success(
+                request, f"Broadcast task #{
+                    task.id} started successfully!")
             return redirect(".")
-        # Ensure default templates are populated if missing (with correct languages)
+        # Ensure default templates are populated if missing (with correct
+        # languages)
         default_templates = [
-            ("hello_world", "Default Greetings", False, "en_US", False, "none", "", "utility"),
-            ("gps_tracking_device", "GPS Tracking Devices promo", False, "en_US", False, "none", "", "marketing"),
-            ("ais_140_gps_mining_device", "AIS 140 mining tracker template", False, "en_US,te", True, "image", "", "marketing"),
-            ("fuel_alert", "Fuel theft/drop alerts", True, "en_US,te", False, "none", "", "utility"),
-            ("fleet_update", "Fleet status summary updates", True, "en_US,te", False, "none", "", "utility"),
+            ("hello_world", "Default Greetings", False,
+             "en_US", False, "none", "", "utility"),
+            ("gps_tracking_device", "GPS Tracking Devices promo",
+             False, "en_US", False, "none", "", "marketing"),
+            ("ais_140_gps_mining_device", "AIS 140 mining tracker template",
+             False, "en_US,te", True, "image", "", "marketing"),
+            ("fuel_alert", "Fuel theft/drop alerts", True,
+             "en_US,te", False, "none", "", "utility"),
+            ("fleet_update", "Fleet status summary updates",
+             True, "en_US,te", False, "none", "", "utility"),
         ]
         for name, desc, has_vars, langs, has_header, header_type, header_img, category in default_templates:
             WhatsAppTemplate.objects.get_or_create(
@@ -634,61 +764,76 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         from django.http import HttpResponse
         import datetime
         from django.utils import timezone
-        
+
         date_str = request.GET.get('date')
         if not date_str:
             messages.error(request, "Please select a date.")
             return redirect('admin:bot_fleetcustomer_broadcast')
-            
+
         try:
-            target_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            target_date = datetime.datetime.strptime(
+                date_str, "%Y-%m-%d").date()
         except ValueError:
             messages.error(request, "Invalid date format.")
             return redirect('admin:bot_fleetcustomer_broadcast')
-            
-        start_datetime = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.min))
-        end_datetime = timezone.make_aware(datetime.datetime.combine(target_date, datetime.time.max))
-        
+
+        start_datetime = timezone.make_aware(
+            datetime.datetime.combine(
+                target_date, datetime.time.min))
+        end_datetime = timezone.make_aware(
+            datetime.datetime.combine(
+                target_date, datetime.time.max))
+
         qs = ChatMessage.objects.filter(
             role='assistant',
             content__startswith='[System Sent Broadcast:',
             timestamp__range=(start_datetime, end_datetime)
         ).order_by('timestamp')
-        
+
         data = []
         phone_numbers = qs.values_list('phone_number', flat=True).distinct()
-        customers = FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        customers = FleetCustomer.objects.filter(
+            phone_number__in=phone_numbers)
         customer_map = {c.phone_number: c.owner_name for c in customers}
-        
+
         for msg in qs:
             template_name = "Unknown"
             if " - " in msg.content:
-                parts = msg.content.replace("[System Sent Broadcast:", "").replace("]", "").strip().split(" - ")
+                parts = msg.content.replace(
+                    "[System Sent Broadcast:", "").replace(
+                    "]", "").strip().split(" - ")
                 if parts:
                     template_name = parts[0].strip()
             else:
-                template_name = msg.content.replace("[System Sent Broadcast:", "").replace("]", "").strip()
-                
+                template_name = msg.content.replace(
+                    "[System Sent Broadcast:", "").replace("]", "").strip()
+
             data.append({
                 'Phone Number': msg.phone_number,
                 'Customer Name': customer_map.get(msg.phone_number, 'Unknown'),
                 'Template': template_name,
                 'Time': msg.timestamp.astimezone().replace(tzinfo=None)
             })
-            
+
         df = pd.DataFrame(data)
-        
-        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="broadcast_logs_{date_str}.xlsx"'
-        
+
         if not df.empty:
             with pd.ExcelWriter(response, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Sent Templates')
         else:
             with pd.ExcelWriter(response, engine='openpyxl') as writer:
-                df = pd.DataFrame(columns=['Phone Number', 'Customer Name', 'Template', 'Time'])
+                df = pd.DataFrame(
+                    columns=[
+                        'Phone Number',
+                        'Customer Name',
+                        'Template',
+                        'Time'])
                 df.to_excel(writer, index=False, sheet_name='Sent Templates')
-                
+
         return response
 
     def live_chat_view(self, request):
@@ -697,17 +842,18 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             'title': 'Live Chat Dashboard',
         }
         return render(request, "admin/live_chat.html", context)
-        
+
     def api_chat_list(self, request):
         from bot.models import ChatMessage, FleetCustomer
-        
+
         customers = FleetCustomer.objects.all()
         data = []
         for c in customers:
-            last_msg = ChatMessage.objects.filter(phone_number=c.phone_number).order_by('-id').first()
+            last_msg = ChatMessage.objects.filter(
+                phone_number=c.phone_number).order_by('-id').first()
             if not last_msg:
                 continue
-                
+
             data.append({
                 "phone_number": c.phone_number,
                 "owner_name": c.owner_name if c.owner_name else "Unknown",
@@ -716,13 +862,14 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 "last_message_time": last_msg.timestamp.isoformat(),
                 "timestamp_val": last_msg.timestamp.timestamp()
             })
-            
+
         data.sort(key=lambda x: x["timestamp_val"], reverse=True)
         return JsonResponse({"customers": data[:100]})
 
     def api_chat_history(self, request, phone_number):
         from bot.models import ChatMessage
-        messages = ChatMessage.objects.filter(phone_number=phone_number).order_by('timestamp')
+        messages = ChatMessage.objects.filter(
+            phone_number=phone_number).order_by('timestamp')
         data = []
         for m in messages:
             data.append({
@@ -741,13 +888,14 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 content = data.get("message", "").strip()
             except Exception:
                 content = request.POST.get("message", "").strip()
-                
+
             if not content:
-                return JsonResponse({"success": False, "error": "Message is empty"})
-                
+                return JsonResponse(
+                    {"success": False, "error": "Message is empty"})
+
             from bot.models import ChatMessage
             from bot.views import send_whatsapp_message
-            
+
             # Send message using WhatsApp Graph API
             success = False
             msg_id = None
@@ -757,11 +905,16 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 success = True
             except Exception as e:
                 return JsonResponse({"success": False, "error": str(e)})
-                
+
             if success:
-                ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=content, message_id=msg_id)
+                ChatMessage.objects.create(
+                    phone_number=phone_number,
+                    role='assistant',
+                    content=content,
+                    message_id=msg_id)
                 return JsonResponse({"success": True})
-        return JsonResponse({"success": False, "error": "Invalid request method"})
+        return JsonResponse(
+            {"success": False, "error": "Invalid request method"})
 
     def api_chat_send_media(self, request, phone_number):
         if request.method == "POST" and request.FILES.get('file'):
@@ -778,12 +931,12 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 media_type = 'audio'
             else:
                 media_type = 'document'
-            
+
             from bot.models import ChatMessage
             from bot.views import send_whatsapp_message, WHATSAPP_TOKEN, PHONE_NUMBER_ID
             import requests
             import os
-            
+
             import tempfile
             import imageio_ffmpeg
             import subprocess
@@ -795,17 +948,20 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_webm:
                         temp_webm.write(upload_file.read())
                         temp_webm_path = temp_webm.name
-                    
-                    converted_file_path = temp_webm_path.replace(".webm", ".mp4")
+
+                    converted_file_path = temp_webm_path.replace(
+                        ".webm", ".mp4")
                     subprocess.run([
                         ffmpeg_exe, "-y", "-i", temp_webm_path, "-c:a", "aac", "-b:a", "128k", converted_file_path
                     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    
-                    file_name = file_name.replace(".webm", ".mp4").replace(".mp4", "") + ".mp4"
+
+                    file_name = file_name.replace(
+                        ".webm", ".mp4").replace(
+                        ".mp4", "") + ".mp4"
                     content_type = "audio/mp4"
                     with open(converted_file_path, "rb") as f:
                         file_data = f.read()
-                        
+
                     os.remove(temp_webm_path)
                 except Exception as e:
                     print(f"Audio conversion failed: {e}")
@@ -819,32 +975,36 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             headers = {
                 "Authorization": f"Bearer {WHATSAPP_TOKEN}"
             }
-            # We must pass messaging_product as a regular field, and the file as the file field
+            # We must pass messaging_product as a regular field, and the file
+            # as the file field
             files = {
                 'file': (file_name, file_data, content_type)
             }
             data = {
                 'messaging_product': 'whatsapp'
             }
-            
+
             try:
-                upload_res = requests.post(url, headers=headers, files=files, data=data)
+                upload_res = requests.post(
+                    url, headers=headers, files=files, data=data)
                 upload_data = upload_res.json()
                 if 'id' not in upload_data:
-                    return JsonResponse({"success": False, "error": f"Upload failed: {upload_data}"})
+                    return JsonResponse(
+                        {"success": False, "error": f"Upload failed: {upload_data}"})
                 media_id = upload_data['id']
             except Exception as e:
-                return JsonResponse({"success": False, "error": f"Failed to upload media: {str(e)}"})
-            
+                return JsonResponse(
+                    {"success": False, "error": f"Failed to upload media: {str(e)}"})
+
             # Step 2: Send the media to the customer
             msg_id = None
             try:
                 caption_text = request.POST.get("caption", "").strip()
                 # For document, we need to pass the filename
                 msg_id = send_whatsapp_message(
-                    to_phone=phone_number, 
-                    text_content=caption_text if caption_text else None, 
-                    media_id=media_id, 
+                    to_phone=phone_number,
+                    text_content=caption_text if caption_text else None,
+                    media_id=media_id,
                     media_type=media_type,
                     document_filename=file_name if media_type == 'document' else None
                 )
@@ -858,10 +1018,15 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             log_content = f"[{media_type.capitalize()} Sent: {file_name}]"
             if caption_text:
                 log_content += f"\nCaption: {caption_text}"
-            ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=log_content, message_id=msg_id)
+            ChatMessage.objects.create(
+                phone_number=phone_number,
+                role='assistant',
+                content=log_content,
+                message_id=msg_id)
             return JsonResponse({"success": True})
-            
-        return JsonResponse({"success": False, "error": "Invalid request or missing file"})
+
+        return JsonResponse(
+            {"success": False, "error": "Invalid request or missing file"})
 
     def api_chat_toggle_pause(self, request, phone_number):
         if request.method == "POST":
@@ -869,7 +1034,10 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 customer = FleetCustomer.objects.get(phone_number=phone_number)
                 customer.is_bot_paused = not customer.is_bot_paused
                 customer.save()
-                return JsonResponse({"success": True, "is_bot_paused": customer.is_bot_paused})
+                return JsonResponse(
+                    {"success": True, "is_bot_paused": customer.is_bot_paused})
             except FleetCustomer.DoesNotExist:
-                return JsonResponse({"success": False, "error": "Customer not found"})
-        return JsonResponse({"success": False, "error": "Invalid request method"})
+                return JsonResponse(
+                    {"success": False, "error": "Customer not found"})
+        return JsonResponse(
+            {"success": False, "error": "Invalid request method"})

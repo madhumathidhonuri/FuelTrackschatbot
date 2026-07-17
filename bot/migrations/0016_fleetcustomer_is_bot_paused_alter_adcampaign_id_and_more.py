@@ -13,41 +13,70 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='fleetcustomer',
             name='is_bot_paused',
-            field=models.BooleanField(default=False, help_text='Pause the AI for this customer'),
+            field=models.BooleanField(
+                default=False, help_text='Pause the AI for this customer'),
         ),
         migrations.AlterField(
             model_name='adcampaign',
             name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.BigAutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='agentnotificationlog',
             name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.BigAutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='broadcasttask',
             name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.BigAutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='chatmessage',
             name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.BigAutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='fleetcustomer',
             name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.BigAutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='processedmessage',
             name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.BigAutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
         migrations.AlterField(
             model_name='whatsapptemplate',
             name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            field=models.BigAutoField(
+                auto_created=True,
+                primary_key=True,
+                serialize=False,
+                verbose_name='ID'),
         ),
     ]

@@ -14,14 +14,20 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='AgentNotificationLog',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.AutoField(auto_created=True,
+                 primary_key=True, serialize=False, verbose_name='ID')),
                 ('phone_number', models.CharField(max_length=20)),
                 ('message_content', models.TextField()),
                 ('is_template_reply', models.BooleanField(default=False)),
-                ('template_name', models.CharField(blank=True, max_length=100, null=True)),
+                ('template_name', models.CharField(
+                    blank=True, max_length=100, null=True)),
                 ('notification_sent', models.BooleanField(default=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('customer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='bot.fleetcustomer')),
+                ('customer',
+                 models.ForeignKey(blank=True,
+                                   null=True,
+                                   on_delete=django.db.models.deletion.SET_NULL,
+                                   to='bot.fleetcustomer')),
             ],
             options={
                 'verbose_name': 'Agent Notification Log',

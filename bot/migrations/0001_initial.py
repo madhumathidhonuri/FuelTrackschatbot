@@ -14,9 +14,11 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ChatMessage',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True,
+                 primary_key=True, serialize=False, verbose_name='ID')),
                 ('phone_number', models.CharField(db_index=True, max_length=20)),
-                ('role', models.CharField(choices=[('user', 'User'), ('assistant', 'Assistant')], max_length=10)),
+                ('role', models.CharField(choices=[
+                 ('user', 'User'), ('assistant', 'Assistant')], max_length=10)),
                 ('content', models.TextField()),
                 ('timestamp', models.DateTimeField(auto_now_add=True)),
             ],
