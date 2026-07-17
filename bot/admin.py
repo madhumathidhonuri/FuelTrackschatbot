@@ -1,9 +1,10 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, reverse
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import JsonResponse
 from django import forms
+from django.utils import timezone
 import os
 import json
 import requests
@@ -58,26 +59,22 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
             if not template.header_file:
                 self.message_user(
                     request,
-                    f"Template '{
-                        template.template_name}' has no header file configured.",
+                    f"Template '{template.template_name}' has no header file configured.",
                     level=messages.WARNING
                 )
                 continue
 
             # Check if file exists on disk
-            import os
             try:
-                path = template.header_file.path
-                exists = os.path.exists(path)
+                exists = os.path.exists(template.header_file.path)
             except Exception:
                 exists = False
 
             if not exists:
                 self.message_user(
                     request,
-                    f"Template '{
-                        template.template_name}' header file does not physically exist on the server's disk. "
-                    f"Please re-upload the image file manually via the admin first.",
+                    f"Template '{template.template_name}' header file does not physically exist on the server's disk. "
+                    "Please re-upload the image file manually via the admin first.",
                     level=messages.ERROR
                 )
                 continue
@@ -87,16 +84,13 @@ class WhatsAppTemplateAdmin(admin.ModelAdmin):
                 media_id = upload_media_to_meta(template.header_file)
                 if media_id:
                     template.header_media_id = media_id
-                    from django.utils import timezone
                     template.media_id_updated_at = timezone.now()
                     template.save()
                     success_count += 1
             except Exception as e:
                 self.message_user(
                     request,
-                    f"Failed to upload '{
-                        template.template_name}' to Meta: {
-                        str(e)}",
+                    f"Failed to upload '{template.template_name}' to Meta: {e}",
                     level=messages.ERROR
                 )
 
@@ -837,7 +831,6 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return response
 
     def live_chat_view(self, request):
-        from django.urls import reverse
         context = {
             **self.admin_site.each_context(request),
             'title': 'Live Chat Dashboard',
@@ -850,8 +843,6 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return render(request, "admin/live_chat.html", context)
 
     def api_chat_list(self, request):
-        from bot.models import ChatMessage, FleetCustomer
-
         # Pull the last 500 messages by id DESC, then deduplicate by phone
         # in Python — one fast indexed scan, no GROUP BY aggregation on a huge table.
         recent_msgs = ChatMessage.objects.order_by('-id').values(
@@ -859,7 +850,6 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         )[:500]
 
         seen = set()
-        data = []
         phone_numbers = []
         msg_rows = []
         for m in recent_msgs:
@@ -897,24 +887,23 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return JsonResponse({"customers": result})
 
     def api_chat_history(self, request, phone_number):
-        from bot.models import ChatMessage
         # Limit to last 200 messages to avoid memory blowout on large conversations
-        messages = ChatMessage.objects.filter(
+        msgs = ChatMessage.objects.filter(
             phone_number=phone_number
         ).order_by('-id')[:200]
-        data = []
-        for m in reversed(list(messages)):
-            data.append({
+        data = [
+            {
                 "role": m.role,
                 "content": m.content,
                 "timestamp": m.timestamp.isoformat(),
                 "status": m.status,
-            })
+            }
+            for m in reversed(list(msgs))
+        ]
         return JsonResponse({"messages": data})
 
     def api_chat_send(self, request, phone_number):
         if request.method == "POST":
-            import json
             try:
                 data = json.loads(request.body)
                 content = data.get("message", "").strip()
@@ -922,31 +911,21 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 content = request.POST.get("message", "").strip()
 
             if not content:
-                return JsonResponse(
-                    {"success": False, "error": "Message is empty"})
+                return JsonResponse({"success": False, "error": "Message is empty"})
 
-            from bot.models import ChatMessage
             from bot.views import send_whatsapp_message
-
-            # Send message using WhatsApp Graph API
-            success = False
-            msg_id = None
             try:
-                # We reuse the existing send_whatsapp_message utility
                 msg_id = send_whatsapp_message(phone_number, content)
-                success = True
             except Exception as e:
                 return JsonResponse({"success": False, "error": str(e)})
 
-            if success:
-                ChatMessage.objects.create(
-                    phone_number=phone_number,
-                    role='assistant',
-                    content=content,
-                    message_id=msg_id)
-                return JsonResponse({"success": True})
-        return JsonResponse(
-            {"success": False, "error": "Invalid request method"})
+            ChatMessage.objects.create(
+                phone_number=phone_number,
+                role='assistant',
+                content=content,
+                message_id=msg_id)
+            return JsonResponse({"success": True})
+        return JsonResponse({"success": False, "error": "Invalid request method"})
 
     def api_chat_send_media(self, request, phone_number):
         if request.method == "POST" and request.FILES.get('file'):
@@ -964,14 +943,11 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             else:
                 media_type = 'document'
 
-            from bot.models import ChatMessage
             from bot.views import send_whatsapp_message, WHATSAPP_TOKEN, PHONE_NUMBER_ID
-            import requests
-            import os
-
             import tempfile
             import imageio_ffmpeg
             import subprocess
+            caption_text = ""  # initialise early so finally block is always safe
 
             converted_file_path = None
             if media_type == 'audio':
@@ -1064,17 +1040,10 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         if request.method == "POST":
             try:
                 customer = FleetCustomer.objects.get(phone_number=phone_number)
-                from django.utils import timezone
                 customer.is_bot_paused = not customer.is_bot_paused
-                if customer.is_bot_paused:
-                    customer.bot_paused_at = timezone.now()
-                else:
-                    customer.bot_paused_at = None
+                customer.bot_paused_at = timezone.now() if customer.is_bot_paused else None
                 customer.save()
-                return JsonResponse(
-                    {"success": True, "is_bot_paused": customer.is_bot_paused})
+                return JsonResponse({"success": True, "is_bot_paused": customer.is_bot_paused})
             except FleetCustomer.DoesNotExist:
-                return JsonResponse(
-                    {"success": False, "error": "Customer not found"})
-        return JsonResponse(
-            {"success": False, "error": "Invalid request method"})
+                return JsonResponse({"success": False, "error": "Customer not found"})
+        return JsonResponse({"success": False, "error": "Invalid request method"})

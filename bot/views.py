@@ -9,6 +9,7 @@ import contextvars
 from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
+from django.db.models import Q
 from dotenv import load_dotenv
 from groq import Groq
 from .models import ChatMessage, FleetCustomer, AdCampaign, AgentNotificationLog
@@ -278,6 +279,15 @@ CONTACT_KEYWORDS = [
     "support number", "support phone", "support contact", "customer executive", "customer representative",
     "సేల్స్ టీమ్ని సంప్రదించండి", "సేల్స్ టీమ్", "సంప్రదించండి", "సపోర్ట్", "ఏజెంట్‌తో మాట్లాడండి",
     "ఏజెంట్ తో మాట్లాడండి", "ఏజెంట్"
+]
+
+# Keywords in user messages that indicate the agent (Karunakar Reddy) needs to be
+# notified — shared between check_and_notify_agent() and whatsapp_webhook().
+USER_ESCALATION_KEYWORDS = [
+    "connect", "talk", "speak", "call", "agent", "human", "representative", "expert",
+    "team", "karunakar", "reddy", "notary", "letterhead", "stamped", "signed", "poa",
+    "power of attorney", "resolution", "trademark", "document", "paperwork", "contract",
+    "agreement", "office location", "address"
 ]
 
 
@@ -716,7 +726,6 @@ def get_ai_response(user_phone, new_user_message, customer=None):
         ai_reply = completion.choices[0].message.content
 
         # Count how many times the assistant has asked for the name
-        from django.db.models import Q
         name_request_count = ChatMessage.objects.filter(
             phone_number=user_phone,
             role='assistant'
@@ -1028,14 +1037,6 @@ def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
     user_text_lower = user_text.lower()
     bot_reply_lower = bot_reply.lower() if bot_reply else ""
 
-    # Keywords in user text that warrant agent attention
-    user_escalation_keywords = [
-        "connect", "talk", "speak", "call", "agent", "human", "representative", "expert",
-        "team", "karunakar", "reddy", "notary", "letterhead", "stamped", "signed", "poa",
-        "power of attorney", "resolution", "trademark", "document", "paperwork", "contract",
-        "agreement", "office location", "address"
-    ]
-
     # Keywords/phrases in bot reply that imply escalation or notification
     bot_escalation_keywords = [
         "notified", "escalated", "will call", "will contact", "call you", "contact you",
@@ -1047,7 +1048,7 @@ def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
     reason = "User query related to escalation, contact, or official documentation."
 
     # Check user text keywords
-    if any(kw in user_text_lower for kw in user_escalation_keywords):
+    if any(kw in user_text_lower for kw in USER_ESCALATION_KEYWORDS):
         should_notify = True
     # Check if bot reply indicates escalation
     elif any(kw in bot_reply_lower for kw in bot_escalation_keywords):
@@ -1237,14 +1238,8 @@ def whatsapp_webhook(request):
                     is_talk_to_agent = clean_text == "talk to an agent"
                     is_contact_req = has_keyword_match(
                         clean_text, CONTACT_KEYWORDS)
-                    user_escalation_kws = [
-                        "connect", "talk", "speak", "call", "agent", "human", "representative", "expert",
-                        "team", "karunakar", "reddy", "notary", "letterhead", "stamped", "signed", "poa",
-                        "power of attorney", "resolution", "trademark", "document", "paperwork", "contract",
-                        "agreement", "office location", "address"
-                    ]
                     is_escalation = any(
-                        kw in clean_text for kw in user_escalation_kws)
+                        kw in clean_text for kw in USER_ESCALATION_KEYWORDS)
                     suppress_generic_alert = is_talk_to_agent or is_contact_req or is_escalation
 
                     is_button_reply = message_obj.get(
@@ -1379,7 +1374,6 @@ def whatsapp_webhook(request):
                                     break
 
                     # Count how many times the assistant has asked for the name
-                    from django.db.models import Q
                     name_request_count = ChatMessage.objects.filter(
                         phone_number=user_phone,
                         role='assistant'
@@ -1442,8 +1436,6 @@ def whatsapp_webhook(request):
 
                     elif has_keyword_match(clean_text, location_triggers) and not is_device_query:
                         location_intro = "Locating the Fuel Tracks Technologies head office branch... 📍"
-                        send_whatsapp_message(user_phone, location_intro)
-
                         office_coordinates = {
                             "latitude": 17.3486,
                             "longitude": 78.5214,
@@ -1455,14 +1447,18 @@ def whatsapp_webhook(request):
                             role='user',
                             content=user_text,
                             message_id=message_id)
+                        send_whatsapp_message(user_phone, location_intro)
                         ChatMessage.objects.create(
-                            phone_number=user_phone, role='assistant',
-                            content=f"Dispatched map pin: {
-                                office_coordinates['address']}"
-                        )
+                            phone_number=user_phone,
+                            role='assistant',
+                            content=location_intro)
                         send_whatsapp_message(
                             to_phone=user_phone, text_content="",
                             location_data=office_coordinates
+                        )
+                        ChatMessage.objects.create(
+                            phone_number=user_phone, role='assistant',
+                            content=f"Dispatched map pin: {office_coordinates['address']}"
                         )
                         return JsonResponse({"status": "success"})
 
