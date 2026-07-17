@@ -1057,362 +1057,362 @@ def whatsapp_webhook(request):
                     else:
                         user_text = ""
 
-                        if not user_text.strip():
-                            return JsonResponse({"status": "success"})
+                    if not user_text.strip():
+                        return JsonResponse({"status": "success"})
 
-                        print(f"[INCOMING] Received text/action: '{user_text}' from {user_phone}")
-                        clean_text = user_text.strip().lower()
+                    print(f"[INCOMING] Received text/action: '{user_text}' from {user_phone}")
+                    clean_text = user_text.strip().lower()
 
-                        # Fallback for button reply text containing welcome message prefix (e.g. from copy-paste/forwarding)
-                        lines = [line.strip() for line in user_text.strip().split("\n") if line.strip()]
-                        if lines:
-                            last_line_clean = lines[-1].lower()
-                            if last_line_clean in ["products", "office location", "talk to an agent", "start", "stop"]:
-                                clean_text = last_line_clean
+                    # Fallback for button reply text containing welcome message prefix (e.g. from copy-paste/forwarding)
+                    lines = [line.strip() for line in user_text.strip().split("\n") if line.strip()]
+                    if lines:
+                        last_line_clean = lines[-1].lower()
+                        if last_line_clean in ["products", "office location", "talk to an agent", "start", "stop"]:
+                            clean_text = last_line_clean
 
-                        # Initialize or fetch customer identity
-                        customer, created = FleetCustomer.objects.get_or_create(
-                            phone_number=user_phone,
-                            defaults={"owner_name": "New Fleet Contact", "is_active": True}
-                        )
+                    # Initialize or fetch customer identity
+                    customer, created = FleetCustomer.objects.get_or_create(
+                        phone_number=user_phone,
+                        defaults={"owner_name": "New Fleet Contact", "is_active": True}
+                    )
 
-                        # Opt-out compliance: if customer is inactive, ignore all unless "start"
-                        if not created and not customer.is_active and clean_text != "start":
-                            print(f"[INACTIVE] Inactive customer {user_phone} ignored (except START).")
-                            return JsonResponse({"status": "success"})
+                    # Opt-out compliance: if customer is inactive, ignore all unless "start"
+                    if not created and not customer.is_active and clean_text != "start":
+                        print(f"[INACTIVE] Inactive customer {user_phone} ignored (except START).")
+                        return JsonResponse({"status": "success"})
 
-                        # If human agent paused the bot, just log message and return
-                        if customer.is_bot_paused:
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                            print(f"[PAUSED] Bot is paused for {user_phone}. Ignored automatic processing.")
-                            return JsonResponse({"status": "success"})
+                    # If human agent paused the bot, just log message and return
+                    if customer.is_bot_paused:
+                        ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                        print(f"[PAUSED] Bot is paused for {user_phone}. Ignored automatic processing.")
+                        return JsonResponse({"status": "success"})
 
-                        # Determine if we should suppress the generic agent alert 
-                        # (because a more specific alert will be sent later in the flow)
-                        is_talk_to_agent = clean_text == "talk to an agent"
-                        is_contact_req = has_keyword_match(clean_text, CONTACT_KEYWORDS)
-                        user_escalation_kws = [
-                            "connect", "talk", "speak", "call", "agent", "human", "representative", "expert",
-                            "team", "karunakar", "reddy", "notary", "letterhead", "stamped", "signed", "poa",
-                            "power of attorney", "resolution", "trademark", "document", "paperwork", "contract",
-                            "agreement", "office location", "address"
-                        ]
-                        is_escalation = any(kw in clean_text for kw in user_escalation_kws)
-                        suppress_generic_alert = is_talk_to_agent or is_contact_req or is_escalation
+                    # Determine if we should suppress the generic agent alert 
+                    # (because a more specific alert will be sent later in the flow)
+                    is_talk_to_agent = clean_text == "talk to an agent"
+                    is_contact_req = has_keyword_match(clean_text, CONTACT_KEYWORDS)
+                    user_escalation_kws = [
+                        "connect", "talk", "speak", "call", "agent", "human", "representative", "expert",
+                        "team", "karunakar", "reddy", "notary", "letterhead", "stamped", "signed", "poa",
+                        "power of attorney", "resolution", "trademark", "document", "paperwork", "contract",
+                        "agreement", "office location", "address"
+                    ]
+                    is_escalation = any(kw in clean_text for kw in user_escalation_kws)
+                    suppress_generic_alert = is_talk_to_agent or is_contact_req or is_escalation
+                    
+                    is_button_reply = message_obj.get("type") in ["button", "interactive"]
+
+                    # Notify agent of customer message or template reply
+                    notify_agent_of_incoming_message(
+                        customer, 
+                        user_phone, 
+                        user_text, 
+                        suppress_alert=suppress_generic_alert,
+                        is_button_reply=is_button_reply
+                    )
+
+                    # Check for Meta Facebook Ad Referral payload
+                    referral_data = message_obj.get("referral")
+                    if referral_data:
+                        ad_id = referral_data.get("source_id")
+                        headline = referral_data.get("headline", "")
+                        body = referral_data.get("body", "")
+                        print(f"[REFERRAL] Ad Referral detected: Ad ID={ad_id}, Headline='{headline}', Body='{body}'")
                         
-                        is_button_reply = message_obj.get("type") in ["button", "interactive"]
-
-                        # Notify agent of customer message or template reply
-                        notify_agent_of_incoming_message(
-                            customer, 
-                            user_phone, 
-                            user_text, 
-                            suppress_alert=suppress_generic_alert,
-                            is_button_reply=is_button_reply
-                        )
-
-                        # Check for Meta Facebook Ad Referral payload
-                        referral_data = message_obj.get("referral")
-                        if referral_data:
-                            ad_id = referral_data.get("source_id")
-                            headline = referral_data.get("headline", "")
-                            body = referral_data.get("body", "")
-                            print(f"[REFERRAL] Ad Referral detected: Ad ID={ad_id}, Headline='{headline}', Body='{body}'")
-                            
-                            matched_campaign = None
-                            
-                            # 1. Match by Ad ID
-                            if ad_id:
-                                matched_campaign = AdCampaign.objects.filter(ad_id=ad_id, is_active=True).first()
-                            
-                            # 2. Match by Headline Keywords
-                            if not matched_campaign and (headline or body):
-                                headline_lower = headline.lower() if headline else ""
-                                body_lower = body.lower() if body else ""
-                                for campaign in AdCampaign.objects.filter(is_active=True):
-                                    if campaign.headline_keywords:
-                                        keywords = [kw.strip().lower() for kw in campaign.headline_keywords.split(",") if kw.strip()]
-                                        if any(kw in headline_lower or kw in body_lower for kw in keywords):
-                                            matched_campaign = campaign
-                                            break
-                            
-                            if matched_campaign:
-                                print(f"[REFERRAL] Matched customer {user_phone} to campaign '{matched_campaign.campaign_name}'")
-                                customer.referred_by = matched_campaign
-                                customer.save()
-                                
-                                # Send custom welcome message or catalog file if configured
-                                if matched_campaign.welcome_message or matched_campaign.catalog_file:
-                                    # Save user's initial message
-                                    ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                                    
-                                    # Send and save custom welcome message
-                                    if matched_campaign.welcome_message:
-                                        welcome_reply = matched_campaign.welcome_message
-                                        msg_id = send_whatsapp_message(user_phone, welcome_reply)
-
-                                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_reply, message_id=msg_id)
-                                    
-                                    # If a catalog file is associated, send it automatically
-                                    if matched_campaign.catalog_file:
-                                        catalog_name = matched_campaign.catalog_file
-                                        catalog_msg = CATALOG_METADATA.get(catalog_name, {}).get("en", "Here is our product catalog:")
-                                        msg_id = send_whatsapp_message(
-                                            to_phone=user_phone,
-                                            text_content=catalog_msg,
-                                            document_url=f"{domain_url}/api/catalog/{catalog_name}",
-                                            document_filename=catalog_name
-                                        )
-                                        ChatMessage.objects.create(
-                                            phone_number=user_phone,
-                                            role='assistant',
-                                            content=f"{catalog_msg} (Sent {catalog_name})",
-                                            message_id=msg_id
-                                        )
-                                    return JsonResponse({"status": "success"})
-
-                        # 🌟 INTERCEPTION: Native Map Pin Routing
-                        location_triggers = [
-                            "office location", "లొకేషన్", "మ్యాప్", "map", "address",
-                            "చిరునామా", "location pamp"
-                        ]
-                        device_triggers = ["tracker", "ట్రాకర్", "gps", "జిపిఎస్", "device", "పరికరం"]
-                        is_device_query = has_keyword_match(clean_text, device_triggers)
-
-                        # Determine if this message is a simple greeting
-                        is_greeting = is_simple_greeting(clean_text)
+                        matched_campaign = None
                         
-                        # Determine if we should handle the name collection flow
-                        asked_for_name = False
-                        is_new_unreferred_contact = (
-                            customer.owner_name == "New Fleet Contact" and 
-                            not customer.referred_by
-                        )
+                        # 1. Match by Ad ID
+                        if ad_id:
+                            matched_campaign = AdCampaign.objects.filter(ad_id=ad_id, is_active=True).first()
                         
-                        has_history = ChatMessage.objects.filter(phone_number=user_phone).exists()
-                        is_first_message = not has_history
-                        
-                        if is_new_unreferred_contact:
-                            history = ChatMessage.objects.filter(phone_number=user_phone, role='assistant').order_by('-id')
-                            if history.exists():
-                                for msg in history[:2]:
-                                    if "May I know your name" in msg.content or "tell me your name" in msg.content:
-                                        asked_for_name = True
+                        # 2. Match by Headline Keywords
+                        if not matched_campaign and (headline or body):
+                            headline_lower = headline.lower() if headline else ""
+                            body_lower = body.lower() if body else ""
+                            for campaign in AdCampaign.objects.filter(is_active=True):
+                                if campaign.headline_keywords:
+                                    keywords = [kw.strip().lower() for kw in campaign.headline_keywords.split(",") if kw.strip()]
+                                    if any(kw in headline_lower or kw in body_lower for kw in keywords):
+                                        matched_campaign = campaign
                                         break
-                                    
-                        # Count how many times the assistant has asked for the name
-                        from django.db.models import Q
-                        name_request_count = ChatMessage.objects.filter(
-                            phone_number=user_phone,
-                            role='assistant'
-                        ).filter(
-                            Q(content__icontains="your name") | Q(content__icontains="మీ పేరు తెలుసుకోవచ్చా")
-                        ).count()
-
-                        is_contact_request = has_keyword_match(clean_text, CONTACT_KEYWORDS)
-                        handle_name_flow = (
-                            is_new_unreferred_contact and 
-                            (asked_for_name or is_greeting) and 
-                            not is_contact_request and
-                            name_request_count < 2
-                        )
-
-                        if clean_text == "stop":
-                            customer.is_active = False
+                        
+                        if matched_campaign:
+                            print(f"[REFERRAL] Matched customer {user_phone} to campaign '{matched_campaign.campaign_name}'")
+                            customer.referred_by = matched_campaign
                             customer.save()
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                            opt_out_reply = (
-                                "You have successfully unsubscribed from Fuel Tracks automated alerts. "
-                                "Reply 'START' to resubscribe."
-                            )
-                            msg_id = send_whatsapp_message(user_phone, opt_out_reply)
-
-                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_out_reply, message_id=msg_id)
-                            return JsonResponse({"status": "success"})
-
-                        elif clean_text == "start":
-                            customer.is_active = True
-                            customer.save()
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                            opt_in_reply = (
-                                "Welcome back! Automated tracking alerts have been reactivated for your number."
-                            )
-                            msg_id = send_whatsapp_message(user_phone, opt_in_reply)
-
-                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_in_reply, message_id=msg_id)
-                            return JsonResponse({"status": "success"})
-
-                        elif has_keyword_match(clean_text, location_triggers) and not is_device_query:
-                            location_intro = "Locating the Fuel Tracks Technologies head office branch... 📍"
-                            send_whatsapp_message(user_phone, location_intro)
-
-                            office_coordinates = {
-                                "latitude": 17.3486,
-                                "longitude": 78.5214,
-                                "name": "Fuel Tracks Technologies Pvt Ltd",
-                                "address": "Press Colony, Champapet, Hyderabad, Telangana 500079"
-                            }
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                            ChatMessage.objects.create(
-                                phone_number=user_phone, role='assistant',
-                                content=f"Dispatched map pin: {office_coordinates['address']}"
-                            )
-                            send_whatsapp_message(
-                                to_phone=user_phone, text_content="",
-                                location_data=office_coordinates
-                            )
-                            return JsonResponse({"status": "success"})
-
-                        elif clean_text == "products":
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                            catalog_text = "Here is our official Fuel Tracks Product Catalog Guide! 📄"
-                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=catalog_text)
-                            send_whatsapp_message(
-                                user_phone, catalog_text,
-                                document_url=f"{domain_url}/api/catalog/Fuel_Tracks_Catalog.pdf",
-                                document_filename="Fuel_Tracks_Catalog.pdf"
-                            )
-                            return JsonResponse({"status": "success"})
-
-                        elif clean_text == "talk to an agent":
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                            agent_text = (
-                                "Our Expert, Mr. Karunakar Reddy, has been notified of your request! 📞 "
-                                "He will call or message you natively in 10-15 minutes.\n\n"
-                                "You can also contact us at: 7337433350, 7337433351, 7337433356, or Mr. Karunakar Reddy at 9000666914."
-                            )
-                            msg_id = send_whatsapp_message(user_phone, agent_text)
-
-                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=agent_text, message_id=msg_id)
-
-                            # Notify the agent
-                            agent_alert = (
-                                f"🚨 New Lead Alert!\n"
-                                f"Customer: {customer.owner_name}\n"
-                                f"Phone: {user_phone}\n"
-                                f"Truck: {customer.truck_number or 'Not provided'}\n"
-                                f"Requested: Talk to an Agent"
-                            )
-                            send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
-                            return JsonResponse({"status": "success"})
-
-                        elif handle_name_flow:
-                            if not asked_for_name:
+                            
+                            # Send custom welcome message or catalog file if configured
+                            if matched_campaign.welcome_message or matched_campaign.catalog_file:
+                                # Save user's initial message
                                 ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                                professional_welcome = (
-                                    "Welcome to Fuel Tracks Technologies Private Limited!\n\n"
-                                    "We are India's trusted provider of high-end GPS Tracking Systems, "
-                                    "AIS 140 Certified Devices, and Smart Fuel Monitoring Solutions "
-                                    "designed to eliminate fuel theft and optimize fleet operations.\n\n"
-                                    "🌐 Website: www.fueltracks.in\n"
-                                    "📞 Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73374 33356\n\n"
-                                    "How can we help your business today? Select an option below:"
-                                )
-                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=professional_welcome)
-                                send_whatsapp_message(
-                                    user_phone, professional_welcome,
-                                    buttons=["Office Location", "Products", "Talk to an Agent"]
-                                )
-
-                                name_request = "May I know your name, please?"
-                                msg_id = send_whatsapp_message(user_phone, name_request)
-
-                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=name_request, message_id=msg_id)
-                                return JsonResponse({"status": "success"})
-                            else:
-                                ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-                                name_reply = user_text.strip()
-                                extracted_details = extract_customer_details_with_ai(name_reply)
-                                extracted_name = extracted_details.get("name")
                                 
-                                if not extracted_name:
-                                    words = name_reply.split()
-                                    if len(words) <= 2 and all(w.isalpha() for w in words):
-                                        extracted_name = name_reply.title()
+                                # Send and save custom welcome message
+                                if matched_campaign.welcome_message:
+                                    welcome_reply = matched_campaign.welcome_message
+                                    msg_id = send_whatsapp_message(user_phone, welcome_reply)
 
-                                blocked_names = {
-                                    "karunakar reddy", "mr. karunakar reddy", "karunakar",
-                                    "fuel tracks", "fuel tracks technologies",
-                                    "new fleet contact", "sir/madam"
-                                }
-
-                                if extracted_name and extracted_name.lower() not in blocked_names:
-                                    customer.owner_name = extracted_name
-                                    customer.save()
-                                    
-                                    # Send friendly confirmation
-                                    welcome_text = f"Thank you, {extracted_name} garu! How can I assist you with GPS tracking or fuel monitoring today?"
-                                    msg_id = send_whatsapp_message(user_phone, welcome_text)
-
-                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_text, message_id=msg_id)
-                                    return JsonResponse({"status": "success"})
-                                else:
-                                    retry_request = "Could you please tell me your name so I know how to address you?"
-                                    msg_id = send_whatsapp_message(user_phone, retry_request)
-
-                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=retry_request, message_id=msg_id)
-                                    return JsonResponse({"status": "success"})
-
-                        else:
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
-
-                            # Defer Details Extraction: Only runs for queries going to the AI engine
-                            needs_name = (
-                                not customer.owner_name or
-                                customer.owner_name.strip().lower() == "new fleet contact"
-                            )
-                            needs_truck = not customer.truck_number
-
-                            if needs_name or needs_truck:
-                                extracted_details = extract_customer_details_with_ai(user_text)
-                                blocked_names = {
-                                    "karunakar reddy", "mr. karunakar reddy", "karunakar",
-                                    "fuel tracks", "fuel tracks technologies",
-                                    "new fleet contact", "sir/madam"
-                                }
-                                updated = False
-                                extracted_name = extracted_details.get("name")
-                                if (needs_name and extracted_name and
-                                        extracted_name.strip().lower() not in blocked_names):
-                                    customer.owner_name = extracted_name
-                                    updated = True
-                                if needs_truck and extracted_details.get("truck_number"):
-                                    customer.truck_number = extracted_details["truck_number"].upper()
-                                    updated = True
-                                if updated:
-                                    customer.save()
-
-                            # Process message through AI engine
-                            bot_reply = get_ai_response(user_phone, user_text, customer)
-                            if bot_reply is not None:
-                                msg_id = send_whatsapp_message(user_phone, bot_reply)
-                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=bot_reply, message_id=msg_id)
-                                check_and_notify_agent(customer, user_phone, user_text, bot_reply)
-
-                                # Specific device catalog sending logic
-                                has_telugu_script = any('\u0c00' <= char <= '\u0c7f' for char in clean_text)
+                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_reply, message_id=msg_id)
                                 
-                                # Fetch recent messages in chat history (newest first) to enable history-based catalog lookup
-                                recent_chat_history = ChatMessage.objects.filter(phone_number=user_phone).order_by('-id')[:10]
-                                history_texts = [msg.content for msg in recent_chat_history]
-                                
-                                matched_pdf, _ = find_device_catalog_match(clean_text, history_texts)
-                                
-                                if matched_pdf and matched_pdf in CATALOG_METADATA:
-                                    catalog_msg = CATALOG_METADATA[matched_pdf]["te"] if has_telugu_script else CATALOG_METADATA[matched_pdf]["en"]
-                                    
+                                # If a catalog file is associated, send it automatically
+                                if matched_campaign.catalog_file:
+                                    catalog_name = matched_campaign.catalog_file
+                                    catalog_msg = CATALOG_METADATA.get(catalog_name, {}).get("en", "Here is our product catalog:")
                                     msg_id = send_whatsapp_message(
                                         to_phone=user_phone,
                                         text_content=catalog_msg,
-                                        document_url=f"{domain_url}/api/catalog/{matched_pdf}",
-                                        document_filename=matched_pdf
+                                        document_url=f"{domain_url}/api/catalog/{catalog_name}",
+                                        document_filename=catalog_name
                                     )
                                     ChatMessage.objects.create(
                                         phone_number=user_phone,
                                         role='assistant',
-                                        content=f"{catalog_msg} (Sent {matched_pdf})",
+                                        content=f"{catalog_msg} (Sent {catalog_name})",
                                         message_id=msg_id
                                     )
+                                return JsonResponse({"status": "success"})
+
+                    # 🌟 INTERCEPTION: Native Map Pin Routing
+                    location_triggers = [
+                        "office location", "లొకేషన్", "మ్యాప్", "map", "address",
+                        "చిరునామా", "location pamp"
+                    ]
+                    device_triggers = ["tracker", "ట్రాకర్", "gps", "జిపిఎస్", "device", "పరికరం"]
+                    is_device_query = has_keyword_match(clean_text, device_triggers)
+
+                    # Determine if this message is a simple greeting
+                    is_greeting = is_simple_greeting(clean_text)
+                    
+                    # Determine if we should handle the name collection flow
+                    asked_for_name = False
+                    is_new_unreferred_contact = (
+                        customer.owner_name == "New Fleet Contact" and 
+                        not customer.referred_by
+                    )
+                    
+                    has_history = ChatMessage.objects.filter(phone_number=user_phone).exists()
+                    is_first_message = not has_history
+                    
+                    if is_new_unreferred_contact:
+                        history = ChatMessage.objects.filter(phone_number=user_phone, role='assistant').order_by('-id')
+                        if history.exists():
+                            for msg in history[:2]:
+                                if "May I know your name" in msg.content or "tell me your name" in msg.content:
+                                    asked_for_name = True
+                                    break
+                                
+                    # Count how many times the assistant has asked for the name
+                    from django.db.models import Q
+                    name_request_count = ChatMessage.objects.filter(
+                        phone_number=user_phone,
+                        role='assistant'
+                    ).filter(
+                        Q(content__icontains="your name") | Q(content__icontains="మీ పేరు తెలుసుకోవచ్చా")
+                    ).count()
+
+                    is_contact_request = has_keyword_match(clean_text, CONTACT_KEYWORDS)
+                    handle_name_flow = (
+                        is_new_unreferred_contact and 
+                        (asked_for_name or is_greeting) and 
+                        not is_contact_request and
+                        name_request_count < 2
+                    )
+
+                    if clean_text == "stop":
+                        customer.is_active = False
+                        customer.save()
+                        ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                        opt_out_reply = (
+                            "You have successfully unsubscribed from Fuel Tracks automated alerts. "
+                            "Reply 'START' to resubscribe."
+                        )
+                        msg_id = send_whatsapp_message(user_phone, opt_out_reply)
+
+                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_out_reply, message_id=msg_id)
+                        return JsonResponse({"status": "success"})
+
+                    elif clean_text == "start":
+                        customer.is_active = True
+                        customer.save()
+                        ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                        opt_in_reply = (
+                            "Welcome back! Automated tracking alerts have been reactivated for your number."
+                        )
+                        msg_id = send_whatsapp_message(user_phone, opt_in_reply)
+
+                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_in_reply, message_id=msg_id)
+                        return JsonResponse({"status": "success"})
+
+                    elif has_keyword_match(clean_text, location_triggers) and not is_device_query:
+                        location_intro = "Locating the Fuel Tracks Technologies head office branch... 📍"
+                        send_whatsapp_message(user_phone, location_intro)
+
+                        office_coordinates = {
+                            "latitude": 17.3486,
+                            "longitude": 78.5214,
+                            "name": "Fuel Tracks Technologies Pvt Ltd",
+                            "address": "Press Colony, Champapet, Hyderabad, Telangana 500079"
+                        }
+                        ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                        ChatMessage.objects.create(
+                            phone_number=user_phone, role='assistant',
+                            content=f"Dispatched map pin: {office_coordinates['address']}"
+                        )
+                        send_whatsapp_message(
+                            to_phone=user_phone, text_content="",
+                            location_data=office_coordinates
+                        )
+                        return JsonResponse({"status": "success"})
+
+                    elif clean_text == "products":
+                        ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                        catalog_text = "Here is our official Fuel Tracks Product Catalog Guide! 📄"
+                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=catalog_text)
+                        send_whatsapp_message(
+                            user_phone, catalog_text,
+                            document_url=f"{domain_url}/api/catalog/Fuel_Tracks_Catalog.pdf",
+                            document_filename="Fuel_Tracks_Catalog.pdf"
+                        )
+                        return JsonResponse({"status": "success"})
+
+                    elif clean_text == "talk to an agent":
+                        ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                        agent_text = (
+                            "Our Expert, Mr. Karunakar Reddy, has been notified of your request! 📞 "
+                            "He will call or message you natively in 10-15 minutes.\n\n"
+                            "You can also contact us at: 7337433350, 7337433351, 7337433356, or Mr. Karunakar Reddy at 9000666914."
+                        )
+                        msg_id = send_whatsapp_message(user_phone, agent_text)
+
+                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=agent_text, message_id=msg_id)
+
+                        # Notify the agent
+                        agent_alert = (
+                            f"🚨 New Lead Alert!\n"
+                            f"Customer: {customer.owner_name}\n"
+                            f"Phone: {user_phone}\n"
+                            f"Truck: {customer.truck_number or 'Not provided'}\n"
+                            f"Requested: Talk to an Agent"
+                        )
+                        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+                        return JsonResponse({"status": "success"})
+
+                    elif handle_name_flow:
+                        if not asked_for_name:
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                            professional_welcome = (
+                                "Welcome to Fuel Tracks Technologies Private Limited!\n\n"
+                                "We are India's trusted provider of high-end GPS Tracking Systems, "
+                                "AIS 140 Certified Devices, and Smart Fuel Monitoring Solutions "
+                                "designed to eliminate fuel theft and optimize fleet operations.\n\n"
+                                "🌐 Website: www.fueltracks.in\n"
+                                "📞 Support: +91 90006 66914, +91 73374 33350, +91 73374 33351, +91 73374 33356\n\n"
+                                "How can we help your business today? Select an option below:"
+                            )
+                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=professional_welcome)
+                            send_whatsapp_message(
+                                user_phone, professional_welcome,
+                                buttons=["Office Location", "Products", "Talk to an Agent"]
+                            )
+
+                            name_request = "May I know your name, please?"
+                            msg_id = send_whatsapp_message(user_phone, name_request)
+
+                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=name_request, message_id=msg_id)
+                            return JsonResponse({"status": "success"})
+                        else:
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+                            name_reply = user_text.strip()
+                            extracted_details = extract_customer_details_with_ai(name_reply)
+                            extracted_name = extracted_details.get("name")
+                            
+                            if not extracted_name:
+                                words = name_reply.split()
+                                if len(words) <= 2 and all(w.isalpha() for w in words):
+                                    extracted_name = name_reply.title()
+
+                            blocked_names = {
+                                "karunakar reddy", "mr. karunakar reddy", "karunakar",
+                                "fuel tracks", "fuel tracks technologies",
+                                "new fleet contact", "sir/madam"
+                            }
+
+                            if extracted_name and extracted_name.lower() not in blocked_names:
+                                customer.owner_name = extracted_name
+                                customer.save()
+                                
+                                # Send friendly confirmation
+                                welcome_text = f"Thank you, {extracted_name} garu! How can I assist you with GPS tracking or fuel monitoring today?"
+                                msg_id = send_whatsapp_message(user_phone, welcome_text)
+
+                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_text, message_id=msg_id)
+                                return JsonResponse({"status": "success"})
+                            else:
+                                retry_request = "Could you please tell me your name so I know how to address you?"
+                                msg_id = send_whatsapp_message(user_phone, retry_request)
+
+                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=retry_request, message_id=msg_id)
+                                return JsonResponse({"status": "success"})
+
+                    else:
+                        ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
+
+                        # Defer Details Extraction: Only runs for queries going to the AI engine
+                        needs_name = (
+                            not customer.owner_name or
+                            customer.owner_name.strip().lower() == "new fleet contact"
+                        )
+                        needs_truck = not customer.truck_number
+
+                        if needs_name or needs_truck:
+                            extracted_details = extract_customer_details_with_ai(user_text)
+                            blocked_names = {
+                                "karunakar reddy", "mr. karunakar reddy", "karunakar",
+                                "fuel tracks", "fuel tracks technologies",
+                                "new fleet contact", "sir/madam"
+                            }
+                            updated = False
+                            extracted_name = extracted_details.get("name")
+                            if (needs_name and extracted_name and
+                                    extracted_name.strip().lower() not in blocked_names):
+                                customer.owner_name = extracted_name
+                                updated = True
+                            if needs_truck and extracted_details.get("truck_number"):
+                                customer.truck_number = extracted_details["truck_number"].upper()
+                                updated = True
+                            if updated:
+                                customer.save()
+
+                        # Process message through AI engine
+                        bot_reply = get_ai_response(user_phone, user_text, customer)
+                        if bot_reply is not None:
+                            msg_id = send_whatsapp_message(user_phone, bot_reply)
+                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=bot_reply, message_id=msg_id)
+                            check_and_notify_agent(customer, user_phone, user_text, bot_reply)
+
+                            # Specific device catalog sending logic
+                            has_telugu_script = any('\u0c00' <= char <= '\u0c7f' for char in clean_text)
+                            
+                            # Fetch recent messages in chat history (newest first) to enable history-based catalog lookup
+                            recent_chat_history = ChatMessage.objects.filter(phone_number=user_phone).order_by('-id')[:10]
+                            history_texts = [msg.content for msg in recent_chat_history]
+                            
+                            matched_pdf, _ = find_device_catalog_match(clean_text, history_texts)
+                            
+                            if matched_pdf and matched_pdf in CATALOG_METADATA:
+                                catalog_msg = CATALOG_METADATA[matched_pdf]["te"] if has_telugu_script else CATALOG_METADATA[matched_pdf]["en"]
+                                
+                                msg_id = send_whatsapp_message(
+                                    to_phone=user_phone,
+                                    text_content=catalog_msg,
+                                    document_url=f"{domain_url}/api/catalog/{matched_pdf}",
+                                    document_filename=matched_pdf
+                                )
+                                ChatMessage.objects.create(
+                                    phone_number=user_phone,
+                                    role='assistant',
+                                    content=f"{catalog_msg} (Sent {matched_pdf})",
+                                    message_id=msg_id
+                                )
         except Exception as e:
             print(f"Error inside primary webhook context loop: {e}")
 
