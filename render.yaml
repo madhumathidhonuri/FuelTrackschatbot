@@ -3,6 +3,8 @@ services:
     name: whatsapp-ai-bot
     plan: free
     runtime: python
+    branch: main
+    autoDeploy: true
 
     buildCommand: "./build.sh"
     startCommand: "gunicorn config.wsgi:application"
