@@ -751,7 +751,8 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             data.append({
                 "role": m.role,
                 "content": m.content,
-                "timestamp": m.timestamp.isoformat()
+                "timestamp": m.timestamp.isoformat(),
+                "status": m.status
             })
         return JsonResponse({"messages": data})
 
@@ -772,15 +773,16 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             
             # Send message using WhatsApp Graph API
             success = False
+            msg_id = None
             try:
                 # We reuse the existing send_whatsapp_message utility
-                send_whatsapp_message(phone_number, content)
+                msg_id = send_whatsapp_message(phone_number, content)
                 success = True
             except Exception as e:
                 return JsonResponse({"success": False, "error": str(e)})
                 
             if success:
-                ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=content)
+                ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=content, message_id=msg_id)
                 return JsonResponse({"success": True})
         return JsonResponse({"success": False, "error": "Invalid request method"})
 
@@ -828,10 +830,11 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 return JsonResponse({"success": False, "error": f"Failed to upload media: {str(e)}"})
             
             # Step 2: Send the media to the customer
+            msg_id = None
             try:
                 caption_text = request.POST.get("caption", "").strip()
                 # For document, we need to pass the filename
-                send_whatsapp_message(
+                msg_id = send_whatsapp_message(
                     to_phone=phone_number, 
                     text_content=caption_text if caption_text else None, 
                     media_id=media_id, 
@@ -845,7 +848,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             log_content = f"[{media_type.capitalize()} Sent: {file_name}]"
             if caption_text:
                 log_content += f"\nCaption: {caption_text}"
-            ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=log_content)
+            ChatMessage.objects.create(phone_number=phone_number, role='assistant', content=log_content, message_id=msg_id)
             return JsonResponse({"success": True})
             
         return JsonResponse({"success": False, "error": "Invalid request or missing file"})

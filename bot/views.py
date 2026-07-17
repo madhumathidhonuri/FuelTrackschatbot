@@ -769,8 +769,14 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
     try:
         res = requests.post(url, json=payload, headers=headers)
         print(f"Meta Graph Server Response Status: {res.status_code}")
+        if res.status_code in [200, 201]:
+            resp_data = res.json()
+            messages = resp_data.get("messages", [])
+            if messages:
+                return messages[0].get("id")
     except Exception as e:
         print(f"Failed to post outgoing message via Meta API: {e}")
+    return None
 
 
 def notify_agent_of_incoming_message(customer, user_phone, user_text, suppress_alert=False, is_button_reply=False):
@@ -991,6 +997,12 @@ def whatsapp_webhook(request):
                     _phone_number_id_ctx.set(recipient_phone_number_id)
 
                 if "statuses" in value:
+                    status_obj = value["statuses"][0]
+                    msg_id = status_obj.get("id")
+                    status_text = status_obj.get("status")
+                    if msg_id and status_text:
+                        from bot.models import ChatMessage
+                        ChatMessage.objects.filter(message_id=msg_id).update(status=status_text)
                     return JsonResponse({"status": "success"})
 
                 if "messages" in value:
@@ -1066,7 +1078,7 @@ def whatsapp_webhook(request):
 
                         # If human agent paused the bot, just log message and return
                         if customer.is_bot_paused:
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                             print(f"[PAUSED] Bot is paused for {user_phone}. Ignored automatic processing.")
                             return JsonResponse({"status": "success"})
 
@@ -1127,7 +1139,7 @@ def whatsapp_webhook(request):
                                 # Send custom welcome message or catalog file if configured
                                 if matched_campaign.welcome_message or matched_campaign.catalog_file:
                                     # Save user's initial message
-                                    ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                                    ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                                     
                                     # Send and save custom welcome message
                                     if matched_campaign.welcome_message:
@@ -1139,7 +1151,7 @@ def whatsapp_webhook(request):
                                     if matched_campaign.catalog_file:
                                         catalog_name = matched_campaign.catalog_file
                                         catalog_msg = CATALOG_METADATA.get(catalog_name, {}).get("en", "Here is our product catalog:")
-                                        send_whatsapp_message(
+                                        msg_id = send_whatsapp_message(
                                             to_phone=user_phone,
                                             text_content=catalog_msg,
                                             document_url=f"{domain_url}/api/catalog/{catalog_name}",
@@ -1148,7 +1160,8 @@ def whatsapp_webhook(request):
                                         ChatMessage.objects.create(
                                             phone_number=user_phone,
                                             role='assistant',
-                                            content=f"{catalog_msg} (Sent {catalog_name})"
+                                            content=f"{catalog_msg} (Sent {catalog_name})",
+                                            message_id=msg_id
                                         )
                                     return JsonResponse({"status": "success"})
 
@@ -1201,7 +1214,7 @@ def whatsapp_webhook(request):
                         if clean_text == "stop":
                             customer.is_active = False
                             customer.save()
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                             opt_out_reply = (
                                 "You have successfully unsubscribed from Fuel Tracks automated alerts. "
                                 "Reply 'START' to resubscribe."
@@ -1213,7 +1226,7 @@ def whatsapp_webhook(request):
                         elif clean_text == "start":
                             customer.is_active = True
                             customer.save()
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                             opt_in_reply = (
                                 "Welcome back! Automated tracking alerts have been reactivated for your number."
                             )
@@ -1231,7 +1244,7 @@ def whatsapp_webhook(request):
                                 "name": "Fuel Tracks Technologies Pvt Ltd",
                                 "address": "Press Colony, Champapet, Hyderabad, Telangana 500079"
                             }
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                             ChatMessage.objects.create(
                                 phone_number=user_phone, role='assistant',
                                 content=f"Dispatched map pin: {office_coordinates['address']}"
@@ -1243,7 +1256,7 @@ def whatsapp_webhook(request):
                             return JsonResponse({"status": "success"})
 
                         elif clean_text == "products":
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                             catalog_text = "Here is our official Fuel Tracks Product Catalog Guide! 📄"
                             ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=catalog_text)
                             send_whatsapp_message(
@@ -1254,7 +1267,7 @@ def whatsapp_webhook(request):
                             return JsonResponse({"status": "success"})
 
                         elif clean_text == "talk to an agent":
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                             agent_text = (
                                 "Our Expert, Mr. Karunakar Reddy, has been notified of your request! 📞 "
                                 "He will call or message you natively in 10-15 minutes.\n\n"
@@ -1276,7 +1289,7 @@ def whatsapp_webhook(request):
 
                         elif handle_name_flow:
                             if not asked_for_name:
-                                ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                                ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                                 professional_welcome = (
                                     "Welcome to Fuel Tracks Technologies Private Limited!\n\n"
                                     "We are India's trusted provider of high-end GPS Tracking Systems, "
@@ -1297,7 +1310,7 @@ def whatsapp_webhook(request):
                                 send_whatsapp_message(user_phone, name_request)
                                 return JsonResponse({"status": "success"})
                             else:
-                                ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                                ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
                                 name_reply = user_text.strip()
                                 extracted_details = extract_customer_details_with_ai(name_reply)
                                 extracted_name = extracted_details.get("name")
@@ -1329,7 +1342,7 @@ def whatsapp_webhook(request):
                                     return JsonResponse({"status": "success"})
 
                         else:
-                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text)
+                            ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
 
                             # Defer Details Extraction: Only runs for queries going to the AI engine
                             needs_name = (
@@ -1375,17 +1388,17 @@ def whatsapp_webhook(request):
                                 if matched_pdf and matched_pdf in CATALOG_METADATA:
                                     catalog_msg = CATALOG_METADATA[matched_pdf]["te"] if has_telugu_script else CATALOG_METADATA[matched_pdf]["en"]
                                     
-                                    send_whatsapp_message(
+                                    msg_id = send_whatsapp_message(
                                         to_phone=user_phone,
                                         text_content=catalog_msg,
                                         document_url=f"{domain_url}/api/catalog/{matched_pdf}",
                                         document_filename=matched_pdf
                                     )
-                                    
                                     ChatMessage.objects.create(
                                         phone_number=user_phone,
                                         role='assistant',
-                                        content=f"{catalog_msg} (Sent {matched_pdf})"
+                                        content=f"{catalog_msg} (Sent {matched_pdf})",
+                                        message_id=msg_id
                                     )
         except Exception as e:
             print(f"Error inside primary webhook context loop: {e}")

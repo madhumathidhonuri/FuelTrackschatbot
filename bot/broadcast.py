@@ -153,6 +153,10 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
             # ✅ FIX 1: Meta returns 200 OR 201 for success depending on endpoint version
             if response.status_code in (200, 201):
                 try:
+                    resp_data = response.json()
+                    messages = resp_data.get("messages", [])
+                    msg_id = messages[0].get("id") if messages else None
+                    
                     TEMPLATE_DESCRIPTIONS = {
                         "hello_world": "Welcome to Fuel Tracks Technologies! We offer high-end GPS Tracking Systems and Smart Fuel Monitoring.",
                         "gps_tracking_device": "Marketing message promoting our AIS 140 certified GPS tracking devices.",
@@ -163,7 +167,8 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None, vehicle_
                     ChatMessage.objects.create(
                         phone_number=to_phone,
                         role='assistant',
-                        content=f"[System Sent Broadcast: {template_name} - {desc}]"
+                        content=f"[System Sent Broadcast: {template_name} - {desc}]",
+                        message_id=msg_id
                     )
                 except Exception as e:
                     print(f"Failed to record broadcast message in history: {e}")

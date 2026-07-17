@@ -10,6 +10,13 @@ class ChatMessage(models.Model):
     phone_number = models.CharField(max_length=20, db_index=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
+    message_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    status = models.CharField(max_length=20, default='sent', choices=[
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('read', 'Read'),
+        ('failed', 'Failed'),
+    ])
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
