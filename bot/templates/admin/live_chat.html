@@ -514,6 +514,7 @@
     const API_SEND_URL_TEMPLATE = '{{ api_send_url }}';
     const API_SEND_MEDIA_URL_TEMPLATE = '{{ api_send_media_url }}';
     const API_TOGGLE_PAUSE_URL_TEMPLATE = '{{ api_toggle_pause_url }}';
+    const API_CUSTOMER_URL_TEMPLATE = '{{ api_customer_url }}';
 
     function buildUrl(template, phone) {
         return template.replace('PHONE_PLACEHOLDER', encodeURIComponent(phone));
@@ -603,8 +604,26 @@
                     if (matchedCustomer) {
                         selectCustomer(matchedCustomer);
                         initialChatSelected = true;
+                    } else {
+                        // Customer not in sidebar list (may have very old messages).
+                        // Look them up directly via the customer API.
+                        try {
+                            const cRes = await fetch(buildUrl(API_CUSTOMER_URL_TEMPLATE, phoneToSelect));
+                            const cData = await cRes.json();
+                            if (cData.found) {
+                                // Add to local list so sidebar shows them
+                                allCustomers.unshift(cData);
+                                filterCustomers();
+                                selectCustomer(cData);
+                            } else {
+                                // No FleetCustomer or ChatMessage for this phone
+                                console.warn('Phone from URL not found in database:', phoneToSelect);
+                            }
+                        } catch (lookupErr) {
+                            console.error('Customer lookup failed:', lookupErr);
+                        }
+                        initialChatSelected = true;
                     }
-                    // If not found yet (list still populating), will retry on next poll tick
                 } else {
                     initialChatSelected = true;
                 }

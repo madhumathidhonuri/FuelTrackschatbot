@@ -537,6 +537,11 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(
                     self.api_chat_toggle_pause),
                 name='bot_fleetcustomer_chat_toggle_pause'),
+            path(
+                'live-chat/api/customer/<str:phone_number>/',
+                self.admin_site.admin_view(
+                    self.api_chat_customer),
+                name='bot_fleetcustomer_chat_customer'),
         ]
         return custom_urls + urls
 
@@ -839,6 +844,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             'api_send_url': reverse('admin:bot_fleetcustomer_chat_send', args=['PHONE_PLACEHOLDER']),
             'api_send_media_url': reverse('admin:bot_fleetcustomer_chat_send_media', args=['PHONE_PLACEHOLDER']),
             'api_toggle_pause_url': reverse('admin:bot_fleetcustomer_chat_toggle_pause', args=['PHONE_PLACEHOLDER']),
+            'api_customer_url': reverse('admin:bot_fleetcustomer_chat_customer', args=['PHONE_PLACEHOLDER']),
         }
         return render(request, "admin/live_chat.html", context)
 
@@ -1048,3 +1054,40 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             except FleetCustomer.DoesNotExist:
                 return JsonResponse({"success": False, "error": "Customer not found"})
         return JsonResponse({"success": False, "error": "Invalid request method"})
+
+    def api_chat_customer(self, request, phone_number):
+        """Fetch a single customer's info by phone number.
+        Used as a fallback when the customer isn't in the sidebar list
+        (e.g. navigating from AgentNotificationLog with ?phone=...).
+        """
+        try:
+            c = FleetCustomer.objects.get(phone_number=phone_number)
+            # Get their last message
+            last_msg = ChatMessage.objects.filter(
+                phone_number=phone_number
+            ).order_by('-id').only('content', 'timestamp').first()
+            content = (last_msg.content or '') if last_msg else ''
+            return JsonResponse({
+                "found": True,
+                "phone_number": c.phone_number,
+                "owner_name": c.owner_name or "Unknown",
+                "is_bot_paused": c.is_bot_paused,
+                "last_message": content[:50] + ("..." if len(content) > 50 else ""),
+                "last_message_time": last_msg.timestamp.isoformat() if last_msg and last_msg.timestamp else "",
+            })
+        except FleetCustomer.DoesNotExist:
+            # Customer not in FleetCustomer — still try to load chat history
+            last_msg = ChatMessage.objects.filter(
+                phone_number=phone_number
+            ).order_by('-id').only('content', 'timestamp').first()
+            if last_msg:
+                content = last_msg.content or ''
+                return JsonResponse({
+                    "found": True,
+                    "phone_number": phone_number,
+                    "owner_name": "Unknown",
+                    "is_bot_paused": False,
+                    "last_message": content[:50] + ("..." if len(content) > 50 else ""),
+                    "last_message_time": last_msg.timestamp.isoformat() if last_msg.timestamp else "",
+                })
+            return JsonResponse({"found": False})
