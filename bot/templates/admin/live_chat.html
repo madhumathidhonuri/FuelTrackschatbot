@@ -508,6 +508,17 @@
 </div>
 
 <script>
+    // --- API URL Constants (absolute, provided by Django) ---
+    const API_LIST_URL = '{{ api_list_url }}';
+    const API_MESSAGES_URL_TEMPLATE = '{{ api_messages_url }}';
+    const API_SEND_URL_TEMPLATE = '{{ api_send_url }}';
+    const API_SEND_MEDIA_URL_TEMPLATE = '{{ api_send_media_url }}';
+    const API_TOGGLE_PAUSE_URL_TEMPLATE = '{{ api_toggle_pause_url }}';
+
+    function buildUrl(template, phone) {
+        return template.replace('PHONE_PLACEHOLDER', encodeURIComponent(phone));
+    }
+
     // --- State ---
     let currentPhone = null;
     let pollInterval = null;
@@ -579,7 +590,7 @@
     // --- API Calls ---
     async function fetchCustomers() {
         try {
-            const res = await fetch('api/list/');
+            const res = await fetch(API_LIST_URL);
             const data = await res.json();
             allCustomers = data.customers;
             filterCustomers();
@@ -599,6 +610,8 @@
             }
         } catch (e) {
             console.error("Failed to fetch customers", e);
+            const listDiv = document.getElementById('customerList');
+            listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#d93025;font-size:13px;">Failed to load chats. Check console for errors.</div>';
         }
     }
 
@@ -627,7 +640,7 @@
     async function fetchMessages(phone) {
         if (!phone) return;
         try {
-            const res = await fetch(`api/messages/${phone}/`);
+            const res = await fetch(buildUrl(API_MESSAGES_URL_TEMPLATE, phone));
             const data = await res.json();
             renderMessages(data.messages);
         } catch (e) {
@@ -655,7 +668,7 @@
         toggleSendMicIcon(); // Switch back to mic icon
 
         try {
-            const res = await fetch(`api/send/${currentPhone}/`, {
+            const res = await fetch(buildUrl(API_SEND_URL_TEMPLATE, currentPhone), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -705,7 +718,7 @@
             formData.append('file', file);
             if (caption) formData.append('caption', caption);
 
-            const res = await fetch(`api/send-media/${currentPhone}/`, {
+            const res = await fetch(buildUrl(API_SEND_MEDIA_URL_TEMPLATE, currentPhone), {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrftoken
@@ -830,7 +843,7 @@
         toggle.disabled = true;
         
         try {
-            const res = await fetch(`api/toggle-pause/${currentPhone}/`, {
+            const res = await fetch(buildUrl(API_TOGGLE_PAUSE_URL_TEMPLATE, currentPhone), {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrftoken

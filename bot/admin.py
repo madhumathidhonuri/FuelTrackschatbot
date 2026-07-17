@@ -837,56 +837,78 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return response
 
     def live_chat_view(self, request):
+        from django.urls import reverse
         context = {
             **self.admin_site.each_context(request),
             'title': 'Live Chat Dashboard',
+            'api_list_url': reverse('admin:bot_fleetcustomer_chat_list'),
+            'api_messages_url': reverse('admin:bot_fleetcustomer_chat_history', args=['PHONE_PLACEHOLDER']),
+            'api_send_url': reverse('admin:bot_fleetcustomer_chat_send', args=['PHONE_PLACEHOLDER']),
+            'api_send_media_url': reverse('admin:bot_fleetcustomer_chat_send_media', args=['PHONE_PLACEHOLDER']),
+            'api_toggle_pause_url': reverse('admin:bot_fleetcustomer_chat_toggle_pause', args=['PHONE_PLACEHOLDER']),
         }
         return render(request, "admin/live_chat.html", context)
 
     def api_chat_list(self, request):
         from bot.models import ChatMessage, FleetCustomer
-        from django.db.models import Max
 
-        # Find the latest message for each phone number (limit to top 100 recent active chats)
-        recent_chats = ChatMessage.objects.values('phone_number').annotate(
-            last_msg_id=Max('id')
-        ).order_by('-last_msg_id')[:100]
+        # Pull the last 500 messages by id DESC, then deduplicate by phone
+        # in Python — one fast indexed scan, no GROUP BY aggregation on a huge table.
+        recent_msgs = ChatMessage.objects.order_by('-id').values(
+            'id', 'phone_number', 'content', 'timestamp'
+        )[:500]
 
-        if not recent_chats:
+        seen = set()
+        data = []
+        phone_numbers = []
+        msg_rows = []
+        for m in recent_msgs:
+            p = m['phone_number']
+            if p not in seen:
+                seen.add(p)
+                phone_numbers.append(p)
+                msg_rows.append(m)
+            if len(msg_rows) >= 50:
+                break
+
+        if not msg_rows:
             return JsonResponse({"customers": []})
 
-        last_msg_ids = [c['last_msg_id'] for c in recent_chats]
-        messages = ChatMessage.objects.filter(id__in=last_msg_ids).select_related()
+        # Batch-fetch customer info in one query
+        customers = {
+            c.phone_number: c
+            for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        }
 
-        phone_numbers = [m.phone_number for m in messages]
-        customers = {c.phone_number: c for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)}
-
-        data = []
-        for msg in messages:
-            c = customers.get(msg.phone_number)
-            data.append({
-                "phone_number": msg.phone_number,
-                "owner_name": c.owner_name if c and c.owner_name else "Unknown",
-                "is_bot_paused": c.is_bot_paused if c else False,
-                "last_message": msg.content[:50] + ("..." if len(msg.content) > 50 else ""),
-                "last_message_time": msg.timestamp.isoformat() if msg.timestamp else "",
-                "timestamp_val": msg.timestamp.timestamp() if msg.timestamp else 0
+        result = []
+        for m in msg_rows:
+            c = customers.get(m['phone_number'])
+            content = m['content'] or ''
+            result.append({
+                "phone_number": m['phone_number'],
+                "owner_name": (c.owner_name if c and c.owner_name else "Unknown"),
+                "is_bot_paused": (c.is_bot_paused if c else False),
+                "last_message": content[:50] + ("..." if len(content) > 50 else ""),
+                "last_message_time": m['timestamp'].isoformat() if m['timestamp'] else "",
+                "timestamp_val": m['timestamp'].timestamp() if m['timestamp'] else 0,
             })
 
-        data.sort(key=lambda x: x["timestamp_val"], reverse=True)
-        return JsonResponse({"customers": data})
+        # Already sorted descending (most recent first) because we scanned by -id
+        return JsonResponse({"customers": result})
 
     def api_chat_history(self, request, phone_number):
         from bot.models import ChatMessage
+        # Limit to last 200 messages to avoid memory blowout on large conversations
         messages = ChatMessage.objects.filter(
-            phone_number=phone_number).order_by('timestamp')
+            phone_number=phone_number
+        ).order_by('-id')[:200]
         data = []
-        for m in messages:
+        for m in reversed(list(messages)):
             data.append({
                 "role": m.role,
                 "content": m.content,
                 "timestamp": m.timestamp.isoformat(),
-                "status": m.status
+                "status": m.status,
             })
         return JsonResponse({"messages": data})
 
