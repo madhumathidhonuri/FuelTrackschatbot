@@ -295,8 +295,9 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 "or message him at your convenience:"
             )
             # ✅ FIX 11: Save only once; send only once — no duplicate save/send in this branch
-            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=handoff_intro)
-            send_whatsapp_message(user_phone, handoff_intro)
+            msg_id = send_whatsapp_message(user_phone, handoff_intro)
+
+            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=handoff_intro, message_id=msg_id)
 
             corporate_vcard = {
                 "first_name": "Karunakar Reddy",
@@ -645,7 +646,6 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 name_suffix = "\n\nMay I know your name, please?"
             ai_reply = f"{ai_reply}{name_suffix}"
 
-        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=ai_reply)
         return ai_reply
 
     except Exception as e:
@@ -1144,8 +1144,9 @@ def whatsapp_webhook(request):
                                     # Send and save custom welcome message
                                     if matched_campaign.welcome_message:
                                         welcome_reply = matched_campaign.welcome_message
-                                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_reply)
-                                        send_whatsapp_message(user_phone, welcome_reply)
+                                        msg_id = send_whatsapp_message(user_phone, welcome_reply)
+
+                                        ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_reply, message_id=msg_id)
                                     
                                     # If a catalog file is associated, send it automatically
                                     if matched_campaign.catalog_file:
@@ -1219,8 +1220,9 @@ def whatsapp_webhook(request):
                                 "You have successfully unsubscribed from Fuel Tracks automated alerts. "
                                 "Reply 'START' to resubscribe."
                             )
-                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_out_reply)
-                            send_whatsapp_message(user_phone, opt_out_reply)
+                            msg_id = send_whatsapp_message(user_phone, opt_out_reply)
+
+                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_out_reply, message_id=msg_id)
                             return JsonResponse({"status": "success"})
 
                         elif clean_text == "start":
@@ -1230,8 +1232,9 @@ def whatsapp_webhook(request):
                             opt_in_reply = (
                                 "Welcome back! Automated tracking alerts have been reactivated for your number."
                             )
-                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_in_reply)
-                            send_whatsapp_message(user_phone, opt_in_reply)
+                            msg_id = send_whatsapp_message(user_phone, opt_in_reply)
+
+                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=opt_in_reply, message_id=msg_id)
                             return JsonResponse({"status": "success"})
 
                         elif has_keyword_match(clean_text, location_triggers) and not is_device_query:
@@ -1273,8 +1276,9 @@ def whatsapp_webhook(request):
                                 "He will call or message you natively in 10-15 minutes.\n\n"
                                 "You can also contact us at: 7337433350, 7337433351, 7337433356, or Mr. Karunakar Reddy at 9000666914."
                             )
-                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=agent_text)
-                            send_whatsapp_message(user_phone, agent_text)
+                            msg_id = send_whatsapp_message(user_phone, agent_text)
+
+                            ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=agent_text, message_id=msg_id)
 
                             # Notify the agent
                             agent_alert = (
@@ -1306,8 +1310,9 @@ def whatsapp_webhook(request):
                                 )
 
                                 name_request = "May I know your name, please?"
-                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=name_request)
-                                send_whatsapp_message(user_phone, name_request)
+                                msg_id = send_whatsapp_message(user_phone, name_request)
+
+                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=name_request, message_id=msg_id)
                                 return JsonResponse({"status": "success"})
                             else:
                                 ChatMessage.objects.create(phone_number=user_phone, role='user', content=user_text, message_id=message_id)
@@ -1332,13 +1337,15 @@ def whatsapp_webhook(request):
                                     
                                     # Send friendly confirmation
                                     welcome_text = f"Thank you, {extracted_name} garu! How can I assist you with GPS tracking or fuel monitoring today?"
-                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_text)
-                                    send_whatsapp_message(user_phone, welcome_text)
+                                    msg_id = send_whatsapp_message(user_phone, welcome_text)
+
+                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=welcome_text, message_id=msg_id)
                                     return JsonResponse({"status": "success"})
                                 else:
                                     retry_request = "Could you please tell me your name so I know how to address you?"
-                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=retry_request)
-                                    send_whatsapp_message(user_phone, retry_request)
+                                    msg_id = send_whatsapp_message(user_phone, retry_request)
+
+                                    ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=retry_request, message_id=msg_id)
                                     return JsonResponse({"status": "success"})
 
                         else:
@@ -1373,7 +1380,8 @@ def whatsapp_webhook(request):
                             # Process message through AI engine
                             bot_reply = get_ai_response(user_phone, user_text, customer)
                             if bot_reply is not None:
-                                send_whatsapp_message(user_phone, bot_reply)
+                                msg_id = send_whatsapp_message(user_phone, bot_reply)
+                                ChatMessage.objects.create(phone_number=user_phone, role='assistant', content=bot_reply, message_id=msg_id)
                                 check_and_notify_agent(customer, user_phone, user_text, bot_reply)
 
                                 # Specific device catalog sending logic
