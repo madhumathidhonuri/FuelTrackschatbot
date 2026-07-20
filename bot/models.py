@@ -107,8 +107,11 @@ class BroadcastTask(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('running', 'Running'),
+        ('paused', 'Paused'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+        ('stopped', 'Stopped'),
     ]
 
     template_name = models.CharField(max_length=100)

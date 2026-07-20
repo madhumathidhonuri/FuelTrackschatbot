@@ -371,11 +371,20 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             futures = {executor.submit(send_one, c): c for c in active_customers}
 
             for future in concurrent.futures.as_completed(futures):
-                # Check if user stopped/cancelled the task via admin UI
-                curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
-                if curr_status in ['stopped', 'failed']:
-                    print(f"[BROADCAST] Task #{task_id} status is '{curr_status}'. Stopping worker thread.")
-                    executor.shutdown(wait=False, cancel_futures=True)
+                # Pause / Cancel / Stop status handler
+                while True:
+                    curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
+                    if curr_status == 'paused':
+                        import time
+                        time.sleep(1)
+                        continue
+                    elif curr_status in ['stopped', 'failed', 'cancelled']:
+                        print(f"[BROADCAST] Task #{task_id} status is '{curr_status}'. Stopping worker thread.")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    break
+
+                if curr_status in ['stopped', 'failed', 'cancelled']:
                     break
 
                 try:
@@ -420,9 +429,9 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                                 pass
                             chat_history_batch.clear()
 
-        # Mark completed only if not stopped by user
+        # Mark completed only if not stopped/cancelled by user
         final_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
-        if final_status not in ['stopped', 'failed']:
+        if final_status not in ['stopped', 'failed', 'cancelled', 'paused']:
             BroadcastTask.objects.filter(id=task_id).update(status='completed')
 
         if failed_details:
@@ -584,10 +593,20 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                     self.broadcast_status),
                 name='bot_fleetcustomer_broadcast_status'),
             path(
-                'broadcast-stop/<int:task_id>/',
+                'broadcast-pause/<int:task_id>/',
                 self.admin_site.admin_view(
-                    self.stop_broadcast),
-                name='bot_fleetcustomer_broadcast_stop'),
+                    self.pause_broadcast),
+                name='bot_fleetcustomer_broadcast_pause'),
+            path(
+                'broadcast-resume/<int:task_id>/',
+                self.admin_site.admin_view(
+                    self.resume_broadcast),
+                name='bot_fleetcustomer_broadcast_resume'),
+            path(
+                'broadcast-cancel/<int:task_id>/',
+                self.admin_site.admin_view(
+                    self.cancel_broadcast),
+                name='bot_fleetcustomer_broadcast_cancel'),
             path(
                 'download-broadcast-logs/',
                 self.admin_site.admin_view(
@@ -857,12 +876,30 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         except BroadcastTask.DoesNotExist:
             return JsonResponse({"error": "Task not found"}, status=404)
 
-    def stop_broadcast(self, request, task_id):
+    def pause_broadcast(self, request, task_id):
         try:
             task = BroadcastTask.objects.get(id=task_id)
-            task.status = 'stopped'
+            task.status = 'paused'
             task.save()
-            return JsonResponse({"success": True})
+            return JsonResponse({"success": True, "status": "paused"})
+        except BroadcastTask.DoesNotExist:
+            return JsonResponse({"error": "Task not found"}, status=404)
+
+    def resume_broadcast(self, request, task_id):
+        try:
+            task = BroadcastTask.objects.get(id=task_id)
+            task.status = 'running'
+            task.save()
+            return JsonResponse({"success": True, "status": "running"})
+        except BroadcastTask.DoesNotExist:
+            return JsonResponse({"error": "Task not found"}, status=404)
+
+    def cancel_broadcast(self, request, task_id):
+        try:
+            task = BroadcastTask.objects.get(id=task_id)
+            task.status = 'cancelled'
+            task.save()
+            return JsonResponse({"success": True, "status": "cancelled"})
         except BroadcastTask.DoesNotExist:
             return JsonResponse({"error": "Task not found"}, status=404)
 

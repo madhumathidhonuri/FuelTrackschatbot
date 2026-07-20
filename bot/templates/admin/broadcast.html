@@ -293,7 +293,7 @@
 
             <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #f1f5f9;">
                 <button type="submit" id="submit-btn" class="btn btn-primary">Start Broadcast</button>
-                <a href=".." class="btn btn-secondary">Cancel</a>
+                <button type="reset" class="btn btn-secondary">Reset Form</button>
             </div>
         </form>
         <script id="templates-mapping-json" type="application/json">
@@ -306,9 +306,10 @@
         <div class="card-title"
             style="display: flex; justify-content: space-between; align-items: center; border: none; margin-bottom: 10px;">
             <span>Current Status: <span id="task-status" class="status-badge status-pending">PENDING</span></span>
-            <div style="display: flex; align-items: center; gap: 15px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
                 <span id="progress-text" style="font-size: 14px; font-weight: normal; color: #64748b;">0 / 0 sent</span>
-                <button type="button" id="stop-btn" onclick="stopBroadcast()" class="btn" style="background-color: #ef4444; color: white; padding: 5px 12px; font-size: 12px;">Stop Broadcast</button>
+                <button type="button" id="pause-btn" onclick="togglePauseResume()" class="btn" style="background-color: #f59e0b; color: white; padding: 5px 12px; font-size: 12px;">Pause</button>
+                <button type="button" id="cancel-btn" onclick="cancelBroadcast()" class="btn" style="background-color: #ef4444; color: white; padding: 5px 12px; font-size: 12px;">Cancel Broadcast</button>
             </div>
         </div>
 
@@ -494,13 +495,26 @@
                     });
                 }
 
-                // Check if completed/failed/stopped to stop polling
-                if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') {
+                // Update Pause button state based on status
+                const pauseBtn = document.getElementById('pause-btn');
+                if (pauseBtn) {
+                    if (data.status === 'paused') {
+                        pauseBtn.innerText = 'Resume';
+                        pauseBtn.style.backgroundColor = '#22c55e';
+                    } else if (data.status === 'running') {
+                        pauseBtn.innerText = 'Pause';
+                        pauseBtn.style.backgroundColor = '#f59e0b';
+                    }
+                }
+
+                // Check if completed/failed/cancelled/stopped to stop polling
+                if (['completed', 'failed', 'cancelled', 'stopped'].includes(data.status)) {
                     clearInterval(poller);
                     document.getElementById('submit-btn').disabled = false;
                     document.getElementById('submit-btn').innerText = 'Start Broadcast';
-                    const stopBtn = document.getElementById('stop-btn');
-                    if (stopBtn) stopBtn.style.display = 'none';
+                    if (pauseBtn) pauseBtn.style.display = 'none';
+                    const cancelBtn = document.getElementById('cancel-btn');
+                    if (cancelBtn) cancelBtn.style.display = 'none';
                 }
             })
             .catch(error => {
@@ -508,20 +522,37 @@
             });
     }
 
-    function stopBroadcast() {
-        if (!currentTaskId || !confirm("Are you sure you want to stop the running broadcast?")) return;
-        fetch(`../broadcast-stop/${currentTaskId}/`, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+    let isPaused = false;
+    function togglePauseResume() {
+        if (!currentTaskId) return;
+        const action = isPaused ? 'resume' : 'pause';
+        fetch(`../broadcast-${action}/${currentTaskId}/`, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    isPaused = (data.status === 'paused');
+                    fetchStatus();
+                }
+            });
+    }
+
+    function cancelBroadcast() {
+        if (!currentTaskId || !confirm("Are you sure you want to cancel this broadcast completely? Starting a new broadcast will start from 0.")) return;
+        fetch(`../broadcast-cancel/${currentTaskId}/`, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
                     const statusBadge = document.getElementById('task-status');
-                    statusBadge.innerText = 'STOPPED';
+                    statusBadge.innerText = 'CANCELLED';
                     statusBadge.className = 'status-badge status-failed';
                     clearInterval(poller);
+                    currentTaskId = null;
                     document.getElementById('submit-btn').disabled = false;
                     document.getElementById('submit-btn').innerText = 'Start Broadcast';
-                    const stopBtn = document.getElementById('stop-btn');
-                    if (stopBtn) stopBtn.style.display = 'none';
+                    const pauseBtn = document.getElementById('pause-btn');
+                    if (pauseBtn) pauseBtn.style.display = 'none';
+                    const cancelBtn = document.getElementById('cancel-btn');
+                    if (cancelBtn) cancelBtn.style.display = 'none';
                 }
             });
     }
