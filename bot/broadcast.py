@@ -45,50 +45,64 @@ MAX_RETRIES = 3
 
 
 def send_whatsapp_template(to_phone, template_name, customer_name=None,
-                           vehicle_number=None, language_code="en_US"):
+                           vehicle_number=None, language_code="en_US",
+                           template_config=None):
     """
     Fires an approved Meta message template to a single customer.
     Returns (success: bool, error_reason: str)
+
+    template_config: optional pre-fetched dict with template settings (avoids
+    a DB query per call when sending in bulk). If None, falls back to DB lookup.
     """
-    # Check template configuration in database (fallback to hardcoded list if
-    # not found or on error)
-    has_variables = False
-    has_header = False
-    header_type = 'none'
-    header_image_url = ''
-    header_file_url = None
-    header_media_id = ''
-    category = 'utility'
-    try:
-        from bot.models import WhatsAppTemplate
-        template_obj = WhatsAppTemplate.objects.filter(
-            template_name=template_name).first()
-        if template_obj:
-            category = template_obj.category.lower() if template_obj.category else 'utility'
-            has_variables = template_obj.has_variables
-            has_header = template_obj.has_header
-            header_type = template_obj.header_type
-            header_image_url = template_obj.header_image_url
-            header_media_id = template_obj.header_media_id
-            if template_obj.header_file:
-                import os
-                site_url = os.getenv(
-                    "SITE_URL", "https://whatsapp-ai-bot-dqot.onrender.com")
-                if site_url.endswith("/"):
-                    site_url = site_url[:-1]
-                header_file_url = f"{site_url}{template_obj.header_file.url}"
-        else:
+    # Use pre-fetched config if supplied (fast path for bulk broadcast)
+    if template_config is not None:
+        has_variables = template_config.get('has_variables', False)
+        has_header = template_config.get('has_header', False)
+        header_type = template_config.get('header_type', 'none')
+        header_image_url = template_config.get('header_image_url', '')
+        header_file_url = template_config.get('header_file_url', None)
+        header_media_id = template_config.get('header_media_id', '')
+        category = template_config.get('category', 'utility')
+    else:
+        # Fallback: look up from DB (used when called standalone / not in bulk)
+        has_variables = False
+        has_header = False
+        header_type = 'none'
+        header_image_url = ''
+        header_file_url = None
+        header_media_id = ''
+        category = 'utility'
+        try:
+            from bot.models import WhatsAppTemplate
+            template_obj = WhatsAppTemplate.objects.filter(
+                template_name=template_name).first()
+            if template_obj:
+                category = template_obj.category.lower() if template_obj.category else 'utility'
+                has_variables = template_obj.has_variables
+                has_header = template_obj.has_header
+                header_type = template_obj.header_type
+                header_image_url = template_obj.header_image_url
+                header_media_id = template_obj.header_media_id
+                if template_obj.header_file:
+                    import os
+                    site_url = os.getenv(
+                        "SITE_URL", "https://whatsapp-ai-bot-dqot.onrender.com")
+                    if site_url.endswith("/"):
+                        site_url = site_url[:-1]
+                    header_file_url = f"{site_url}{template_obj.header_file.url}"
+            else:
+                has_variables = template_name in [
+                    "fuel_alert", "fleet_update", "promo_blast"]
+                if template_name in ["gps_tracking_device",
+                                     "ais_140_gps_mining_device", "promo_blast"]:
+                    category = 'marketing'
+        except Exception:
             has_variables = template_name in [
                 "fuel_alert", "fleet_update", "promo_blast"]
             if template_name in ["gps_tracking_device",
                                  "ais_140_gps_mining_device", "promo_blast"]:
                 category = 'marketing'
-    except Exception:
-        has_variables = template_name in [
-            "fuel_alert", "fleet_update", "promo_blast"]
-        if template_name in ["gps_tracking_device",
-                             "ais_140_gps_mining_device", "promo_blast"]:
-            category = 'marketing'
+
 
     endpoint_path = "marketing_messages" if category == 'marketing' else "messages"
     url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/{endpoint_path}"

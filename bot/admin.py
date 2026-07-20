@@ -275,7 +275,9 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
     connection.close()
 
     try:
-        from bot.models import BroadcastTask, FleetCustomer
+        import concurrent.futures
+        import threading as _threading
+        from bot.models import BroadcastTask, FleetCustomer, WhatsAppTemplate
         from bot.utils import parse_excel_or_csv
         from bot.broadcast import send_whatsapp_template
 
@@ -298,52 +300,98 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             if customer.is_active:
                 target_phone_numbers.append(customer.phone_number)
 
-        active_customers = FleetCustomer.objects.filter(
-            phone_number__in=target_phone_numbers, is_active=True)
-        total_count = active_customers.count()
+        # Load as plain dicts — faster and safe to share across threads
+        active_customers = list(
+            FleetCustomer.objects.filter(
+                phone_number__in=target_phone_numbers, is_active=True
+            ).values('phone_number', 'owner_name', 'truck_number')
+        )
+        total_count = len(active_customers)
 
         task.total_records = total_count
         task.save()
 
+        # ── Pre-fetch template config ONCE (eliminates 10k+ DB queries) ──────
+        template_config = None
+        try:
+            template_obj = WhatsAppTemplate.objects.filter(
+                template_name=template_name).first()
+            if template_obj:
+                site_url = os.getenv(
+                    "SITE_URL", "https://whatsapp-ai-bot-dqot.onrender.com")
+                if site_url.endswith("/"):
+                    site_url = site_url[:-1]
+                header_file_url = None
+                if template_obj.header_file:
+                    header_file_url = f"{site_url}{template_obj.header_file.url}"
+                template_config = {
+                    'has_variables': template_obj.has_variables,
+                    'has_header': template_obj.has_header,
+                    'header_type': template_obj.header_type,
+                    'header_image_url': template_obj.header_image_url,
+                    'header_media_id': template_obj.header_media_id,
+                    'header_file_url': header_file_url,
+                    'category': (
+                        template_obj.category.lower()
+                        if template_obj.category else 'utility'
+                    ),
+                }
+        except Exception:
+            pass
+
         success_count = 0
         failed_count = 0
         failed_details = []
+        processed = 0
+        lock = _threading.Lock()
 
-        for index, customer in enumerate(active_customers, 1):
-            try:
-                task = BroadcastTask.objects.get(id=task_id)
-            except BroadcastTask.DoesNotExist:
-                break
+        BATCH_SIZE = 50    # flush progress to DB every N completions
+        MAX_WORKERS = 20   # parallel HTTP workers (well under Meta's 80 msg/s limit)
 
+        def send_one(cust):
+            """Send a single message and return result — runs in worker thread."""
             success, error_reason = send_whatsapp_template(
-                to_phone=customer.phone_number,
+                to_phone=cust['phone_number'],
                 template_name=template_name,
-                customer_name=customer.owner_name,
-                vehicle_number=customer.truck_number,
-                language_code=language_code
+                customer_name=cust['owner_name'],
+                vehicle_number=cust['truck_number'],
+                language_code=language_code,
+                template_config=template_config  # pre-fetched — no DB hit
             )
+            return cust, success, error_reason
 
-            if success:
-                success_count += 1
-            else:
-                failed_count += 1
-                failed_details.append({
-                    'phone_number': customer.phone_number,
-                    'name': customer.owner_name,
-                    'reason': error_reason
-                })
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(send_one, c): c for c in active_customers}
 
-            task.processed_records = index
-            task.success_count = success_count
-            task.failed_count = failed_count
-            task.failed_details = json.dumps(failed_details)
-            task.save()
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    cust, success, error_reason = future.result()
+                except Exception as exc:
+                    cust = futures[future]
+                    success, error_reason = False, str(exc)
 
-            time.sleep(0.02)
+                with lock:
+                    processed += 1
+                    if success:
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                        failed_details.append({
+                            'phone_number': cust['phone_number'],
+                            'name': cust['owner_name'],
+                            'reason': error_reason
+                        })
 
-        task = BroadcastTask.objects.get(id=task_id)
-        task.status = 'completed'
-        task.save()
+                    # ── Batch DB update every BATCH_SIZE records ──────────────
+                    if processed % BATCH_SIZE == 0 or processed == total_count:
+                        BroadcastTask.objects.filter(id=task_id).update(
+                            processed_records=processed,
+                            success_count=success_count,
+                            failed_count=failed_count,
+                            failed_details=json.dumps(failed_details)
+                        )
+
+        BroadcastTask.objects.filter(id=task_id).update(status='completed')
 
         if failed_details:
             try:
@@ -358,15 +406,16 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
 
     except Exception as e:
         try:
-            task = BroadcastTask.objects.get(id=task_id)
-            task.status = 'failed'
-            task.failed_details = json.dumps(
-                [{'phone_number': 'N/A', 'name': 'N/A', 'reason': str(e)}])
-            task.save()
+            BroadcastTask.objects.filter(id=task_id).update(
+                status='failed',
+                failed_details=json.dumps(
+                    [{'phone_number': 'N/A', 'name': 'N/A', 'reason': str(e)}])
+            )
         except Exception:
             pass
     finally:
         connection.close()
+
 
 
 def sync_whatsapp_templates_from_meta():
