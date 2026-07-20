@@ -1237,6 +1237,23 @@ def whatsapp_webhook(request):
                     if not user_text.strip():
                         return JsonResponse({"status": "success"})
 
+                    # Initialize or fetch customer identity early so all messages appear in Live Chat
+                    customer, created = FleetCustomer.objects.get_or_create(
+                        phone_number=user_phone,
+                        defaults={
+                            "owner_name": "New Fleet Contact",
+                            "is_active": True}
+                    )
+
+                    # Save incoming user message to ChatMessage early so it is guaranteed
+                    # to appear in Live Chat history regardless of downstream logic/branching
+                    user_msg_obj, msg_created = ChatMessage.objects.get_or_create(
+                        phone_number=user_phone,
+                        role='user',
+                        content=user_text,
+                        message_id=message_id
+                    )
+
                     # --- Opt-Out / Opt-In Keyword Listener for Meta Compliance ---
                     user_text_upper = user_text.strip().upper()
                     if user_text_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "OPT OUT", "OPTOUT", "VADDHU"]:
@@ -1273,14 +1290,6 @@ def whatsapp_webhook(request):
                                 "products", "office location", "talk to an agent", "start", "stop"]:
                             clean_text = last_line_clean
 
-                    # Initialize or fetch customer identity
-                    customer, created = FleetCustomer.objects.get_or_create(
-                        phone_number=user_phone,
-                        defaults={
-                            "owner_name": "New Fleet Contact",
-                            "is_active": True}
-                    )
-
                     # Opt-out compliance: if customer is inactive, ignore all
                     # unless "start"
                     if not created and not customer.is_active and clean_text != "start":
@@ -1309,15 +1318,6 @@ def whatsapp_webhook(request):
 
                     is_button_reply = message_obj.get(
                         "type") in ["button", "interactive"]
-
-                    # Save incoming user message to ChatMessage early so it is guaranteed
-                    # to be recorded in chat history regardless of downstream branching
-                    user_msg_obj, msg_created = ChatMessage.objects.get_or_create(
-                        phone_number=user_phone,
-                        role='user',
-                        content=user_text,
-                        message_id=message_id
-                    )
 
                     # Notify agent of customer message or template reply
                     notify_agent_of_incoming_message(
