@@ -107,34 +107,16 @@ class ExcelUploadForm(forms.Form):
 @admin.register(ChatMessage)
 class ChatMessageAdmin(admin.ModelAdmin):
     list_display = ('phone_number_link', 'role', 'content', 'timestamp')
-    list_filter = ('phone_number', 'role')
+    list_filter = ('role',)
     search_fields = ('phone_number', 'content')
     list_display_links = ('timestamp',)
+    ordering = ('-timestamp',)
 
     def phone_number_link(self, obj):
         from django.utils.html import format_html
         url = f"/admin/bot/fleetcustomer/live-chat/?phone={obj.phone_number}"
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        if getattr(request, '_is_changelist', False):
-            # Check if request has phone_number or search filter
-            has_filter = any(
-                k in request.GET for k in (
-                    'phone_number',
-                    'phone_number__exact',
-                    'q'
-                )
-            )
-            if not has_filter:
-                return qs.none()
-        return qs
-
-    def changelist_view(self, request, extra_context=None):
-        request._is_changelist = True
-        return super().changelist_view(request, extra_context=extra_context)
 
 
 @admin.register(AgentNotificationLog)
