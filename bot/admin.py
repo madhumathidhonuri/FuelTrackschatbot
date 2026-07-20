@@ -798,11 +798,16 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             langs = [l.strip() for l in t.languages.split(",") if l.strip()]
             templates_mapping[t.template_name] = langs
 
+        active_task = BroadcastTask.objects.filter(
+            status__in=['pending', 'running']).order_by('-created_at').first()
+        active_task_id = active_task.id if active_task else None
+
         context = {
             **self.admin_site.each_context(request),
             'title': 'WhatsApp Broadcast Panel',
             'templates': templates,
             'templates_mapping_json': json.dumps(templates_mapping),
+            'active_task_id': active_task_id,
         }
         return render(request, "admin/broadcast.html", context)
 

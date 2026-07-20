@@ -436,8 +436,20 @@
     // Run on load to set initial state
     updateLanguages(templateSelect.value);
 
-    let currentTaskId = null;
+    let currentTaskId = {% if active_task_id %}{{ active_task_id }}{% else %}null{% endif %};
     let poller = null;
+
+    if (currentTaskId) {
+        document.getElementById('progress-card').style.display = 'block';
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Broadcast Running...';
+        }
+        if (poller) clearInterval(poller);
+        poller = setInterval(fetchStatus, 1500);
+        fetchStatus();
+    }
 
     function fetchStatus() {
         if (!currentTaskId) return;
