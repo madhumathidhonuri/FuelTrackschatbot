@@ -345,7 +345,7 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
         processed = 0
         lock = _threading.Lock()
 
-        BATCH_SIZE = 50    # flush progress to DB every N completions
+        BATCH_SIZE = 10    # flush progress to DB every 10 completions for smooth live progress
         MAX_WORKERS = 20   # parallel HTTP workers (well under Meta's 80 msg/s limit)
 
         chat_history_batch = []
@@ -371,6 +371,13 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             futures = {executor.submit(send_one, c): c for c in active_customers}
 
             for future in concurrent.futures.as_completed(futures):
+                # Check if user stopped/cancelled the task via admin UI
+                curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
+                if curr_status in ['stopped', 'failed']:
+                    print(f"[BROADCAST] Task #{task_id} status is '{curr_status}'. Stopping worker thread.")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+
                 try:
                     cust, success, error_reason = future.result()
                 except Exception as exc:
@@ -413,7 +420,10 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                                 pass
                             chat_history_batch.clear()
 
-        BroadcastTask.objects.filter(id=task_id).update(status='completed')
+        # Mark completed only if not stopped by user
+        final_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
+        if final_status not in ['stopped', 'failed']:
+            BroadcastTask.objects.filter(id=task_id).update(status='completed')
 
         if failed_details:
             try:
@@ -573,6 +583,11 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(
                     self.broadcast_status),
                 name='bot_fleetcustomer_broadcast_status'),
+            path(
+                'broadcast-stop/<int:task_id>/',
+                self.admin_site.admin_view(
+                    self.stop_broadcast),
+                name='bot_fleetcustomer_broadcast_stop'),
             path(
                 'download-broadcast-logs/',
                 self.admin_site.admin_view(
@@ -798,6 +813,14 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             langs = [l.strip() for l in t.languages.split(",") if l.strip()]
             templates_mapping[t.template_name] = langs
 
+        # Clean up any stale running task that hasn't updated in >90 seconds (e.g. killed by server restart)
+        from django.utils import timezone
+        from datetime import timedelta
+        stale_threshold = timezone.now() - timedelta(seconds=90)
+        BroadcastTask.objects.filter(
+            status='running', updated_at__lt=stale_threshold
+        ).update(status='failed')
+
         active_task = BroadcastTask.objects.filter(
             status__in=['pending', 'running']).order_by('-created_at').first()
         active_task_id = active_task.id if active_task else None
@@ -831,6 +854,15 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 "failed_count": task.failed_count,
                 "failed_details": failed_list,
             })
+        except BroadcastTask.DoesNotExist:
+            return JsonResponse({"error": "Task not found"}, status=404)
+
+    def stop_broadcast(self, request, task_id):
+        try:
+            task = BroadcastTask.objects.get(id=task_id)
+            task.status = 'stopped'
+            task.save()
+            return JsonResponse({"success": True})
         except BroadcastTask.DoesNotExist:
             return JsonResponse({"error": "Task not found"}, status=404)
 
