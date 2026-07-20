@@ -345,7 +345,7 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
         processed = 0
         lock = _threading.Lock()
 
-        BATCH_SIZE = 10    # flush progress to DB every 10 completions for smooth live progress
+        BATCH_SIZE = 25    # flush progress & check status every 25 completions (fast & 0 DB lag)
         MAX_WORKERS = 20   # parallel HTTP workers (well under Meta's 80 msg/s limit)
 
         chat_history_batch = []
@@ -371,22 +371,6 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             futures = {executor.submit(send_one, c): c for c in active_customers}
 
             for future in concurrent.futures.as_completed(futures):
-                # Pause / Cancel / Stop status handler
-                while True:
-                    curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
-                    if curr_status == 'paused':
-                        import time
-                        time.sleep(1)
-                        continue
-                    elif curr_status in ['stopped', 'failed', 'cancelled']:
-                        print(f"[BROADCAST] Task #{task_id} status is '{curr_status}'. Stopping worker thread.")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
-                    break
-
-                if curr_status in ['stopped', 'failed', 'cancelled']:
-                    break
-
                 try:
                     cust, success, error_reason = future.result()
                 except Exception as exc:
@@ -412,8 +396,20 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                             'reason': error_reason
                         })
 
-                    # ── Batch DB update & ChatMessage bulk insert every BATCH_SIZE records ──
+                    # ── Batch DB update & Status Check every BATCH_SIZE records (25) ──
                     if processed % BATCH_SIZE == 0 or processed == total_count:
+                        curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
+
+                        while curr_status == 'paused':
+                            import time
+                            time.sleep(1)
+                            curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
+
+                        if curr_status in ['stopped', 'failed', 'cancelled']:
+                            print(f"[BROADCAST] Task #{task_id} status is '{curr_status}'. Stopping worker thread.")
+                            executor.shutdown(wait=False, cancel_futures=True)
+                            break
+
                         BroadcastTask.objects.filter(id=task_id).update(
                             processed_records=processed,
                             success_count=success_count,
