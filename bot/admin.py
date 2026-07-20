@@ -348,17 +348,24 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
         BATCH_SIZE = 50    # flush progress to DB every N completions
         MAX_WORKERS = 20   # parallel HTTP workers (well under Meta's 80 msg/s limit)
 
+        chat_history_batch = []
+        chat_msg_content = f"[System Sent Broadcast: {template_name} - Broadcast template: {template_name}]"
+
         def send_one(cust):
             """Send a single message and return result — runs in worker thread."""
-            success, error_reason = send_whatsapp_template(
-                to_phone=cust['phone_number'],
-                template_name=template_name,
-                customer_name=cust['owner_name'],
-                vehicle_number=cust['truck_number'],
-                language_code=language_code,
-                template_config=template_config  # pre-fetched — no DB hit
-            )
-            return cust, success, error_reason
+            try:
+                success, error_reason = send_whatsapp_template(
+                    to_phone=cust['phone_number'],
+                    template_name=template_name,
+                    customer_name=cust['owner_name'],
+                    vehicle_number=cust['truck_number'],
+                    language_code=language_code,
+                    template_config=template_config,  # pre-fetched — no DB hit
+                    record_chat_message=False         # skip DB write inside thread
+                )
+                return cust, success, error_reason
+            finally:
+                connection.close()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(send_one, c): c for c in active_customers}
@@ -374,6 +381,13 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                     processed += 1
                     if success:
                         success_count += 1
+                        chat_history_batch.append(
+                            ChatMessage(
+                                phone_number=cust['phone_number'],
+                                role='assistant',
+                                content=chat_msg_content
+                            )
+                        )
                     else:
                         failed_count += 1
                         failed_details.append({
@@ -382,7 +396,7 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                             'reason': error_reason
                         })
 
-                    # ── Batch DB update every BATCH_SIZE records ──────────────
+                    # ── Batch DB update & ChatMessage bulk insert every BATCH_SIZE records ──
                     if processed % BATCH_SIZE == 0 or processed == total_count:
                         BroadcastTask.objects.filter(id=task_id).update(
                             processed_records=processed,
@@ -390,6 +404,14 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                             failed_count=failed_count,
                             failed_details=json.dumps(failed_details)
                         )
+
+                        if chat_history_batch:
+                            try:
+                                ChatMessage.objects.bulk_create(
+                                    chat_history_batch, ignore_conflicts=True)
+                            except Exception:
+                                pass
+                            chat_history_batch.clear()
 
         BroadcastTask.objects.filter(id=task_id).update(status='completed')
 

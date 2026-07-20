@@ -42,11 +42,9 @@ DAILY_TIER_LIMIT = 1000
 
 # ✅ Max retry attempts if Meta returns a temporary error
 MAX_RETRIES = 3
-
-
 def send_whatsapp_template(to_phone, template_name, customer_name=None,
                            vehicle_number=None, language_code="en_US",
-                           template_config=None):
+                           template_config=None, record_chat_message=True):
     """
     Fires an approved Meta message template to a single customer.
     Returns (success: bool, error_reason: str)
@@ -102,7 +100,6 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
             if template_name in ["gps_tracking_device",
                                  "ais_140_gps_mining_device", "promo_blast"]:
                 category = 'marketing'
-
 
     endpoint_path = "marketing_messages" if category == 'marketing' else "messages"
     url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/{endpoint_path}"
@@ -179,28 +176,29 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
 
             # ✅ FIX 1: Meta returns 200 OR 201 for success depending on endpoint version
             if response.status_code in (200, 201):
-                try:
-                    resp_data = response.json()
-                    messages = resp_data.get("messages", [])
-                    msg_id = messages[0].get("id") if messages else None
+                if record_chat_message:
+                    try:
+                        resp_data = response.json()
+                        messages = resp_data.get("messages", [])
+                        msg_id = messages[0].get("id") if messages else None
 
-                    TEMPLATE_DESCRIPTIONS = {
-                        "hello_world": "Welcome to Fuel Tracks Technologies! We offer high-end GPS Tracking Systems and Smart Fuel Monitoring.",
-                        "gps_tracking_device": "Marketing message promoting our AIS 140 certified GPS tracking devices.",
-                        "fuel_alert": "Utility alert warning about vehicle fuel drop/theft.",
-                        "fleet_update": "Fleet status update summary."
-                    }
-                    desc = TEMPLATE_DESCRIPTIONS.get(
-                        template_name, f"Broadcast template: {template_name}")
-                    ChatMessage.objects.create(
-                        phone_number=to_phone,
-                        role='assistant',
-                        content=f"[System Sent Broadcast: {template_name} - {desc}]",
-                        message_id=msg_id
-                    )
-                except Exception as e:
-                    print(
-                        f"Failed to record broadcast message in history: {e}")
+                        TEMPLATE_DESCRIPTIONS = {
+                            "hello_world": "Welcome to Fuel Tracks Technologies! We offer high-end GPS Tracking Systems and Smart Fuel Monitoring.",
+                            "gps_tracking_device": "Marketing message promoting our AIS 140 certified GPS tracking devices.",
+                            "fuel_alert": "Utility alert warning about vehicle fuel drop/theft.",
+                            "fleet_update": "Fleet status update summary."
+                        }
+                        desc = TEMPLATE_DESCRIPTIONS.get(
+                            template_name, f"Broadcast template: {template_name}")
+                        ChatMessage.objects.create(
+                            phone_number=to_phone,
+                            role='assistant',
+                            content=f"[System Sent Broadcast: {template_name} - {desc}]",
+                            message_id=msg_id
+                        )
+                    except Exception as e:
+                        print(
+                            f"Failed to record broadcast message in history: {e}")
                 return True, None
 
             # ✅ FIX 2: Safely extract error reason from Meta response without crashing on HTML responses
