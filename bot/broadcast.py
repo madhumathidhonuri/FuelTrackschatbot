@@ -364,6 +364,7 @@ class AsyncBroadcastEngine:
 
                 # Prepare bulk database updates
                 updated_recipients = []
+                chat_logs_to_create = []
                 recipients_dict = {r.id: r for r in pending_recipients}
                 batch_success = 0
                 batch_failed = 0
@@ -378,6 +379,12 @@ class AsyncBroadcastEngine:
                         rec.wamid = wamid
                         rec.sent_at = timezone.now()
                         batch_success += 1
+                        chat_logs_to_create.append(ChatMessage(
+                            phone_number=rec.phone_number,
+                            role='assistant',
+                            content=f"[System Sent Broadcast: {task_obj.template_name}]",
+                            message_id=wamid
+                        ))
                     else:
                         rec.status = 'failed'
                         rec.error_message = err_msg
@@ -392,6 +399,17 @@ class AsyncBroadcastEngine:
                     updated_recipients,
                     ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
                 )
+
+                if chat_logs_to_create:
+                    try:
+                        await asyncio.to_thread(
+                            ChatMessage.objects.bulk_create,
+                            chat_logs_to_create,
+                            ignore_conflicts=True
+                        )
+                    except Exception:
+                        pass
+
 
                 # Update Task counters in DB
                 task_obj.processed_records += len(results)
@@ -473,6 +491,7 @@ async def _process_chunk_async(task_id, chunk_size=1000):
         results = await asyncio.gather(*tasks)
 
     updated_recipients = []
+    chat_logs_to_create = []
     recipients_dict = {r.id: r for r in pending_recipients}
     batch_success = 0
     batch_failed = 0
@@ -486,6 +505,12 @@ async def _process_chunk_async(task_id, chunk_size=1000):
             rec.wamid = wamid
             rec.sent_at = timezone.now()
             batch_success += 1
+            chat_logs_to_create.append(ChatMessage(
+                phone_number=rec.phone_number,
+                role='assistant',
+                content=f"[System Sent Broadcast: {task_obj.template_name}]",
+                message_id=wamid
+            ))
         else:
             rec.status = 'failed'
             rec.error_message = err_msg
@@ -498,6 +523,17 @@ async def _process_chunk_async(task_id, chunk_size=1000):
         updated_recipients,
         ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
     )
+
+    if chat_logs_to_create:
+        try:
+            await asyncio.to_thread(
+                ChatMessage.objects.bulk_create,
+                chat_logs_to_create,
+                ignore_conflicts=True
+            )
+        except Exception:
+            pass
+
 
     task_obj.processed_records += len(results)
     task_obj.success_count += batch_success

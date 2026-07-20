@@ -646,53 +646,67 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             system_prompt += ad_context
 
         # Check if the customer recently received a broadcast template
-        recent_broadcast = ChatMessage.objects.filter(
+        template_name = None
+        from bot.models import BroadcastRecipient, WhatsAppTemplate
+
+        # Check BroadcastRecipient first
+        latest_rec = BroadcastRecipient.objects.filter(
             phone_number=user_phone,
-            role='assistant',
-            content__startswith="[System Sent Broadcast:"
-        ).order_by('-id').first()
+            status__in=['sent', 'delivered', 'read']
+        ).select_related('task').order_by('-id').first()
 
-        if recent_broadcast:
-            content = recent_broadcast.content
-            template_name = None
-            if " - " in content:
-                # Format: [System Sent Broadcast: template_name - desc]
-                parts = content.replace(
-                    "[System Sent Broadcast:", "").replace(
-                    "]", "").strip().split(" - ")
-                if parts:
-                    template_name = parts[0].strip()
-            else:
-                # Fallback for older formats: [System Sent Broadcast: desc]
-                template_name = content.replace(
-                    "[System Sent Broadcast:", "").replace(
-                    "]", "").strip()
+        if latest_rec and latest_rec.task:
+            template_name = latest_rec.task.template_name
 
-            if template_name:
-                from bot.models import WhatsAppTemplate
-                template_obj = WhatsAppTemplate.objects.filter(
-                    template_name=template_name).first()
-                template_prompt = ""
-                if template_obj and template_obj.custom_system_prompt:
-                    template_prompt = template_obj.custom_system_prompt
+        # Fallback to ChatMessage
+        if not template_name:
+            recent_broadcast = ChatMessage.objects.filter(
+                phone_number=user_phone,
+                role='assistant',
+                content__startswith="[System Sent Broadcast:"
+            ).order_by('-id').first()
+
+            if recent_broadcast:
+                content = recent_broadcast.content
+                if " - " in content:
+                    parts = content.replace(
+                        "[System Sent Broadcast:", "").replace(
+                        "]", "").strip().split(" - ")
+                    if parts:
+                        template_name = parts[0].strip()
                 else:
-                    DEFAULT_TEMPLATE_PROMPTS = {
-                        "hello_world": "Focus on welcoming the user and introducing our GPS tracking and fuel monitoring systems.",
-                        "gps_tracking_device": "Focus strictly on promoting and answering queries about our AIS 140 certified GPS tracking devices.",
-                        "ais_140_gps_mining_device": "Focus strictly on our AIS 140 certified GPS tracking devices approved by the Government of Telangana Mining Department, which are now mandatory for mining vehicles in Telangana. Highlight their high quality, reliability, best price guaranteed, and suitability for mining operations.",
-                        "fuel_alert": "Focus on addressing the fuel drop/theft alert, explaining how our fuel sensors work to detect theft and provide 99% accuracy.",
-                        "fleet_update": "Focus on discussing fleet tracking updates and overall fleet optimization."
-                    }
-                    template_prompt = DEFAULT_TEMPLATE_PROMPTS.get(
-                        template_name, "")
+                    template_name = content.replace(
+                        "[System Sent Broadcast:", "").replace(
+                        "]", "").strip()
 
-                if template_prompt:
-                    template_context = (
-                        f"\n\nCRITICAL CONTEXT: The customer recently received the broadcast template: '{template_name}'. "
-                        f"You MUST strictly focus your conversation and response style on the product/topic of this template: {template_prompt}. "
-                        f"Do NOT offer, pitch, or discuss other company products unless the customer explicitly asks about them."
-                    )
-                    system_prompt += template_context
+        if template_name:
+            template_obj = WhatsAppTemplate.objects.filter(
+                template_name=template_name).first()
+            template_prompt = ""
+            if template_obj and template_obj.custom_system_prompt:
+                template_prompt = template_obj.custom_system_prompt
+            else:
+                DEFAULT_TEMPLATE_PROMPTS = {
+                    "hello_world": "Welcome the customer to Fuel Tracks Technologies, introduce our AIS 140 certified GPS tracking devices and Smart Fuel Monitoring solutions.",
+                    "gps_tracking_device": "Focus strictly on promoting, answering queries, and providing details about our AIS 140 certified GPS tracking devices.",
+                    "ais_140_gps_mining_device": "Focus strictly on our AIS 140 certified GPS tracking devices approved by the Government of Telangana Mining Department, which are mandatory for mining vehicles in Telangana. Highlight their high quality, reliability, best price guaranteed, and suitability for mining operations.",
+                    "fuel_alert": "Focus on addressing vehicle fuel drop/theft alerts, explaining how our digital fuel sensors work to detect theft with 99% accuracy.",
+                    "fleet_update": "Focus on discussing fleet tracking updates, live vehicle monitoring, and fleet management.",
+                    "promo_blast": "Focus on our special promotional offers for GPS tracking and fuel monitoring systems."
+                }
+                template_prompt = DEFAULT_TEMPLATE_PROMPTS.get(
+                    template_name, f"Focus strictly on answering queries about {template_name}.")
+
+            template_context = (
+                f"\n\nCRITICAL CONTEXT — TEMPLATE RESPONSE DIRECTION:\n"
+                f"- The customer is replying to our WhatsApp broadcast template message: '{template_name}'.\n"
+                f"- Template Core Instructions: {template_prompt}\n"
+                f"- YOU MUST: Directly answer the user's message in 100% alignment with the template '{template_name}'. "
+                f"Focus strictly on the features, benefits, quotes, and details related to '{template_name}'. "
+                f"Do NOT introduce or pitch unrelated products unless the customer explicitly asks for them."
+            )
+            system_prompt += template_context
+
 
         # Fetch history. To ensure stable sorting, we order by '-id' (newest
         # first).
