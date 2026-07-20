@@ -12,7 +12,10 @@ from django.core.cache import cache
 from django.db.models import Q
 from dotenv import load_dotenv
 from groq import Groq
-from .models import ChatMessage, FleetCustomer, AdCampaign, AgentNotificationLog
+from .models import (
+    ChatMessage, FleetCustomer, AdCampaign, AgentNotificationLog,
+    BroadcastRecipient, ProcessedMessage, BroadcastTask
+)
 
 load_dotenv()
 
@@ -1155,7 +1158,6 @@ def whatsapp_webhook(request):
                         ChatMessage.objects.filter(
                             message_id=msg_id).update(
                             status=status_text)
-                        from bot.models import BroadcastRecipient, BroadcastTask
                         rec_qs = BroadcastRecipient.objects.filter(wamid=msg_id)
                         if rec_qs.exists():
                             rec_qs.update(status=status_text)
@@ -1187,7 +1189,6 @@ def whatsapp_webhook(request):
                     # across container restarts/processes)
                     message_id = message_obj.get("id", "")
                     if message_id:
-                        from bot.models import ProcessedMessage
                         if ProcessedMessage.objects.filter(
                                 message_id=message_id).exists():
                             print(
@@ -1239,7 +1240,6 @@ def whatsapp_webhook(request):
                     # --- Opt-Out / Opt-In Keyword Listener for Meta Compliance ---
                     user_text_upper = user_text.strip().upper()
                     if user_text_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "OPT OUT", "OPTOUT", "VADDHU"]:
-                        from bot.models import FleetCustomer, BroadcastRecipient
                         FleetCustomer.objects.filter(phone_number=user_phone).update(is_active=False)
                         BroadcastRecipient.objects.filter(phone_number=user_phone, status='pending').update(status='opt_out')
                         send_whatsapp_message(
@@ -1248,11 +1248,14 @@ def whatsapp_webhook(request):
                         )
                         return JsonResponse({"status": "success"})
                     elif user_text_upper in ["START", "SUBSCRIBE", "RESTART"]:
-                        from bot.models import FleetCustomer
-                        FleetCustomer.objects.filter(phone_number=user_phone).update(is_active=True)
+                        FleetCustomer.objects.filter(phone_number=user_phone).update(
+                            is_active=True,
+                            is_bot_paused=False,
+                            bot_paused_at=None
+                        )
                         send_whatsapp_message(
                             user_phone,
-                            "Welcome back! You have been re-subscribed to Fuel Tracks updates."
+                            "Welcome back! You have been re-subscribed to Fuel Tracks updates and the AI Assistant is active."
                         )
                         return JsonResponse({"status": "success"})
 
