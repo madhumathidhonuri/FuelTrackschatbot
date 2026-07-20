@@ -277,8 +277,9 @@ CONTACT_KEYWORDS = [
     "talk to human", "connect to human", "call human", "speak to human", "human agent",
     "human support", "live agent", "live support", "customer care", "customer support",
     "support number", "support phone", "support contact", "customer executive", "customer representative",
-    "సేల్స్ టీమ్ని సంప్రదించండి", "సేల్స్ టీమ్", "సంప్రదించండి", "సపోర్ట్", "ఏజెంట్‌తో మాట్లాడండి",
-    "ఏజెంట్ తో మాట్లాడండి", "ఏజెంట్"
+    "సేల్స్ టీమ్ని సంప్రదించండి", "సేల్స్ ని సంప్రదించండి", "సేల్స్ టీమ్ ని సంప్రదించండి",
+    "సేల్స్ సంప్రదించండి", "సేల్స్ టీమ్", "సంప్రదించండి", "సపోర్ట్", "ఏజెంట్‌తో మాట్లాడండి",
+    "ఏజెంట్ తో మాట్లాడండి", "ఏజెంట్", "సేల్స్"
 ]
 
 # Keywords in user messages that indicate the agent (Karunakar Reddy) needs to be
@@ -1397,8 +1398,10 @@ def whatsapp_webhook(request):
                             content__icontains="మీ పేరు తెలుసుకోవచ్చా")
                     ).count()
 
-                    is_contact_request = has_keyword_match(
-                        clean_text, CONTACT_KEYWORDS)
+                    is_contact_request = (
+                        has_keyword_match(clean_text, CONTACT_KEYWORDS) or
+                        any(w in clean_text for w in ["సేల్స్", "sales", "సంప్రదించండి", "కరుణాకర్", "సపోర్ట్"])
+                    )
                     handle_name_flow = (
                         is_new_unreferred_contact and
                         (asked_for_name or is_greeting) and
