@@ -1797,3 +1797,49 @@ def serve_catalog(request, filename):
                             content_type='application/pdf')
     else:
         raise Http404("Catalog not found")
+
+
+@csrf_exempt
+def run_broadcast_chunk_view(request, task_id):
+    """
+    Executes a single chunk (up to 1,000 recipients) of a BroadcastTask.
+    Returns JSON progress metrics. Render Free Tier compatible (completes in ~15s).
+    """
+    from bot.broadcast import process_broadcast_chunk
+    try:
+        res = process_broadcast_chunk(task_id, chunk_size=1000)
+        return JsonResponse(res)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+def broadcast_cron_trigger_view(request):
+    """
+    Automated background ping handler for free cron services (cron-job.org / UptimeRobot).
+    Pings every 1-2 minutes to keep Render awake and process chunks automatically in background.
+    Secured via secret key in query parameter: ?key=CRON_SECRET_KEY
+    """
+    cron_key = os.getenv("CRON_SECRET_KEY", "fueltracks_cron_2026")
+    provided_key = request.GET.get("key", "")
+    if provided_key != cron_key:
+        return JsonResponse({"error": "Unauthorized cron secret key"}, status=401)
+
+    from bot.models import BroadcastTask
+    from bot.broadcast import process_broadcast_chunk
+
+    active_task = BroadcastTask.objects.filter(status__in=['running', 'pending']).order_by('id').first()
+    if not active_task:
+        return JsonResponse({"status": "idle", "message": "No active broadcast tasks to process."})
+
+    try:
+        result = process_broadcast_chunk(active_task.id, chunk_size=1000)
+        return JsonResponse({
+            "status": "processed",
+            "task_id": active_task.id,
+            "template": active_task.template_name,
+            "result": result
+        })
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+

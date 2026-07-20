@@ -1264,6 +1264,7 @@ class BroadcastTaskAdmin(admin.ModelAdmin):
     list_filter = ('status', 'template_name', 'created_at')
     search_fields = ('template_name', 'excel_file_name')
     readonly_fields = (
+        'render_free_tier_dashboard',
         'processed_records',
         'success_count',
         'failed_count',
@@ -1274,6 +1275,105 @@ class BroadcastTaskAdmin(admin.ModelAdmin):
         'updated_at'
     )
     actions = ['start_or_resume_campaign', 'pause_campaign', 'retry_failed_recipients']
+
+    def render_free_tier_dashboard(self, obj):
+        if not obj or not obj.id:
+            return "Save task first to enable broadcast dashboard."
+
+        from django.utils.html import format_html
+        percent = round((obj.processed_records / obj.total_records) * 100, 1) if obj.total_records > 0 else 0
+        cron_key = os.getenv("CRON_SECRET_KEY", "fueltracks_cron_2026")
+        site_url = os.getenv("SITE_URL", "https://whatsapp-ai-bot-dqot.onrender.com").rstrip('/')
+        cron_url = f"{site_url}/api/broadcast-cron/?key={cron_key}"
+
+        html = f"""
+        <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; max-width: 800px; margin-bottom: 15px;">
+            <h3 style="margin-top: 0; color: #1a252f;">⚡ Render Free Tier Broadcast Runner</h3>
+            
+            <div style="margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold;">
+                    <span>Progress: <span id="bg-processed">{obj.processed_records}</span> / <span id="bg-total">{obj.total_records}</span></span>
+                    <span id="bg-percent">{percent}%</span>
+                </div>
+                <div style="background: #e9ecef; border-radius: 10px; height: 22px; width: 100%; overflow: hidden;">
+                    <div id="bg-progress-bar" style="background: linear-gradient(90deg, #28a745, #20c997); height: 100%; width: {percent}%; transition: width 0.3s;"></div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                <div style="background: #e3f2fd; padding: 10px 15px; border-radius: 6px; flex: 1;">
+                    <strong>✅ Success:</strong> <span id="bg-success">{obj.success_count}</span>
+                </div>
+                <div style="background: #ffebee; padding: 10px 15px; border-radius: 6px; flex: 1;">
+                    <strong>❌ Failed:</strong> <span id="bg-failed">{obj.failed_count}</span>
+                </div>
+                <div style="background: #e8f5e9; padding: 10px 15px; border-radius: 6px; flex: 1;">
+                    <strong>📬 Delivered:</strong> <span id="bg-delivered">{obj.delivered_count}</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button type="button" id="btn-start-chunk" onclick="runRenderChunkLoop()" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                    🚀 Start / Resume Broadcast Loop (Render Free)
+                </button>
+                <button type="button" id="btn-pause-chunk" onclick="stopRenderChunkLoop()" style="background: #ffc107; color: #212529; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                    ⏸️ Pause Loop
+                </button>
+            </div>
+
+            <div style="background: #eef2f5; padding: 12px 15px; border-left: 4px solid #17a2b8; border-radius: 4px; font-size: 13px;">
+                <strong>💡 Free Automated Background Execution (cron-job.org):</strong><br>
+                Add this URL to <a href="https://cron-job.org" target="_blank" style="color: #007bff; font-weight: bold;">cron-job.org</a> to ping every 1 minute. It will keep Render awake and complete all 50k broadcasts automatically in the background:<br>
+                <code style="background: #fff; padding: 4px 8px; border-radius: 3px; display: inline-block; margin-top: 5px; word-break: break-all;">{cron_url}</code>
+            </div>
+        </div>
+
+        <script>
+        var isChunkLoopRunning = false;
+        function runRenderChunkLoop() {{
+            isChunkLoopRunning = true;
+            document.getElementById('btn-start-chunk').disabled = true;
+            document.getElementById('btn-start-chunk').innerText = "⏳ Processing Chunks...";
+            fetchNextChunk();
+        }}
+        function stopRenderChunkLoop() {{
+            isChunkLoopRunning = false;
+            document.getElementById('btn-start-chunk').disabled = false;
+            document.getElementById('btn-start-chunk').innerText = "🚀 Start / Resume Broadcast Loop (Render Free)";
+        }}
+        function fetchNextChunk() {{
+            if (!isChunkLoopRunning) return;
+            fetch('/api/broadcast/chunk/{obj.id}/')
+                .then(res => res.json())
+                .then(data => {{
+                    if (data.error) {{
+                        alert("Error: " + data.error);
+                        stopRenderChunkLoop();
+                        return;
+                    }}
+                    document.getElementById('bg-processed').innerText = data.processed;
+                    document.getElementById('bg-total').innerText = data.total;
+                    document.getElementById('bg-percent').innerText = data.percent + '%';
+                    document.getElementById('bg-success').innerText = data.success;
+                    document.getElementById('bg-failed').innerText = data.failed;
+                    document.getElementById('bg-progress-bar').style.width = data.percent + '%';
+
+                    if (data.status === 'completed' || data.processed >= data.total) {{
+                        alert("🎉 Broadcast Completed Successfully!");
+                        stopRenderChunkLoop();
+                    }} else if (isChunkLoopRunning && (data.status === 'running' || data.status === 'pending')) {{
+                        setTimeout(fetchNextChunk, 500);
+                    }}
+                }})
+                .catch(err => {{
+                    console.error(err);
+                    setTimeout(fetchNextChunk, 2000);
+                }});
+        }}
+        </script>
+        """
+        return format_html(html)
+    render_free_tier_dashboard.short_description = 'Render Free Tier Dashboard'
 
     def status_badge(self, obj):
         from django.utils.html import format_html
@@ -1328,6 +1428,7 @@ class BroadcastTaskAdmin(admin.ModelAdmin):
                 self.message_user(request, f"Reset {count} failed recipients to pending and restarted Task #{task.id}.", level=messages.SUCCESS)
             else:
                 self.message_user(request, f"No failed recipients found for Task #{task.id}.", level=messages.WARNING)
+
 
 
 @admin.register(BroadcastRecipient)

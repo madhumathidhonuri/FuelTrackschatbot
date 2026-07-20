@@ -326,7 +326,7 @@ class AsyncBroadcastEngine:
 
         # HTTPX Client with pooled connections for max speed
         limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
-        async with httpx.AsyncClient(limits=limits, http2=True) as client:
+        async with httpx.AsyncClient(limits=limits) as client:
             
             # Fetch pending recipients in chunks of 1000
             BATCH_SIZE = 1000
@@ -410,6 +410,124 @@ class AsyncBroadcastEngine:
             task_obj.status = 'completed'
             await asyncio.to_thread(task_obj.save)
             print(f"🏁 BroadcastTask {self.task_id} Completed Successfully!")
+
+
+async def _process_chunk_async(task_id, chunk_size=1000):
+    """
+    Asynchronously processes a single chunk of up to `chunk_size` pending recipients.
+    Designed for Render Free Tier (completes in ~15-20s, well within Render's 100s timeout).
+    """
+    from django.utils import timezone
+    try:
+        task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=task_id)
+    except BroadcastTask.DoesNotExist:
+        return {"error": f"BroadcastTask #{task_id} not found"}
+
+    if task_obj.status in ('paused', 'cancelled', 'stopped'):
+        return {
+            "status": task_obj.status,
+            "processed": task_obj.processed_records,
+            "total": task_obj.total_records,
+            "success": task_obj.success_count,
+            "failed": task_obj.failed_count,
+            "percent": round((task_obj.processed_records / task_obj.total_records) * 100, 1) if task_obj.total_records > 0 else 0
+        }
+
+    task_obj.status = 'running'
+    await asyncio.to_thread(task_obj.save)
+
+    template_config = await asyncio.to_thread(get_template_config, task_obj.template_name)
+    engine = AsyncBroadcastEngine(task_id, rate_limit_per_sec=task_obj.rate_limit_per_sec)
+
+    pending_recipients = await asyncio.to_thread(
+        list,
+        BroadcastRecipient.objects.filter(
+            task_id=task_id, status__in=['pending', 'queued']
+        )[:chunk_size]
+    )
+
+    if not pending_recipients:
+        task_obj.status = 'completed'
+        await asyncio.to_thread(task_obj.save)
+        return {
+            "status": "completed",
+            "processed": task_obj.processed_records,
+            "total": task_obj.total_records,
+            "success": task_obj.success_count,
+            "failed": task_obj.failed_count,
+            "percent": 100.0
+        }
+
+    recipient_ids = [r.id for r in pending_recipients]
+    await asyncio.to_thread(
+        BroadcastRecipient.objects.filter(id__in=recipient_ids).update,
+        status='queued'
+    )
+
+    limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
+    async with httpx.AsyncClient(limits=limits) as client:
+        tasks = [
+            engine._send_single_async(client, recipient, template_config, task_obj)
+            for recipient in pending_recipients
+        ]
+        results = await asyncio.gather(*tasks)
+
+    updated_recipients = []
+    recipients_dict = {r.id: r for r in pending_recipients}
+    batch_success = 0
+    batch_failed = 0
+
+    for r_id, success, err_msg, wamid, err_code in results:
+        rec = recipients_dict.get(r_id)
+        if not rec:
+            continue
+        if success:
+            rec.status = 'sent'
+            rec.wamid = wamid
+            rec.sent_at = timezone.now()
+            batch_success += 1
+        else:
+            rec.status = 'failed'
+            rec.error_message = err_msg
+            rec.error_code = err_code
+            batch_failed += 1
+        updated_recipients.append(rec)
+
+    await asyncio.to_thread(
+        BroadcastRecipient.objects.bulk_update,
+        updated_recipients,
+        ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
+    )
+
+    task_obj.processed_records += len(results)
+    task_obj.success_count += batch_success
+    task_obj.failed_count += batch_failed
+
+    if task_obj.processed_records >= task_obj.total_records:
+        task_obj.status = 'completed'
+
+    await asyncio.to_thread(task_obj.save)
+
+    percent = round((task_obj.processed_records / task_obj.total_records) * 100, 1) if task_obj.total_records > 0 else 100.0
+
+    return {
+        "status": task_obj.status,
+        "processed": task_obj.processed_records,
+        "total": task_obj.total_records,
+        "success": task_obj.success_count,
+        "failed": task_obj.failed_count,
+        "chunk_size": len(results),
+        "percent": percent
+    }
+
+
+def process_broadcast_chunk(task_id, chunk_size=1000):
+    """
+    Synchronous wrapper for processing a single chunk of up to `chunk_size` pending recipients.
+    Returns status dict.
+    """
+    return asyncio.run(_process_chunk_async(task_id, chunk_size))
+
 
 
 def create_broadcast_campaign(template_name, language_code="en_US",
