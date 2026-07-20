@@ -172,6 +172,10 @@ class WhatsAppTemplate(models.Model):
         default=False,
         help_text="Check if this template has placeholders (e.g., {{1}} for Customer Name, {{2}} for Vehicle Number)"
     )
+    var_count = models.IntegerField(
+        default=0,
+        help_text="Exact number of body placeholders/variables expected (0, 1, or 2)"
+    )
     has_header = models.BooleanField(
         default=False,
         help_text="Does this template have a header?"

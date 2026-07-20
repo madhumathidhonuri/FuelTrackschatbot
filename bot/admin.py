@@ -326,6 +326,7 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                     header_file_url = f"{site_url}{template_obj.header_file.url}"
                 template_config = {
                     'has_variables': template_obj.has_variables,
+                    'var_count': getattr(template_obj, 'var_count', 0),
                     'has_header': template_obj.has_header,
                     'header_type': template_obj.header_type,
                     'header_image_url': template_obj.header_image_url,
@@ -497,13 +498,19 @@ def sync_whatsapp_templates_from_meta():
 
                 # Check if it has variables and headers
                 has_vars = False
+                var_count = 0
                 has_header = False
                 header_type = 'none'
                 for comp in item.get("components", []):
-                    text = comp.get("text", "")
-                    if text and "{{" in text:
-                        has_vars = True
-                    if comp.get("type") == "HEADER":
+                    comp_type = comp.get("type")
+                    if comp_type == "BODY":
+                        text = comp.get("text", "")
+                        import re
+                        matches = re.findall(r'\{\{(\d+)\}\}', text)
+                        if matches:
+                            has_vars = True
+                            var_count = max(int(m) for m in matches)
+                    elif comp_type == "HEADER":
                         has_header = True
                         header_type = comp.get("format", "TEXT").lower()
 
@@ -511,6 +518,7 @@ def sync_whatsapp_templates_from_meta():
                     grouped[name] = {
                         "languages": set(),
                         "has_variables": False,
+                        "var_count": 0,
                         "has_header": False,
                         "header_type": "none",
                         "category": item.get("category", "")
@@ -518,6 +526,7 @@ def sync_whatsapp_templates_from_meta():
                 grouped[name]["languages"].add(lang)
                 if has_vars:
                     grouped[name]["has_variables"] = True
+                    grouped[name]["var_count"] = max(grouped[name]["var_count"], var_count)
                 if has_header:
                     grouped[name]["has_header"] = True
                     grouped[name]["header_type"] = header_type
@@ -537,6 +546,7 @@ def sync_whatsapp_templates_from_meta():
                         "description": desc,
                         "category": category_lower,
                         "has_variables": info["has_variables"],
+                        "var_count": info["var_count"],
                         "languages": langs_str,
                         "has_header": info["has_header"],
                         "header_type": info["header_type"]

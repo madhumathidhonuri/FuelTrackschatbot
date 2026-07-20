@@ -53,8 +53,10 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
     a DB query per call when sending in bulk). If None, falls back to DB lookup.
     """
     # Use pre-fetched config if supplied (fast path for bulk broadcast)
+    var_count = 0
     if template_config is not None:
         has_variables = template_config.get('has_variables', False)
+        var_count = template_config.get('var_count', 0)
         has_header = template_config.get('has_header', False)
         header_type = template_config.get('header_type', 'none')
         header_image_url = template_config.get('header_image_url', '')
@@ -77,6 +79,7 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
             if template_obj:
                 category = template_obj.category.lower() if template_obj.category else 'utility'
                 has_variables = template_obj.has_variables
+                var_count = getattr(template_obj, 'var_count', 0)
                 has_header = template_obj.has_header
                 header_type = template_obj.header_type
                 header_image_url = template_obj.header_image_url
@@ -91,7 +94,9 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
             else:
                 has_variables = template_name in [
                     "fuel_alert", "fleet_update", "promo_blast"]
-                if template_name in ["gps_tracking_device",
+                if template_name in ["fuel_alert", "fleet_update"]:
+                    var_count = 2
+                elif template_name in ["gps_tracking_device",
                                      "ais_140_gps_mining_device", "promo_blast"]:
                     category = 'marketing'
         except Exception:
@@ -141,15 +146,19 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
                 ]
             })
 
-    # Handle body variables
-    if has_variables and (customer_name or vehicle_number):
-        components.append({
-            "type": "body",
-            "parameters": [
-                {"type": "text", "text": customer_name or "Customer"},
-                {"type": "text", "text": vehicle_number or "N/A"}
-            ]
-        })
+    # Handle body variables using exact var_count
+    if has_variables and var_count > 0:
+        params = []
+        if var_count >= 1:
+            params.append({"type": "text", "text": customer_name or "Customer"})
+        if var_count >= 2:
+            params.append({"type": "text", "text": vehicle_number or "N/A"})
+
+        if params:
+            components.append({
+                "type": "body",
+                "parameters": params
+            })
 
     if components:
         template_payload["components"] = components
