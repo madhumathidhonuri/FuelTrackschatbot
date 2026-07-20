@@ -1499,7 +1499,69 @@ def whatsapp_webhook(request):
                         send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
                         return JsonResponse({"status": "success"})
 
-                    elif handle_name_flow:
+                    elif is_contact_request:
+                        # Customer clicked "Contact Sales" button or typed a
+                        # sales/contact keyword — respond with direct contact info
+                        # and language-aware message, then alert the agent.
+                        has_telugu_script_contact = any(
+                            '\u0c00' <= char <= '\u0c7f' for char in user_text)
+                        has_tenglish_contact = any(
+                            word in user_text.lower() for word in [
+                                "garu", "meeru", "maa", "cheyandi", "cheyyandi",
+                                "ayindi", "vastundi", "cheppandi", "matladali"])
+
+                        cust_name = customer.owner_name if customer and customer.owner_name else ""
+                        is_unknown = not cust_name or cust_name.strip().lower() in [
+                            "new fleet contact", "new fleet contact."]
+                        name_part_te = f"{cust_name} గారు, " if not is_unknown else ""
+                        name_part_en = f"{cust_name} garu, " if not is_unknown else ""
+
+                        if has_telugu_script_contact:
+                            contact_reply = (
+                                f"{name_part_te}మీరు మా సేల్స్ టీమ్‌ని సంప్రదించాలనుకున్నందుకు ధన్యవాదాలు! 🙏\n\n"
+                                f"మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్ *మిస్టర్ కరుణాకర్ రెడ్డి* గారికి మీ అభ్యర్థన తెలియజేశాం. "
+                                f"వారు 10-15 నిమిషాల్లో మీకు కాల్ చేస్తారు. 📞\n\n"
+                                f"మీరు నేరుగా కూడా సంప్రదించవచ్చు:\n"
+                                f"📞 *+91 90006 66914* (Mr. Karunakar Reddy)\n"
+                                f"📞 73374 33350 | 73374 33351 | 73374 33356"
+                            )
+                        elif has_tenglish_contact:
+                            contact_reply = (
+                                f"{name_part_en}maa sales team ni contact cheyalani korinanduku dhanyavadalu! 🙏\n\n"
+                                f"Maa Technical Sales Expert *Mr. Karunakar Reddy* garu ki meeru request chesaru. "
+                                f"Varu 10-15 minutes lo meeru ki call chestaru. 📞\n\n"
+                                f"Meeru direct ga kuda contact cheyavacchu:\n"
+                                f"📞 *+91 90006 66914* (Mr. Karunakar Reddy)\n"
+                                f"📞 73374 33350 | 73374 33351 | 73374 33356"
+                            )
+                        else:
+                            contact_reply = (
+                                f"{name_part_en}Thank you for reaching out to our Sales Team! 🙏\n\n"
+                                f"We have notified our Technical Sales Expert, *Mr. Karunakar Reddy*, "
+                                f"of your request. He will call or message you within 10-15 minutes. 📞\n\n"
+                                f"You can also contact us directly:\n"
+                                f"📞 *+91 90006 66914* (Mr. Karunakar Reddy)\n"
+                                f"📞 73374 33350 | 73374 33351 | 73374 33356"
+                            )
+
+                        msg_id = send_whatsapp_message(user_phone, contact_reply)
+                        ChatMessage.objects.create(
+                            phone_number=user_phone,
+                            role='assistant',
+                            content=contact_reply,
+                            message_id=msg_id)
+
+                        # Notify the agent immediately
+                        agent_alert = (
+                            f"🚨 Sales Contact Request!\n"
+                            f"Customer: {customer.owner_name if customer else 'Unknown'}\n"
+                            f"Phone: {user_phone}\n"
+                            f"Truck: {customer.truck_number if customer and customer.truck_number else 'Not provided'}\n"
+                            f"Button/Text: '{user_text}'"
+                        )
+                        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+                        return JsonResponse({"status": "success"})
+
                         if not asked_for_name:
                             professional_welcome = (
                                 "Welcome to Fuel Tracks Technologies Private Limited!\n\n"
