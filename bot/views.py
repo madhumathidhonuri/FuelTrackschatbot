@@ -1476,8 +1476,10 @@ def whatsapp_webhook(request):
                     elif clean_text == "talk to an agent":
                         agent_text = (
                             "Our Expert, Mr. Karunakar Reddy, has been notified of your request! 📞 "
-                            "He will call or message you natively in 10-15 minutes.\n\n"
-                            "You can also contact us at: 7337433350, 7337433351, 7337433356, or Mr. Karunakar Reddy at 9000666914."
+                            "He will call or message you in 10-15 minutes.\n\n"
+                            "Direct Contact Numbers:\n"
+                            "👤 *Mr. Karunakar Reddy (Technical Sales):* +91 90006 66914\n"
+                            "📞 *Support Team:* +91 73374 33350 | +91 73374 33351 | +91 73374 33356"
                         )
                         msg_id = send_whatsapp_message(user_phone, agent_text)
 
@@ -1521,18 +1523,18 @@ def whatsapp_webhook(request):
                                 f"{name_part_te}మీరు మా సేల్స్ టీమ్‌ని సంప్రదించాలనుకున్నందుకు ధన్యవాదాలు! 🙏\n\n"
                                 f"మా టెక్నికల్ సేల్స్ ఎక్స్‌పర్ట్ *మిస్టర్ కరుణాకర్ రెడ్డి* గారికి మీ అభ్యర్థన తెలియజేశాం. "
                                 f"వారు 10-15 నిమిషాల్లో మీకు కాల్ చేస్తారు. 📞\n\n"
-                                f"మీరు నేరుగా కూడా సంప్రదించవచ్చు:\n"
-                                f"📞 *+91 90006 66914* (Mr. Karunakar Reddy)\n"
-                                f"📞 73374 33350 | 73374 33351 | 73374 33356"
+                                f"మీరు నేరుగా సంప్రదించగల నంబర్లు:\n"
+                                f"👤 *మిస్టర్ కరుణాకర్ రెడ్డి (టెక్నికల్ సేల్స్):* +91 90006 66914\n"
+                                f"📞 *సపోర్ట్ టీమ్ నంబర్లు:* +91 73374 33350 | +91 73374 33351 | +91 73374 33356"
                             )
                         elif has_tenglish_contact:
                             contact_reply = (
                                 f"{name_part_en}maa sales team ni contact cheyalani korinanduku dhanyavadalu! 🙏\n\n"
                                 f"Maa Technical Sales Expert *Mr. Karunakar Reddy* garu ki meeru request chesaru. "
                                 f"Varu 10-15 minutes lo meeru ki call chestaru. 📞\n\n"
-                                f"Meeru direct ga kuda contact cheyavacchu:\n"
-                                f"📞 *+91 90006 66914* (Mr. Karunakar Reddy)\n"
-                                f"📞 73374 33350 | 73374 33351 | 73374 33356"
+                                f"Meeru direct ga contact cheyavacchu:\n"
+                                f"👤 *Mr. Karunakar Reddy (Technical Sales):* +91 90006 66914\n"
+                                f"📞 *Support Team Numbers:* +91 73374 33350 | +91 73374 33351 | +91 73374 33356"
                             )
                         else:
                             contact_reply = (
@@ -1540,8 +1542,8 @@ def whatsapp_webhook(request):
                                 f"We have notified our Technical Sales Expert, *Mr. Karunakar Reddy*, "
                                 f"of your request. He will call or message you within 10-15 minutes. 📞\n\n"
                                 f"You can also contact us directly:\n"
-                                f"📞 *+91 90006 66914* (Mr. Karunakar Reddy)\n"
-                                f"📞 73374 33350 | 73374 33351 | 73374 33356"
+                                f"👤 *Mr. Karunakar Reddy (Technical Sales):* +91 90006 66914\n"
+                                f"📞 *Support Team Numbers:* +91 73374 33350 | +91 73374 33351 | +91 73374 33356"
                             )
 
                         msg_id = send_whatsapp_message(user_phone, contact_reply)
