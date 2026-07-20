@@ -678,7 +678,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 target=run_broadcast_thread,
                 args=(task.id, target_path, template_name, language_code)
             )
-            thread.daemon = True
+            thread.daemon = False  # Must be False — daemon threads are killed when the HTTP worker thread ends (e.g. navigating away from the broadcast page)
             thread.start()
 
             if is_ajax:
