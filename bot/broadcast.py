@@ -1,8 +1,11 @@
-from bot.models import FleetCustomer, ChatMessage
+from bot.models import FleetCustomer, ChatMessage, BroadcastTask, BroadcastRecipient, WhatsAppTemplate
 import os
 import sys
 import time
+import json
+import asyncio
 import requests
+import httpx
 import django
 from dotenv import load_dotenv
 
@@ -29,7 +32,10 @@ print = safe_print
 # --- DJANGO SETUP FOR STANDALONE RUNNING ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-django.setup()
+try:
+    django.setup()
+except Exception:
+    pass
 
 
 load_dotenv()
@@ -37,82 +43,62 @@ load_dotenv()
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 
-# ✅ Set this to your Meta tier limit (1000 for new accounts, 10000 after upgrade)
-DAILY_TIER_LIMIT = 1000
-
-# ✅ Max retry attempts if Meta returns a temporary error
+# Default Tier Warning Thresholds (Tier 1 = 1,000, Tier 2 = 10,000, Tier 3 = 100,000)
+DAILY_TIER_LIMIT = 100000
 MAX_RETRIES = 3
-def send_whatsapp_template(to_phone, template_name, customer_name=None,
-                           vehicle_number=None, language_code="en_US",
-                           template_config=None, record_chat_message=True):
-    """
-    Fires an approved Meta message template to a single customer.
-    Returns (success: bool, error_reason: str)
 
-    template_config: optional pre-fetched dict with template settings (avoids
-    a DB query per call when sending in bulk). If None, falls back to DB lookup.
-    """
-    # Use pre-fetched config if supplied (fast path for bulk broadcast)
-    var_count = 0
-    if template_config is not None:
-        has_variables = template_config.get('has_variables', False)
-        var_count = template_config.get('var_count', 0)
-        has_header = template_config.get('has_header', False)
-        header_type = template_config.get('header_type', 'none')
-        header_image_url = template_config.get('header_image_url', '')
-        header_file_url = template_config.get('header_file_url', None)
-        header_media_id = template_config.get('header_media_id', '')
-        category = template_config.get('category', 'utility')
-    else:
-        # Fallback: look up from DB (used when called standalone / not in bulk)
-        has_variables = False
-        has_header = False
-        header_type = 'none'
-        header_image_url = ''
-        header_file_url = None
-        header_media_id = ''
-        category = 'utility'
-        try:
-            from bot.models import WhatsAppTemplate
-            template_obj = WhatsAppTemplate.objects.filter(
-                template_name=template_name).first()
-            if template_obj:
-                category = template_obj.category.lower() if template_obj.category else 'utility'
-                has_variables = template_obj.has_variables
-                var_count = getattr(template_obj, 'var_count', 0)
-                has_header = template_obj.has_header
-                header_type = template_obj.header_type
-                header_image_url = template_obj.header_image_url
-                header_media_id = template_obj.header_media_id
-                if template_obj.header_file:
-                    import os
-                    site_url = os.getenv(
-                        "SITE_URL", "https://whatsapp-ai-bot-dqot.onrender.com")
-                    if site_url.endswith("/"):
-                        site_url = site_url[:-1]
-                    header_file_url = f"{site_url}{template_obj.header_file.url}"
-            else:
-                has_variables = template_name in [
-                    "fuel_alert", "fleet_update", "promo_blast"]
-                if template_name in ["fuel_alert", "fleet_update"]:
-                    var_count = 2
-                elif template_name in ["gps_tracking_device",
-                                     "ais_140_gps_mining_device", "promo_blast"]:
-                    category = 'marketing'
-        except Exception:
-            has_variables = template_name in [
-                "fuel_alert", "fleet_update", "promo_blast"]
-            if template_name in ["gps_tracking_device",
-                                 "ais_140_gps_mining_device", "promo_blast"]:
-                category = 'marketing'
 
+def get_template_config(template_name):
+    """
+    Fetches and caches template configuration from DB to eliminate DB lookups per contact.
+    """
+    template_config = {
+        'has_variables': False,
+        'var_count': 0,
+        'has_header': False,
+        'header_type': 'none',
+        'header_image_url': '',
+        'header_file_url': None,
+        'header_media_id': '',
+        'category': 'utility'
+    }
+    try:
+        template_obj = WhatsAppTemplate.objects.filter(template_name=template_name).first()
+        if template_obj:
+            template_config['category'] = template_obj.category.lower() if template_obj.category else 'utility'
+            template_config['has_variables'] = template_obj.has_variables
+            template_config['var_count'] = getattr(template_obj, 'var_count', 0)
+            template_config['has_header'] = template_obj.has_header
+            template_config['header_type'] = template_obj.header_type
+            template_config['header_image_url'] = template_obj.header_image_url
+            template_config['header_media_id'] = template_obj.header_media_id
+            if template_obj.header_file:
+                site_url = os.getenv("SITE_URL", "https://whatsapp-ai-bot-dqot.onrender.com")
+                if site_url.endswith("/"):
+                    site_url = site_url[:-1]
+                template_config['header_file_url'] = f"{site_url}{template_obj.header_file.url}"
+        else:
+            if template_name in ["fuel_alert", "fleet_update", "promo_blast"]:
+                template_config['has_variables'] = True
+                template_config['var_count'] = 2 if template_name in ["fuel_alert", "fleet_update"] else 1
+            if template_name in ["gps_tracking_device", "ais_140_gps_mining_device", "promo_blast"]:
+                template_config['category'] = 'marketing'
+    except Exception:
+        pass
+    return template_config
+
+
+def build_template_payload(to_phone, template_name, customer_name=None, vehicle_number=None,
+                           language_code="en_US", template_config=None):
+    """
+    Constructs the exact Meta Cloud API payload for template messages.
+    """
+    if template_config is None:
+        template_config = get_template_config(template_name)
+
+    category = template_config.get('category', 'utility')
     endpoint_path = "marketing_messages" if category == 'marketing' else "messages"
     url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/{endpoint_path}"
-
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json"
-    }
 
     template_payload = {
         "name": template_name,
@@ -120,8 +106,12 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
     }
 
     components = []
+    has_header = template_config.get('has_header', False)
+    header_type = template_config.get('header_type', 'none')
+    header_media_id = template_config.get('header_media_id', '')
+    header_file_url = template_config.get('header_file_url', None)
+    header_image_url = template_config.get('header_image_url', '')
 
-    # Handle dynamic media header (image, video, document)
     if has_header and header_type in ('image', 'video', 'document'):
         media_data = {}
         if header_media_id:
@@ -129,8 +119,7 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
         else:
             media_url_or_id = header_file_url or header_image_url
             if media_url_or_id:
-                if media_url_or_id.startswith(
-                        "http://") or media_url_or_id.startswith("https://"):
+                if media_url_or_id.startswith("http://") or media_url_or_id.startswith("https://"):
                     media_data = {"link": media_url_or_id}
                 else:
                     media_data = {"id": media_url_or_id}
@@ -138,15 +127,11 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
         if media_data:
             components.append({
                 "type": "header",
-                "parameters": [
-                    {
-                        "type": header_type,
-                        header_type: media_data
-                    }
-                ]
+                "parameters": [{header_type: media_data, "type": header_type}]
             })
 
-    # Handle body variables using exact var_count
+    has_variables = template_config.get('has_variables', False)
+    var_count = template_config.get('var_count', 0)
     if has_variables and var_count > 0:
         params = []
         if var_count >= 1:
@@ -171,245 +156,394 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
         "template": template_payload
     }
 
-    import json
-    print(f"[DEBUG BROADCAST] URL: {url}")
-    print(f"[DEBUG BROADCAST] Payload: {json.dumps(payload, indent=2)}")
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
 
-    # ✅ FIX 3: Retry loop for temporary failures
+    return url, headers, payload
+
+
+def send_whatsapp_template(to_phone, template_name, customer_name=None,
+                           vehicle_number=None, language_code="en_US",
+                           template_config=None, record_chat_message=True):
+    """
+    Synchronous fallback for sending a single template message to one recipient.
+    Returns (success: bool, error_reason: str)
+    """
+    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
+        return False, "WHATSAPP_TOKEN or PHONE_NUMBER_ID missing in environment"
+
+    url, headers, payload = build_template_payload(
+        to_phone, template_name, customer_name, vehicle_number, language_code, template_config
+    )
+
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = requests.post(
-                url, json=payload, headers=headers, timeout=10)
-            print(f"[DEBUG BROADCAST] Response Status: {response.status_code}")
-            print(f"[DEBUG BROADCAST] Response Body: {response.text}")
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
 
-            # ✅ FIX 1: Meta returns 200 OR 201 for success depending on endpoint version
             if response.status_code in (200, 201):
+                msg_id = None
+                try:
+                    resp_data = response.json()
+                    messages = resp_data.get("messages", [])
+                    msg_id = messages[0].get("id") if messages else None
+                except Exception:
+                    pass
+
                 if record_chat_message:
                     try:
-                        resp_data = response.json()
-                        messages = resp_data.get("messages", [])
-                        msg_id = messages[0].get("id") if messages else None
-
-                        TEMPLATE_DESCRIPTIONS = {
-                            "hello_world": "Welcome to Fuel Tracks Technologies! We offer high-end GPS Tracking Systems and Smart Fuel Monitoring.",
-                            "gps_tracking_device": "Marketing message promoting our AIS 140 certified GPS tracking devices.",
-                            "fuel_alert": "Utility alert warning about vehicle fuel drop/theft.",
-                            "fleet_update": "Fleet status update summary."
-                        }
-                        desc = TEMPLATE_DESCRIPTIONS.get(
-                            template_name, f"Broadcast template: {template_name}")
                         ChatMessage.objects.create(
                             phone_number=to_phone,
                             role='assistant',
-                            content=f"[System Sent Broadcast: {template_name} - {desc}]",
+                            content=f"[System Sent Broadcast: {template_name}]",
                             message_id=msg_id
                         )
-                    except Exception as e:
-                        print(
-                            f"Failed to record broadcast message in history: {e}")
+                    except Exception:
+                        pass
                 return True, None
 
-            # ✅ FIX 2: Safely extract error reason from Meta response without crashing on HTML responses
             try:
                 resp_json = response.json()
-                error_msg = resp_json.get(
-                    "error", {}).get(
-                    "message", "Unknown error")
+                error_msg = resp_json.get("error", {}).get("message", "Unknown error")
                 error_code = resp_json.get("error", {}).get("code", "?")
             except Exception:
                 error_msg = response.text[:200]
                 error_code = f"HTTP_{response.status_code}"
 
-            # Auto-fallback: if language is generic 'en' and template not found
-            # (code 132001), retry with 'en_US'
-            if error_code == 132001 and payload.get(
-                    "template", {}).get("language", {}).get("code") == "en":
-                print(
-                    f"   ⚠️  Template '{template_name}' not found in 'en'. Retrying with 'en_US' fallback...")
+            if error_code == 132001 and payload.get("template", {}).get("language", {}).get("code") == "en":
                 payload["template"]["language"]["code"] = "en_US"
                 continue
 
-            # If it's a rate limit error (code 4 or 130429), wait and retry
             if error_code in (4, 130429) and attempt < MAX_RETRIES:
-                print(
-                    f"   ⚠️  Rate limit hit for {to_phone}. Waiting 30s before retry {attempt}/{MAX_RETRIES}...")
-                time.sleep(30)
+                time.sleep(15 * attempt)
                 continue
 
-            # Non-retryable error — return immediately
             return False, f"[Code {error_code}] {error_msg}"
 
         except requests.exceptions.Timeout:
             if attempt < MAX_RETRIES:
-                print(
-                    f"   ⚠️  Timeout for {to_phone}. Retry {attempt}/{MAX_RETRIES}...")
                 time.sleep(5)
                 continue
-            return False, "Request timed out after all retries"
-
+            return False, "Request timed out"
         except Exception as e:
             return False, str(e)
 
-    return False, "All retries exhausted"
+    return False, "Retries exhausted"
 
 
-def run_massive_broadcast(
-        template_name, language_code="en_US", csv_or_excel_path=None):
+class AsyncBroadcastEngine:
     """
-    Loops through targeted customers and sends the template safely,
-    with tier limit protection, retry logic, and detailed failure logging.
+    High-throughput async broadcast engine designed for 50,000+ recipients.
+    Features:
+    - Connection pooling (httpx.AsyncClient)
+    - Token-bucket rate limiter pacing requests up to target RPS (e.g. 50 msg/sec)
+    - Auto backoff on Meta HTTP 429 / Error 130429
+    - Bulk database status updates
+    - Live pause/resume state checking
     """
-    if csv_or_excel_path:
-        print(f"📖 Loading customers from Excel/CSV file: {csv_or_excel_path}")
-        from bot.utils import parse_excel_or_csv
+
+    def __init__(self, task_id, rate_limit_per_sec=50):
+        self.task_id = task_id
+        self.rate_limit_per_sec = min(max(rate_limit_per_sec, 5), 80)  # Safe bounds: 5-80 msg/sec
+        self.semaphore = asyncio.Semaphore(self.rate_limit_per_sec)
+        self.lock = asyncio.Lock()
+        self.is_paused = False
+
+    async def _send_single_async(self, client, recipient, template_config, task_obj):
+        """
+        Sends template to a single recipient asynchronously with rate-limit protection.
+        """
+        async with self.semaphore:
+            # Token pacing: ensure smooth distribution per second
+            await asyncio.sleep(1.0 / self.rate_limit_per_sec)
+
+            # Check if task was paused or cancelled in DB
+            if self.is_paused:
+                return recipient.id, False, "Paused", None, "TASK_PAUSED"
+
+            url, headers, payload = build_template_payload(
+                recipient.phone_number,
+                task_obj.template_name,
+                recipient.owner_name,
+                recipient.truck_number,
+                task_obj.language_code,
+                template_config
+            )
+
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    response = await client.post(url, json=payload, headers=headers, timeout=12.0)
+
+                    if response.status_code in (200, 201):
+                        resp_data = response.json()
+                        messages = resp_data.get("messages", [])
+                        wamid = messages[0].get("id") if messages else None
+                        return recipient.id, True, None, wamid, None
+
+                    try:
+                        resp_json = response.json()
+                        err_obj = resp_json.get("error", {})
+                        error_msg = err_obj.get("message", "Unknown Meta error")
+                        error_code = str(err_obj.get("code", f"HTTP_{response.status_code}"))
+                    except Exception:
+                        error_msg = response.text[:200]
+                        error_code = f"HTTP_{response.status_code}"
+
+                    # Handle Rate Limit Hit (Meta 429 or Error 130429 or 4)
+                    if error_code in ("4", "130429", "HTTP_429") and attempt < MAX_RETRIES:
+                        print(f"⚠️ Rate limit hit for {recipient.phone_number}. Backing off for {10 * attempt}s...")
+                        await asyncio.sleep(10 * attempt)
+                        continue
+
+                    return recipient.id, False, error_msg, None, error_code
+
+                except httpx.TimeoutException:
+                    if attempt < MAX_RETRIES:
+                        await asyncio.sleep(3)
+                        continue
+                    return recipient.id, False, "HTTP Timeout", None, "TIMEOUT"
+                except Exception as e:
+                    return recipient.id, False, str(e), None, "CLIENT_ERROR"
+
+            return recipient.id, False, "Max retries exhausted", None, "EXHAUSTED"
+
+    async def run_broadcast_async(self):
+        """
+        Executes the async broadcast in parallel batches with bulk DB commits.
+        """
+        from django.utils import timezone
         try:
-            customers_data = parse_excel_or_csv(csv_or_excel_path)
-            target_phone_numbers = []
-            for cust in customers_data:
-                customer, created = FleetCustomer.objects.update_or_create(
-                    phone_number=cust['phone_number'],
-                    defaults={
-                        'owner_name': cust['owner_name'],
-                        'truck_number': cust['truck_number'],
-                        'is_active': cust['is_active']
-                    }
+            task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=self.task_id)
+        except BroadcastTask.DoesNotExist:
+            print(f"❌ BroadcastTask {self.task_id} not found.")
+            return
+
+        task_obj.status = 'running'
+        await asyncio.to_thread(task_obj.save)
+
+        template_config = await asyncio.to_thread(get_template_config, task_obj.template_name)
+
+        # HTTPX Client with pooled connections for max speed
+        limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
+        async with httpx.AsyncClient(limits=limits, http2=True) as client:
+            
+            # Fetch pending recipients in chunks of 1000
+            BATCH_SIZE = 1000
+            while True:
+                # Refresh task status to check for admin Pause/Cancel signals
+                task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=self.task_id)
+                if task_obj.status in ('paused', 'cancelled', 'stopped'):
+                    print(f"🛑 BroadcastTask {self.task_id} status changed to '{task_obj.status}'. Halting workers.")
+                    return
+
+                pending_recipients = await asyncio.to_thread(
+                    list,
+                    BroadcastRecipient.objects.filter(
+                        task_id=self.task_id, status__in=['pending', 'queued']
+                    )[:BATCH_SIZE]
                 )
-                if customer.is_active:
-                    target_phone_numbers.append(customer.phone_number)
 
-            # Restrict the broadcast cohort to only the list from the file
-            active_customers = FleetCustomer.objects.filter(
-                phone_number__in=target_phone_numbers, is_active=True)
-            print(
-                f"✅ Loaded {
-                    len(target_phone_numbers)} numbers from file ({
-                    active_customers.count()} active in database).")
-        except Exception as e:
-            print(f"❌ Failed to parse or import customers from file: {e}")
-            return
+                if not pending_recipients:
+                    break  # All recipients processed!
+
+                # Mark batch as 'queued'
+                recipient_ids = [r.id for r in pending_recipients]
+                await asyncio.to_thread(
+                    BroadcastRecipient.objects.filter(id__in=recipient_ids).update,
+                    status='queued'
+                )
+
+                # Dispatch async send tasks concurrently
+                tasks = [
+                    self._send_single_async(client, recipient, template_config, task_obj)
+                    for recipient in pending_recipients
+                ]
+
+                results = await asyncio.gather(*tasks)
+
+                # Prepare bulk database updates
+                updated_recipients = []
+                recipients_dict = {r.id: r for r in pending_recipients}
+                batch_success = 0
+                batch_failed = 0
+
+                for r_id, success, err_msg, wamid, err_code in results:
+                    rec = recipients_dict.get(r_id)
+                    if not rec:
+                        continue
+
+                    if success:
+                        rec.status = 'sent'
+                        rec.wamid = wamid
+                        rec.sent_at = timezone.now()
+                        batch_success += 1
+                    else:
+                        rec.status = 'failed'
+                        rec.error_message = err_msg
+                        rec.error_code = err_code
+                        batch_failed += 1
+
+                    updated_recipients.append(rec)
+
+                # Perform high-performance bulk DB update
+                await asyncio.to_thread(
+                    BroadcastRecipient.objects.bulk_update,
+                    updated_recipients,
+                    ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
+                )
+
+                # Update Task counters in DB
+                task_obj.processed_records += len(results)
+                task_obj.success_count += batch_success
+                task_obj.failed_count += batch_failed
+
+                if task_obj.processed_records >= task_obj.total_records:
+                    task_obj.status = 'completed'
+
+                await asyncio.to_thread(task_obj.save)
+                print(f"📦 Task {self.task_id} Progress: {task_obj.processed_records}/{task_obj.total_records} | Success: {task_obj.success_count} | Failed: {task_obj.failed_count}")
+
+        # Final check
+        task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=self.task_id)
+        if task_obj.processed_records >= task_obj.total_records:
+            task_obj.status = 'completed'
+            await asyncio.to_thread(task_obj.save)
+            print(f"🏁 BroadcastTask {self.task_id} Completed Successfully!")
+
+
+def create_broadcast_campaign(template_name, language_code="en_US",
+                              csv_or_excel_path=None, rate_limit_per_sec=50):
+    """
+    Initializes a BroadcastTask and populates 50,000+ BroadcastRecipient rows in bulk.
+    Returns task_id.
+    """
+    from bot.utils import parse_excel_or_csv, normalize_phone_number
+
+    recipients_to_create = []
+
+    if csv_or_excel_path:
+        print(f"📖 Parsing customers from file: {csv_or_excel_path}")
+        customers_data = parse_excel_or_csv(csv_or_excel_path)
+
+        for cust in customers_data:
+            phone = normalize_phone_number(cust.get('phone_number'))
+            if not phone or len(phone) < 10:
+                continue
+            recipients_to_create.append({
+                'phone_number': phone,
+                'owner_name': cust.get('owner_name', ''),
+                'truck_number': cust.get('truck_number', '')
+            })
     else:
+        print("📖 Loading active customers from database...")
         active_customers = FleetCustomer.objects.filter(is_active=True)
+        for cust in active_customers.iterator(chunk_size=2000):
+            recipients_to_create.append({
+                'phone_number': cust.phone_number,
+                'owner_name': cust.owner_name or '',
+                'truck_number': cust.truck_number or ''
+            })
 
-    total_count = active_customers.count()
+    total_count = len(recipients_to_create)
+    if total_count == 0:
+        print("❌ No valid active phone numbers found for broadcast.")
+        return None
 
-    print(f"🚀 Found {total_count} active fleet accounts for broadcast.")
+    # Deduplicate phone numbers per task to avoid duplicate sends
+    seen_phones = set()
+    unique_recipients = []
+    for item in recipients_to_create:
+        p = item['phone_number']
+        if p not in seen_phones:
+            seen_phones.add(p)
+            unique_recipients.append(item)
 
-    # ✅ FIX 5: Warn if total exceeds your current tier limit
-    if total_count > DAILY_TIER_LIMIT:
-        print(
-            f"⚠️  WARNING: You have {total_count} customers but your daily tier limit is {DAILY_TIER_LIMIT}.")
-        print(
-            f"   Only the first {DAILY_TIER_LIMIT} messages will succeed today.")
-        print(
-            f"   Run again tomorrow for the remaining {
-                total_count -
-                DAILY_TIER_LIMIT}.")
-        confirm = input(
-            "   Type YES to continue anyway, or anything else to abort: ").strip()
-        if confirm != "YES":
-            print("❌ Broadcast cancelled.")
-            return
+    total_unique = len(unique_recipients)
 
-    print(f"🎬 Starting broadcast using template: '{template_name}'...\n")
+    task_obj = BroadcastTask.objects.create(
+        template_name=template_name,
+        language_code=language_code,
+        excel_file_name=os.path.basename(csv_or_excel_path) if csv_or_excel_path else "Database Active Customers",
+        status='pending',
+        total_records=total_unique,
+        processed_records=0,
+        success_count=0,
+        failed_count=0,
+        rate_limit_per_sec=rate_limit_per_sec
+    )
 
-    success_count = 0
-    fail_count = 0
-    failed_numbers = []  # Track who failed for re-attempt later
-    start_time = time.time()
+    print(f"🚀 Creating {total_unique} BroadcastRecipient records in bulk for Task #{task_obj.id}...")
 
-    for index, customer in enumerate(
-            active_customers.iterator(chunk_size=500), 1):
-
-        # ✅ FIX 5: Hard stop at daily tier limit
-        if index > DAILY_TIER_LIMIT:
-            print(
-                f"\n🛑 Daily tier limit of {DAILY_TIER_LIMIT} reached. Stopping safely.")
-            break
-
-        success, error_reason = send_whatsapp_template(
-            to_phone=customer.phone_number,
-            template_name=template_name,
-            customer_name=customer.owner_name,
-            vehicle_number=customer.truck_number,
-            language_code=language_code
+    recipient_objects = [
+        BroadcastRecipient(
+            task=task_obj,
+            phone_number=item['phone_number'],
+            owner_name=item['owner_name'],
+            truck_number=item['truck_number'],
+            status='pending'
         )
+        for item in unique_recipients
+    ]
 
-        if success:
-            success_count += 1
-        else:
-            fail_count += 1
-            failed_numbers.append(
-                (customer.phone_number, customer.owner_name, error_reason))
+    # Bulk insert in batches of 2000
+    BroadcastRecipient.objects.bulk_create(recipient_objects, batch_size=2000)
+    print(f"✅ Successfully initialized BroadcastTask #{task_obj.id} with {total_unique} recipients.")
+    return task_obj.id
 
-        # Safe pacing — 50 messages/second (well within Meta's 80/sec limit)
-        time.sleep(0.02)
 
-        # Progress log every 100 entries
-        if index % 100 == 0 or index == total_count:
-            elapsed = round(time.time() - start_time, 1)
-            print(
-                f"📦 {index}/{total_count} | ✅ {success_count} sent | ❌ {fail_count} failed | ⏱️ {elapsed}s elapsed")
+def execute_broadcast_task_sync(task_id):
+    """
+    Synchronous wrapper to launch the async broadcast engine.
+    Safe for threading / background execution.
+    """
+    try:
+        task_obj = BroadcastTask.objects.get(id=task_id)
+        engine = AsyncBroadcastEngine(task_id, rate_limit_per_sec=task_obj.rate_limit_per_sec)
+        asyncio.run(engine.run_broadcast_async())
+    except Exception as e:
+        print(f"❌ Execution error on Task #{task_id}: {e}")
+        try:
+            task_obj = BroadcastTask.objects.get(id=task_id)
+            task_obj.status = 'failed'
+            task_obj.failed_details = str(e)
+            task_obj.save()
+        except Exception:
+            pass
 
-    # Final report
-    total_duration = round(time.time() - start_time, 2)
-    print("\n🏁 --- BROADCAST REPORT ---")
-    print(f"✅ Successful: {success_count}")
-    print(f"❌ Failed:     {fail_count}")
-    print(f"⏱️  Duration:  {total_duration} seconds")
 
-    # ✅ FIX 2: Print all failures with reasons so you can investigate
-    if failed_numbers:
-        print("\n📋 Failed Deliveries (phone | name | reason):")
-        for phone, name, reason in failed_numbers:
-            print(f"   {phone} | {name} | {reason}")
-
-        # Save failures to a file for easy re-processing
-        with open("failed_broadcast.txt", "w") as f:
-            for phone, name, reason in failed_numbers:
-                f.write(f"{phone} | {name} | {reason}\n")
-        print("\n💾 Failures saved to failed_broadcast.txt")
+def run_massive_broadcast(template_name, language_code="en_US", csv_or_excel_path=None, rate_limit_per_sec=50):
+    """
+    Main entry point for CLI or standalone script running.
+    """
+    print(f"🎬 Initializing massive broadcast campaign for template: '{template_name}'...")
+    task_id = create_broadcast_campaign(template_name, language_code, csv_or_excel_path, rate_limit_per_sec)
+    if task_id:
+        print(f"⚡ Starting high-speed broadcast engine for Task #{task_id}...")
+        execute_broadcast_task_sync(task_id)
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Run WhatsApp template broadcast.")
-    parser.add_argument(
-        "--file",
-        help="Path to Excel (.xlsx, .xls) or CSV (.csv) file containing customer list.")
-    parser.add_argument(
-        "--template",
-        default="hello_world",
-        help="Name of Meta message template to send.")
-    parser.add_argument(
-        "--language",
-        default="en",
-        help="Language code of the template (e.g. en, en_US).")
+    parser = argparse.ArgumentParser(description="Run High-Speed WhatsApp Template Broadcast for 50,000+ recipients.")
+    parser.add_argument("--file", help="Path to Excel (.xlsx, .xls) or CSV (.csv) file containing customer list.")
+    parser.add_argument("--template", default="hello_world", help="Name of Meta message template to send.")
+    parser.add_argument("--language", default="en_US", help="Language code of the template (e.g. en_US, hi).")
+    parser.add_argument("--rate", type=int, default=50, help="Max requests per second (e.g. 50).")
 
     args = parser.parse_args()
 
     file_path = args.file
-
-    # If no file argument is specified, look for default uploaded files in
-    # media/
     if not file_path:
         from django.conf import settings
         media_dir = os.path.join(settings.BASE_DIR, 'media')
-        default_files = [
-            'broadcast_list.xlsx',
-            'broadcast_list.xls',
-            'broadcast_list.csv']
+        default_files = ['broadcast_list.xlsx', 'broadcast_list.xls', 'broadcast_list.csv']
         for df_name in default_files:
             p = os.path.join(media_dir, df_name)
             if os.path.exists(p):
                 file_path = p
-                print(
-                    f"📂 Found default uploaded file at {file_path}. Using it for broadcast.")
+                print(f"📂 Found default uploaded file at {file_path}.")
                 break
 
-    if not file_path:
-        print("ℹ️ No Excel/CSV file specified or found in media folder. Defaulting to all active customers in database.")
-
-    run_massive_broadcast(args.template, args.language, file_path)
+    run_massive_broadcast(args.template, args.language, file_path, args.rate)

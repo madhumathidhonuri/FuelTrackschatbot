@@ -308,8 +308,11 @@
             <span>Current Status: <span id="task-status" class="status-badge status-pending">PENDING</span></span>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <span id="progress-text" style="font-size: 14px; font-weight: normal; color: #64748b;">0 / 0 sent</span>
-                <button type="button" id="pause-btn" onclick="togglePauseResume()" class="btn" style="background-color: #f59e0b; color: white; padding: 5px 12px; font-size: 12px;">Pause</button>
-                <button type="button" id="cancel-btn" onclick="cancelBroadcast()" class="btn" style="background-color: #ef4444; color: white; padding: 5px 12px; font-size: 12px;">Cancel Broadcast</button>
+                <button type="button" id="pause-btn" onclick="togglePauseResume()" class="btn"
+                    style="background-color: #f59e0b; color: white; padding: 5px 12px; font-size: 12px;">Pause</button>
+                <button type="button" id="cancel-btn" onclick="cancelBroadcast()" class="btn"
+                    style="background-color: #ef4444; color: white; padding: 5px 12px; font-size: 12px;">Cancel
+                    Broadcast</button>
             </div>
         </div>
 
@@ -440,7 +443,7 @@
     // Run on load to set initial state
     updateLanguages(templateSelect.value);
 
-    let currentTaskId = {% if active_task_id %}{{ active_task_id }}{% else %}null{% endif %};
+    let currentTaskId = {% if active_task_id %}{ { active_task_id } } {% else %} null{% endif %};
     let poller = null;
 
     if (currentTaskId) {

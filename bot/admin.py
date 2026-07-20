@@ -10,7 +10,7 @@ import json
 import requests
 import threading
 import time
-from .models import ChatMessage, FleetCustomer, BroadcastTask, AdCampaign, WhatsAppTemplate, AgentNotificationLog
+from .models import ChatMessage, FleetCustomer, BroadcastTask, BroadcastRecipient, AdCampaign, WhatsAppTemplate, AgentNotificationLog
 
 
 @admin.register(AdCampaign)
@@ -1244,3 +1244,111 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                     "last_message_time": last_msg.timestamp.isoformat() if last_msg.timestamp else "",
                 })
             return JsonResponse({"found": False})
+
+
+@admin.register(BroadcastTask)
+class BroadcastTaskAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'template_name',
+        'status_badge',
+        'total_records',
+        'processed_records',
+        'success_count',
+        'failed_count',
+        'delivered_count',
+        'read_count',
+        'rate_limit_per_sec',
+        'created_at'
+    )
+    list_filter = ('status', 'template_name', 'created_at')
+    search_fields = ('template_name', 'excel_file_name')
+    readonly_fields = (
+        'processed_records',
+        'success_count',
+        'failed_count',
+        'delivered_count',
+        'read_count',
+        'failed_details',
+        'created_at',
+        'updated_at'
+    )
+    actions = ['start_or_resume_campaign', 'pause_campaign', 'retry_failed_recipients']
+
+    def status_badge(self, obj):
+        from django.utils.html import format_html
+        colors = {
+            'pending': '#6c757d',
+            'running': '#17a2b8',
+            'paused': '#ffc107',
+            'completed': '#28a745',
+            'failed': '#dc3545',
+            'stopped': '#343a40',
+            'cancelled': '#6c757d',
+        }
+        color = colors.get(obj.status, '#000000')
+        return format_html(
+            '<span style="background-color: {}; color: #fff; padding: 4px 8px; border-radius: 4px; font-weight: bold;">{}</span>',
+            color, obj.status.upper()
+        )
+    status_badge.short_description = 'Status'
+
+    @admin.action(description="🚀 Start / Resume Broadcast Campaign")
+    def start_or_resume_campaign(self, request, queryset):
+        for task in queryset:
+            if task.status in ('completed', 'cancelled'):
+                self.message_user(request, f"Task #{task.id} is already {task.status}.", level=messages.WARNING)
+                continue
+
+            task.status = 'running'
+            task.save()
+
+            from bot.broadcast import execute_broadcast_task_sync
+            thread = threading.Thread(target=execute_broadcast_task_sync, args=(task.id,), daemon=True)
+            thread.start()
+
+            self.message_user(request, f"Started high-speed broadcast engine for Task #{task.id}.", level=messages.SUCCESS)
+
+    @admin.action(description="⏸️ Pause Selected Campaigns")
+    def pause_campaign(self, request, queryset):
+        updated = queryset.filter(status='running').update(status='paused')
+        self.message_user(request, f"Paused {updated} campaigns.", level=messages.SUCCESS)
+
+    @admin.action(description="🔄 Retry Failed Recipients")
+    def retry_failed_recipients(self, request, queryset):
+        for task in queryset:
+            failed_recs = BroadcastRecipient.objects.filter(task=task, status='failed')
+            count = failed_recs.update(status='pending')
+            if count > 0:
+                task.status = 'pending'
+                task.save()
+                from bot.broadcast import execute_broadcast_task_sync
+                thread = threading.Thread(target=execute_broadcast_task_sync, args=(task.id,), daemon=True)
+                thread.start()
+                self.message_user(request, f"Reset {count} failed recipients to pending and restarted Task #{task.id}.", level=messages.SUCCESS)
+            else:
+                self.message_user(request, f"No failed recipients found for Task #{task.id}.", level=messages.WARNING)
+
+
+@admin.register(BroadcastRecipient)
+class BroadcastRecipientAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'task_link',
+        'phone_number',
+        'owner_name',
+        'truck_number',
+        'status',
+        'wamid',
+        'error_code',
+        'sent_at'
+    )
+    list_filter = ('status', 'task', 'error_code')
+    search_fields = ('phone_number', 'owner_name', 'truck_number', 'wamid', 'error_message')
+    readonly_fields = ('sent_at', 'updated_at')
+
+    def task_link(self, obj):
+        from django.utils.html import format_html
+        return format_html('<a href="/admin/bot/broadcasttask/{}/change/">Task #{} ({})</a>', obj.task.id, obj.task.id, obj.task.template_name)
+    task_link.short_description = 'Task'
+

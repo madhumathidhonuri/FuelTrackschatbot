@@ -125,6 +125,12 @@ class BroadcastTask(models.Model):
     processed_records = models.IntegerField(default=0)
     success_count = models.IntegerField(default=0)
     failed_count = models.IntegerField(default=0)
+    delivered_count = models.IntegerField(default=0)
+    read_count = models.IntegerField(default=0)
+    rate_limit_per_sec = models.IntegerField(
+        default=50,
+        help_text="Target messages per second (max 80 for Meta standard Cloud API)"
+    )
     failed_details = models.TextField(
         blank=True, null=True)  # JSON list of errors/successes
     created_at = models.DateTimeField(auto_now_add=True)
@@ -132,6 +138,52 @@ class BroadcastTask(models.Model):
 
     def __str__(self):
         return f"Task {self.id}: {self.template_name} ({self.status})"
+
+
+class BroadcastRecipient(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('queued', 'Queued'),
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('read', 'Read'),
+        ('failed', 'Failed'),
+        ('opt_out', 'Opted Out'),
+    ]
+
+    task = models.ForeignKey(
+        BroadcastTask,
+        on_delete=models.CASCADE,
+        related_name='recipients'
+    )
+    phone_number = models.CharField(max_length=20, db_index=True)
+    owner_name = models.CharField(max_length=100, blank=True, null=True)
+    truck_number = models.CharField(max_length=30, blank=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True
+    )
+    wamid = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True
+    )
+    error_code = models.CharField(max_length=50, blank=True, null=True)
+    error_message = models.TextField(blank=True, null=True)
+    sent_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['task', 'status']),
+            models.Index(fields=['phone_number', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.phone_number} ({self.status}) - Task {self.task_id}"
 
 
 class ProcessedMessage(models.Model):
