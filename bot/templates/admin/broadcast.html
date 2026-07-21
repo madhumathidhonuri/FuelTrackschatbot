@@ -367,13 +367,25 @@
     <div class="card" style="margin-top: 30px;">
         <div class="card-title">📥 Download Sent Templates Log</div>
         <form action="../download-broadcast-logs/" method="GET">
-            <div class="form-group flex-row">
-                <div class="flex-col">
-                    <label>Select Date</label>
-                    <input type="date" name="date" class="form-control" required>
+            <div class="form-group flex-row" style="flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+                <div class="flex-col" style="min-width: 140px; flex: 1;">
+                    <label>From Date</label>
+                    <input type="date" name="from_date" class="form-control" required>
+                </div>
+                <div class="flex-col" style="min-width: 110px; flex: 1;">
+                    <label>From Time (Optional)</label>
+                    <input type="time" name="from_time" class="form-control">
+                </div>
+                <div class="flex-col" style="min-width: 140px; flex: 1;">
+                    <label>To Date (Optional)</label>
+                    <input type="date" name="to_date" class="form-control">
+                </div>
+                <div class="flex-col" style="min-width: 110px; flex: 1;">
+                    <label>To Time (Optional)</label>
+                    <input type="time" name="to_time" class="form-control">
                 </div>
                 <div class="flex-col" style="display: flex; align-items: flex-end;">
-                    <button type="submit" class="btn btn-secondary" style="margin-bottom: 2px;">Download Excel</button>
+                    <button type="submit" class="btn btn-secondary" style="margin-bottom: 2px; white-space: nowrap;">Download Excel</button>
                 </div>
             </div>
         </form>

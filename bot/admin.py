@@ -1069,24 +1069,46 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         import datetime
         from django.utils import timezone
 
-        date_str = request.GET.get('date')
-        if not date_str:
-            messages.error(request, "Please select a date.")
+        from_date_str = request.GET.get('from_date') or request.GET.get('date')
+        from_time_str = request.GET.get('from_time')
+        to_date_str = request.GET.get('to_date') or from_date_str
+        to_time_str = request.GET.get('to_time')
+
+        if not from_date_str:
+            messages.error(request, "Please select a From Date.")
             return redirect('admin:bot_fleetcustomer_broadcast')
 
         try:
-            target_date = datetime.datetime.strptime(
-                date_str, "%Y-%m-%d").date()
+            from_date = datetime.datetime.strptime(from_date_str, "%Y-%m-%d").date()
         except ValueError:
-            messages.error(request, "Invalid date format.")
+            messages.error(request, "Invalid From Date format.")
             return redirect('admin:bot_fleetcustomer_broadcast')
 
-        start_datetime = timezone.make_aware(
-            datetime.datetime.combine(
-                target_date, datetime.time.min))
-        end_datetime = timezone.make_aware(
-            datetime.datetime.combine(
-                target_date, datetime.time.max))
+        if to_date_str:
+            try:
+                to_date = datetime.datetime.strptime(to_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                to_date = from_date
+        else:
+            to_date = from_date
+
+        if from_time_str:
+            try:
+                t = datetime.datetime.strptime(from_time_str, "%H:%M").time()
+                start_datetime = timezone.make_aware(datetime.datetime.combine(from_date, t))
+            except ValueError:
+                start_datetime = timezone.make_aware(datetime.datetime.combine(from_date, datetime.time.min))
+        else:
+            start_datetime = timezone.make_aware(datetime.datetime.combine(from_date, datetime.time.min))
+
+        if to_time_str:
+            try:
+                t = datetime.datetime.strptime(to_time_str, "%H:%M").time()
+                end_datetime = timezone.make_aware(datetime.datetime.combine(to_date, t))
+            except ValueError:
+                end_datetime = timezone.make_aware(datetime.datetime.combine(to_date, datetime.time.max))
+        else:
+            end_datetime = timezone.make_aware(datetime.datetime.combine(to_date, datetime.time.max))
 
         qs = ChatMessage.objects.filter(
             role='assistant',
@@ -1121,9 +1143,10 @@ class FleetCustomerAdmin(admin.ModelAdmin):
 
         df = pd.DataFrame(data)
 
+        filename_suffix = f"{from_date_str}_to_{to_date_str}" if from_date_str != to_date_str else from_date_str
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="broadcast_logs_{date_str}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="broadcast_logs_{filename_suffix}.xlsx"'
 
         if not df.empty:
             with pd.ExcelWriter(response, engine='openpyxl') as writer:
