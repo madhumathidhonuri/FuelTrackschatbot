@@ -497,14 +497,16 @@ def sync_whatsapp_templates_from_meta():
         "limit": 1000
     }
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=5)
+        response = requests.get(url, headers=headers, params=params, timeout=12)
         if response.status_code == 200:
             templates_data = response.json().get("data", [])
 
             # Group by template name
+            # Include APPROVED, PAUSED, and PENDING_DELETION so all known templates appear in dropdown
+            ACCEPTED_STATUSES = {"APPROVED", "PAUSED", "PENDING_DELETION"}
             grouped = {}
             for item in templates_data:
-                if item.get("status") != "APPROVED":
+                if item.get("status") not in ACCEPTED_STATUSES:
                     continue
                 name = item.get("name")
                 lang = item.get("language")
@@ -823,6 +825,8 @@ class FleetCustomerAdmin(admin.ModelAdmin):
              False, "en_US", False, "none", "", "marketing"),
             ("ais_140_gps_mining_device", "AIS 140 mining tracker template",
              False, "en_US,te", True, "image", "", "marketing"),
+            ("ais_140_notice_telugu", "AIS 140 Notice (Telugu)",
+             False, "te", False, "none", "", "utility"),
             ("fuel_alert", "Fuel theft/drop alerts", True,
              "en_US,te", False, "none", "", "utility"),
             ("fleet_update", "Fleet status summary updates",
