@@ -474,105 +474,222 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
 def sync_whatsapp_templates_from_meta():
     """
     Fetches templates from Meta Graph API using WHATSAPP_BUSINESS_ACCOUNT_ID and WHATSAPP_TOKEN.
-    Synchronizes them into the local database and returns a dict mapping
-    template name to a list of approved language codes, e.g.
-    {'gps_tracking_device': ['en_US', 'te'], ...}
-
-    If WABA ID or Token is missing, or the call fails, returns None.
+    Synchronizes them into the local database, including:
+      - has_header, header_type, header_image_url (from example.header_handle)
+      - Auto-uploads header image to Meta Media API to get/refresh header_media_id
+    Returns a dict mapping template name -> list of language codes, or None on failure.
     """
     import os
+    import re
     import requests
+    import tempfile
+    from datetime import timedelta
+    from django.utils import timezone
     from bot.models import WhatsAppTemplate
 
     waba_id = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID")
     token = os.getenv("WHATSAPP_TOKEN")
+    phone_number_id = os.getenv("PHONE_NUMBER_ID")
     if not waba_id or not token:
         return None
 
     url = f"https://graph.facebook.com/v19.0/{waba_id}/message_templates"
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-    params = {
-        "limit": 1000
-    }
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {"limit": 1000}
+
     try:
         response = requests.get(url, headers=headers, params=params, timeout=12)
-        if response.status_code == 200:
-            templates_data = response.json().get("data", [])
+        if response.status_code != 200:
+            print(f"[SYNC] Meta API returned {response.status_code}: {response.text[:200]}")
+            return None
 
-            # Group by template name
-            # Include APPROVED, PAUSED, and PENDING_DELETION so all known templates appear in dropdown
-            ACCEPTED_STATUSES = {"APPROVED", "PAUSED", "PENDING_DELETION"}
-            grouped = {}
-            for item in templates_data:
-                if item.get("status") not in ACCEPTED_STATUSES:
-                    continue
-                name = item.get("name")
-                lang = item.get("language")
-                if not name or not lang:
-                    continue
+        templates_data = response.json().get("data", [])
 
-                # Check if it has variables and headers
-                has_vars = False
-                var_count = 0
-                has_header = False
-                header_type = 'none'
-                for comp in item.get("components", []):
-                    comp_type = comp.get("type")
-                    if comp_type == "BODY":
-                        text = comp.get("text", "")
-                        import re
-                        matches = re.findall(r'\{\{(\d+)\}\}', text)
-                        if matches:
-                            has_vars = True
-                            var_count = max(int(m) for m in matches)
-                    elif comp_type == "HEADER":
+        # Include APPROVED, PAUSED, PENDING_DELETION — not just APPROVED
+        ACCEPTED_STATUSES = {"APPROVED", "PAUSED", "PENDING_DELETION"}
+        grouped = {}
+
+        for item in templates_data:
+            if item.get("status") not in ACCEPTED_STATUSES:
+                continue
+            name = item.get("name")
+            lang = item.get("language")
+            if not name or not lang:
+                continue
+
+            has_vars = False
+            var_count = 0
+            has_header = False
+            header_type = 'none'
+            header_handle_url = ''   # extracted from example.header_handle
+
+            for comp in item.get("components", []):
+                comp_type = comp.get("type")
+                if comp_type == "BODY":
+                    text = comp.get("text", "")
+                    matches = re.findall(r'\{\{(\d+)\}\}', text)
+                    if matches:
+                        has_vars = True
+                        var_count = max(int(m) for m in matches)
+                elif comp_type == "HEADER":
+                    fmt = comp.get("format", "TEXT").lower()
+                    if fmt in ("image", "video", "document"):
                         has_header = True
-                        header_type = comp.get("format", "TEXT").lower()
+                        header_type = fmt
+                        # Extract the example header handle URL from Meta's response
+                        example = comp.get("example", {})
+                        handles = example.get("header_handle", [])
+                        if handles:
+                            header_handle_url = handles[0]
 
-                if name not in grouped:
-                    grouped[name] = {
-                        "languages": set(),
-                        "has_variables": False,
-                        "var_count": 0,
-                        "has_header": False,
-                        "header_type": "none",
-                        "category": item.get("category", "")
-                    }
-                grouped[name]["languages"].add(lang)
-                if has_vars:
-                    grouped[name]["has_variables"] = True
-                    grouped[name]["var_count"] = max(grouped[name]["var_count"], var_count)
-                if has_header:
-                    grouped[name]["has_header"] = True
-                    grouped[name]["header_type"] = header_type
+            if name not in grouped:
+                grouped[name] = {
+                    "languages": set(),
+                    "has_variables": False,
+                    "var_count": 0,
+                    "has_header": False,
+                    "header_type": "none",
+                    "header_handle_url": "",
+                    "category": item.get("category", "")
+                }
+            grouped[name]["languages"].add(lang)
+            if has_vars:
+                grouped[name]["has_variables"] = True
+                grouped[name]["var_count"] = max(grouped[name]["var_count"], var_count)
+            if has_header:
+                grouped[name]["has_header"] = True
+                grouped[name]["header_type"] = header_type
+            if header_handle_url and not grouped[name]["header_handle_url"]:
+                grouped[name]["header_handle_url"] = header_handle_url
 
-            # Now update the database
-            for name, info in grouped.items():
-                langs_str = ",".join(sorted(list(info["languages"])))
-                desc = f"Sync'd from Meta: {info['category']}"
-                category_lower = info['category'].lower(
-                ) if info['category'] else 'marketing'
-                if category_lower not in (
-                        'utility', 'marketing', 'authentication'):
-                    category_lower = 'marketing'
-                WhatsAppTemplate.objects.update_or_create(
-                    template_name=name,
-                    defaults={
-                        "description": desc,
-                        "category": category_lower,
-                        "has_variables": info["has_variables"],
-                        "var_count": info["var_count"],
-                        "languages": langs_str,
-                        "has_header": info["has_header"],
-                        "header_type": info["header_type"]
-                    }
+        # Threshold: refresh media_id if missing or older than 25 days
+        # (Meta media IDs expire after ~30 days)
+        REFRESH_THRESHOLD = timezone.now() - timedelta(days=25)
+
+        # Now update the database
+        for name, info in grouped.items():
+            langs_str = ",".join(sorted(list(info["languages"])))
+            desc = f"Sync'd from Meta: {info['category']}"
+            category_lower = info['category'].lower() if info['category'] else 'marketing'
+            if category_lower not in ('utility', 'marketing', 'authentication'):
+                category_lower = 'marketing'
+
+            handle_url = info.get("header_handle_url", "")
+
+            obj, created = WhatsAppTemplate.objects.get_or_create(
+                template_name=name,
+                defaults={
+                    "description": desc,
+                    "category": category_lower,
+                    "has_variables": info["has_variables"],
+                    "var_count": info["var_count"],
+                    "languages": langs_str,
+                    "has_header": info["has_header"],
+                    "header_type": info["header_type"],
+                    "header_image_url": handle_url,
+                }
+            )
+
+            # Always update these fields (sync may change them)
+            update_fields = {
+                "description": desc,
+                "category": category_lower,
+                "has_variables": info["has_variables"],
+                "var_count": info["var_count"],
+                "languages": langs_str,
+                "has_header": info["has_header"],
+                "header_type": info["header_type"],
+            }
+
+            # Store header_handle_url in header_image_url if we got one and it changed
+            if handle_url and obj.header_image_url != handle_url:
+                update_fields["header_image_url"] = handle_url
+
+            # ── Auto-fetch header_media_id if missing or expired ──────────────
+            # Only attempt if: template has image/video/document header,
+            # phone_number_id is configured, and we have a handle URL to upload
+            needs_media_id = (
+                info["has_header"]
+                and info["header_type"] in ("image", "video", "document")
+                and phone_number_id
+                and handle_url
+                and (
+                    not obj.header_media_id
+                    or obj.media_id_updated_at is None
+                    or obj.media_id_updated_at < REFRESH_THRESHOLD
                 )
-            return {name: sorted(list(info["languages"]))
-                    for name, info in grouped.items()}
+            )
+
+            if needs_media_id:
+                try:
+                    print(f"[SYNC] Fetching header_media_id for '{name}' from handle URL...")
+                    # Download the image from Meta's CDN
+                    img_resp = requests.get(
+                        handle_url,
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=20,
+                        stream=True
+                    )
+                    if img_resp.status_code == 200:
+                        # Determine file extension from Content-Type
+                        content_type = img_resp.headers.get("Content-Type", "image/jpeg")
+                        ext_map = {
+                            "image/jpeg": ".jpg", "image/jpg": ".jpg",
+                            "image/png": ".png", "image/webp": ".webp",
+                            "video/mp4": ".mp4", "application/pdf": ".pdf"
+                        }
+                        ext = ext_map.get(content_type.split(";")[0].strip(), ".jpg")
+
+                        # Write to temp file
+                        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                            for chunk in img_resp.iter_content(chunk_size=8192):
+                                tmp.write(chunk)
+                            tmp_path = tmp.name
+
+                        # Upload to Meta Media API
+                        import mimetypes
+                        mime = mimetypes.guess_type(tmp_path)[0] or content_type
+                        upload_url = f"https://graph.facebook.com/v19.0/{phone_number_id}/media"
+                        with open(tmp_path, "rb") as f:
+                            upload_resp = requests.post(
+                                upload_url,
+                                headers={"Authorization": f"Bearer {token}"},
+                                files={
+                                    "messaging_product": (None, "whatsapp"),
+                                    "file": (f"header{ext}", f, mime),
+                                    "type": (None, mime),
+                                },
+                                timeout=30
+                            )
+
+                        # Clean up temp file
+                        try:
+                            os.remove(tmp_path)
+                        except Exception:
+                            pass
+
+                        if upload_resp.status_code == 200:
+                            new_media_id = upload_resp.json().get("id", "")
+                            if new_media_id:
+                                update_fields["header_media_id"] = new_media_id
+                                update_fields["media_id_updated_at"] = timezone.now()
+                                print(f"[SYNC] ✅ Got header_media_id={new_media_id} for '{name}'")
+                            else:
+                                print(f"[SYNC] ⚠️ Upload OK but no id in response for '{name}'")
+                        else:
+                            print(f"[SYNC] ⚠️ Upload failed for '{name}': {upload_resp.status_code} {upload_resp.text[:150]}")
+                    else:
+                        print(f"[SYNC] ⚠️ Could not download header image for '{name}': {img_resp.status_code}")
+                except Exception as media_err:
+                    print(f"[SYNC] ⚠️ Media ID fetch failed for '{name}': {media_err}")
+
+            # Perform the DB update (bypass WhatsAppTemplate.save() signal to avoid re-uploading)
+            WhatsAppTemplate.objects.filter(template_name=name).update(**update_fields)
+
+        return {name: sorted(list(info["languages"])) for name, info in grouped.items()}
+
     except Exception as e:
-        print(f"Error syncing templates from Meta API: {e}")
+        print(f"[SYNC] Error syncing templates from Meta API: {e}")
     return None
 
 
