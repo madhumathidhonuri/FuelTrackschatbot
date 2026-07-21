@@ -398,27 +398,21 @@ class AsyncBroadcastEngine:
                     t.success_count += batch_success
                     t.failed_count += batch_failed
                     t.save()
-
                 await asyncio.to_thread(_db_call, update_task_progress)
 
-
-
-                # Update Task counters in DB
-                task_obj.processed_records += len(results)
-                task_obj.success_count += batch_success
-                task_obj.failed_count += batch_failed
-
-                if task_obj.processed_records >= task_obj.total_records:
-                    task_obj.status = 'completed'
-
-                await asyncio.to_thread(task_obj.save)
+                # Log progress
+                # Note: task_obj counters not updated here to avoid double-count — DB is source of truth
+                task_obj = await asyncio.to_thread(_db_call, BroadcastTask.objects.get, id=self.task_id)
                 print(f"📦 Task {self.task_id} Progress: {task_obj.processed_records}/{task_obj.total_records} | Success: {task_obj.success_count} | Failed: {task_obj.failed_count}")
 
-        # Final check
-        task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=self.task_id)
+                if task_obj.processed_records >= task_obj.total_records:
+                    break
+
+        # Final check — use _db_call to ensure connection is properly managed
+        task_obj = await asyncio.to_thread(_db_call, BroadcastTask.objects.get, id=self.task_id)
         if task_obj.processed_records >= task_obj.total_records:
             task_obj.status = 'completed'
-            await asyncio.to_thread(task_obj.save)
+            await asyncio.to_thread(_db_call, task_obj.save)
             print(f"🏁 BroadcastTask {self.task_id} Completed Successfully!")
 
 

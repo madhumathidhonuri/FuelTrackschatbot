@@ -501,11 +501,21 @@
 
                     data.failed_details.forEach(fail => {
                         const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${fail.phone_number || 'N/A'}</td>
-                            <td>${fail.name || 'N/A'}</td>
-                            <td style="color: #b91c1c; font-weight: 500;">${fail.reason || 'Unknown error'}</td>
-                        `;
+
+                        // Use textContent to prevent XSS from API error messages
+                        const tdPhone = document.createElement('td');
+                        tdPhone.textContent = fail.phone_number || 'N/A';
+
+                        const tdName = document.createElement('td');
+                        tdName.textContent = fail.name || 'N/A';
+
+                        const tdReason = document.createElement('td');
+                        tdReason.textContent = fail.reason || 'Unknown error';
+                        tdReason.style.cssText = 'color:#b91c1c;font-weight:500;';
+
+                        tr.appendChild(tdPhone);
+                        tr.appendChild(tdName);
+                        tr.appendChild(tdReason);
                         tbody.appendChild(tr);
                     });
                 }
@@ -518,6 +528,11 @@
                         pauseBtn.style.backgroundColor = '#22c55e';
                         isPaused = true;
                     } else if (data.status === 'running') {
+                        pauseBtn.innerText = 'Pause';
+                        pauseBtn.style.backgroundColor = '#f59e0b';
+                        isPaused = false;
+                    } else if (data.status === 'pending') {
+                        // Task just created — not yet running, reset to unpaused
                         pauseBtn.innerText = 'Pause';
                         pauseBtn.style.backgroundColor = '#f59e0b';
                         isPaused = false;

@@ -269,18 +269,47 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
 
         customers_data = parse_excel_or_csv(file_path)
 
-        target_phone_numbers = []
-        for cust in customers_data:
-            customer, created = FleetCustomer.objects.update_or_create(
+        # ── Bulk upsert all records in batches of 500 (replaces 50k individual update_or_create calls) ──
+        to_create = [
+            FleetCustomer(
                 phone_number=cust['phone_number'],
-                defaults={
-                    'owner_name': cust['owner_name'],
-                    'truck_number': cust['truck_number'],
-                    'is_active': cust['is_active']
-                }
+                owner_name=cust.get('owner_name') or '',
+                truck_number=cust.get('truck_number') or '',
+                is_active=cust.get('is_active', True)
             )
-            if customer.is_active:
-                target_phone_numbers.append(customer.phone_number)
+            for cust in customers_data
+            if cust.get('phone_number')
+        ]
+        # Deduplicate before bulk insert (avoid unique constraint violations)
+        seen = set()
+        unique_to_create = []
+        for obj in to_create:
+            if obj.phone_number not in seen:
+                seen.add(obj.phone_number)
+                unique_to_create.append(obj)
+
+        try:
+            FleetCustomer.objects.bulk_create(
+                unique_to_create,
+                update_conflicts=True,
+                update_fields=['owner_name', 'truck_number', 'is_active'],
+                unique_fields=['phone_number'],
+                batch_size=500
+            )
+        except TypeError:
+            # Django < 4.1 fallback: bulk_create without update_conflicts
+            for cust in customers_data:
+                FleetCustomer.objects.update_or_create(
+                    phone_number=cust['phone_number'],
+                    defaults={
+                        'owner_name': cust.get('owner_name') or '',
+                        'truck_number': cust.get('truck_number') or '',
+                        'is_active': cust.get('is_active', True)
+                    }
+                )
+
+        # Collect all active phone numbers from file
+        target_phone_numbers = [c['phone_number'] for c in customers_data if c.get('is_active', True)]
 
         # Load as plain dicts — faster and safe to share across threads
         active_customers = list(
@@ -393,11 +422,13 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                             executor.shutdown(wait=False, cancel_futures=True)
                             break
 
+                        # Cap failed_details to last 500 entries to prevent unbounded JSON growth
+                        failed_details_trimmed = failed_details[-500:] if len(failed_details) > 500 else failed_details
                         BroadcastTask.objects.filter(id=task_id).update(
                             processed_records=processed,
                             success_count=success_count,
                             failed_count=failed_count,
-                            failed_details=json.dumps(failed_details),
+                            failed_details=json.dumps(failed_details_trimmed),
                             updated_at=timezone.now()
                         )
 
@@ -825,7 +856,8 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         # Clean up any stale running task that hasn't updated in >300 seconds (5 mins) (e.g. killed by server restart)
         from django.utils import timezone
         from datetime import timedelta
-        stale_threshold = timezone.now() - timedelta(seconds=300)
+        # 30 minutes: long enough for a 50k-number broadcast (was 5 min — killed tasks too early)
+        stale_threshold = timezone.now() - timedelta(seconds=1800)
         BroadcastTask.objects.filter(
             status='running', updated_at__lt=stale_threshold
         ).update(status='failed')
