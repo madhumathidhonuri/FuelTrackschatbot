@@ -1,5 +1,4 @@
 import os
-import pandas as pd
 
 
 def parse_excel_or_csv(file_path_or_buffer, filename=None):
@@ -7,6 +6,8 @@ def parse_excel_or_csv(file_path_or_buffer, filename=None):
     Parses a CSV or Excel file and returns a list of dictionaries with customer details.
     Standardized keys: phone_number, owner_name, truck_number, is_active
     """
+    import pandas as pd
+
     if filename is None:
         if isinstance(file_path_or_buffer, str):
             filename = file_path_or_buffer
@@ -198,7 +199,7 @@ def upload_media_to_meta(file_path_or_field):
             "file": (file_name, file_obj, mime_type),
             "type": (None, mime_type)
         }
-        response = requests.post(url, headers=headers, files=files, timeout=30)
+        response = requests.post(url, headers=headers, files=files, timeout=12)
 
         if response.status_code == 200:
             media_id = response.json().get("id")
