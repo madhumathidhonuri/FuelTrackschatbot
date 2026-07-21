@@ -357,8 +357,10 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
         processed = 0
         lock = _threading.Lock()
 
-        BATCH_SIZE = 25    # flush progress & check status every 25 completions (fast & 0 DB lag)
-        MAX_WORKERS = 12   # parallel HTTP workers (balanced for server resource & rate limits)
+        BATCH_SIZE = 25    # flush progress to DB every 25 completed sends
+        MAX_WORKERS = 4    # reduced from 12 → 4 workers (saves ~150 MB RAM on Render Free)
+        SEND_BATCH = 200   # process 200 customers at a time — caps RAM at ~15 MB per batch
+                           # instead of loading all 50k futures at once (~120 MB)
 
         chat_history_batch = []
         chat_msg_content = f"[System Sent Broadcast: {template_name} - Broadcast template: {template_name}]"
@@ -379,66 +381,81 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             finally:
                 connection.close()
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {executor.submit(send_one, c): c for c in active_customers}
+        # ── Option 1: Batched executor (200 at a time, 4 workers) ─────────────
+        # Submits only 200 futures per iteration instead of all 50k at once.
+        # This keeps peak RAM under 150 MB (safe for Render Free Tier's 512 MB limit).
+        # The bot webhook handler stays responsive between mini-batches.
+        should_stop = False
 
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    cust, success, error_reason = future.result()
-                except Exception as exc:
-                    cust = futures[future]
-                    success, error_reason = False, str(exc)
+        for batch_start in range(0, total_count, SEND_BATCH):
+            if should_stop:
+                break
 
-                with lock:
-                    processed += 1
-                    if success:
-                        success_count += 1
-                        chat_history_batch.append(
-                            ChatMessage(
-                                phone_number=cust['phone_number'],
-                                role='assistant',
-                                content=chat_msg_content
+            batch_slice = active_customers[batch_start:batch_start + SEND_BATCH]
+            print(f"[BROADCAST] Processing batch {batch_start + 1}–{batch_start + len(batch_slice)} of {total_count}")
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                futures = {executor.submit(send_one, c): c for c in batch_slice}
+
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        cust, success, error_reason = future.result()
+                    except Exception as exc:
+                        cust = futures[future]
+                        success, error_reason = False, str(exc)
+
+                    with lock:
+                        processed += 1
+                        if success:
+                            success_count += 1
+                            chat_history_batch.append(
+                                ChatMessage(
+                                    phone_number=cust['phone_number'],
+                                    role='assistant',
+                                    content=chat_msg_content
+                                )
                             )
-                        )
-                    else:
-                        failed_count += 1
-                        failed_details.append({
-                            'phone_number': cust['phone_number'],
-                            'name': cust['owner_name'],
-                            'reason': error_reason
-                        })
+                        else:
+                            failed_count += 1
+                            failed_details.append({
+                                'phone_number': cust['phone_number'],
+                                'name': cust['owner_name'],
+                                'reason': error_reason
+                            })
 
-                    # ── Batch DB update & Status Check every BATCH_SIZE records (25) ──
-                    if processed % BATCH_SIZE == 0 or processed == total_count:
-                        curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
-
-                        while curr_status == 'paused':
-                            import time
-                            time.sleep(1)
+                        # ── DB flush & status check every BATCH_SIZE completions ──
+                        if processed % BATCH_SIZE == 0 or processed == total_count:
                             curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
 
-                        if curr_status in ['stopped', 'failed', 'cancelled']:
-                            print(f"[BROADCAST] Task #{task_id} status is '{curr_status}'. Stopping worker thread.")
-                            executor.shutdown(wait=False, cancel_futures=True)
-                            break
+                            while curr_status == 'paused':
+                                import time
+                                time.sleep(1)
+                                curr_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
 
-                        # Cap failed_details to last 500 entries to prevent unbounded JSON growth
-                        failed_details_trimmed = failed_details[-500:] if len(failed_details) > 500 else failed_details
-                        BroadcastTask.objects.filter(id=task_id).update(
-                            processed_records=processed,
-                            success_count=success_count,
-                            failed_count=failed_count,
-                            failed_details=json.dumps(failed_details_trimmed),
-                            updated_at=timezone.now()
-                        )
+                            if curr_status in ['stopped', 'failed', 'cancelled']:
+                                print(f"[BROADCAST] Task #{task_id} status is '{curr_status}'. Stopping.")
+                                executor.shutdown(wait=False, cancel_futures=True)
+                                should_stop = True
+                                break
 
-                        if chat_history_batch:
-                            try:
-                                ChatMessage.objects.bulk_create(
-                                    chat_history_batch, ignore_conflicts=True)
-                            except Exception:
-                                pass
-                            chat_history_batch.clear()
+                            # Cap failed_details to last 500 entries to prevent unbounded JSON growth
+                            failed_details_trimmed = failed_details[-500:] if len(failed_details) > 500 else failed_details
+                            BroadcastTask.objects.filter(id=task_id).update(
+                                processed_records=processed,
+                                success_count=success_count,
+                                failed_count=failed_count,
+                                failed_details=json.dumps(failed_details_trimmed),
+                                updated_at=timezone.now()
+                            )
+
+                            if chat_history_batch:
+                                try:
+                                    ChatMessage.objects.bulk_create(
+                                        chat_history_batch, ignore_conflicts=True)
+                                except Exception:
+                                    pass
+                                chat_history_batch.clear()
+
 
         # Mark completed only if not stopped/cancelled by user
         final_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
