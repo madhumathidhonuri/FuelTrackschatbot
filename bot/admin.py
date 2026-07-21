@@ -329,7 +329,7 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
         lock = _threading.Lock()
 
         BATCH_SIZE = 25    # flush progress & check status every 25 completions (fast & 0 DB lag)
-        MAX_WORKERS = 20   # parallel HTTP workers (well under Meta's 80 msg/s limit)
+        MAX_WORKERS = 12   # parallel HTTP workers (balanced for server resource & rate limits)
 
         chat_history_batch = []
         chat_msg_content = f"[System Sent Broadcast: {template_name} - Broadcast template: {template_name}]"
@@ -397,7 +397,8 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                             processed_records=processed,
                             success_count=success_count,
                             failed_count=failed_count,
-                            failed_details=json.dumps(failed_details)
+                            failed_details=json.dumps(failed_details),
+                            updated_at=timezone.now()
                         )
 
                         if chat_history_batch:
@@ -411,7 +412,7 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
         # Mark completed only if not stopped/cancelled by user
         final_status = BroadcastTask.objects.filter(id=task_id).values_list('status', flat=True).first()
         if final_status not in ['stopped', 'failed', 'cancelled', 'paused']:
-            BroadcastTask.objects.filter(id=task_id).update(status='completed')
+            BroadcastTask.objects.filter(id=task_id).update(status='completed', updated_at=timezone.now())
 
         if failed_details:
             try:
@@ -429,7 +430,8 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
             BroadcastTask.objects.filter(id=task_id).update(
                 status='failed',
                 failed_details=json.dumps(
-                    [{'phone_number': 'N/A', 'name': 'N/A', 'reason': str(e)}])
+                    [{'phone_number': 'N/A', 'name': 'N/A', 'reason': str(e)}]),
+                updated_at=timezone.now()
             )
         except Exception:
             pass
@@ -820,10 +822,10 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             langs = [l.strip() for l in t.languages.split(",") if l.strip()]
             templates_mapping[t.template_name] = langs
 
-        # Clean up any stale running task that hasn't updated in >90 seconds (e.g. killed by server restart)
+        # Clean up any stale running task that hasn't updated in >300 seconds (5 mins) (e.g. killed by server restart)
         from django.utils import timezone
         from datetime import timedelta
-        stale_threshold = timezone.now() - timedelta(seconds=90)
+        stale_threshold = timezone.now() - timedelta(seconds=300)
         BroadcastTask.objects.filter(
             status='running', updated_at__lt=stale_threshold
         ).update(status='failed')

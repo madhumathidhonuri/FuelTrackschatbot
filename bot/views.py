@@ -1167,7 +1167,8 @@ def whatsapp_webhook(request):
                                 rd_count = BroadcastRecipient.objects.filter(task_id=t_id, status='read').count()
                                 BroadcastTask.objects.filter(id=t_id).update(
                                     delivered_count=del_count,
-                                    read_count=rd_count
+                                    read_count=rd_count,
+                                    updated_at=timezone.now()
                                 )
                     return JsonResponse({"status": "success"})
 
