@@ -41,6 +41,13 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't', 'y', 'y
 
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.onrender.com,.ngrok-free.dev').split(',') if h.strip()]
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.onrender.com',
+    'https://*.ngrok-free.dev',
+    'http://localhost',
+    'http://127.0.0.1',
+]
+
 
 # Application definition
 

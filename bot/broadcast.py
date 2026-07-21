@@ -232,6 +232,14 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
     return False, "Retries exhausted"
 
 
+def _db_call(func, *args, **kwargs):
+    from django.db import connection
+    try:
+        return func(*args, **kwargs)
+    finally:
+        connection.close()
+
+
 class AsyncBroadcastEngine:
     """
     High-throughput async broadcast engine designed for 50,000+ recipients.
@@ -262,51 +270,22 @@ class AsyncBroadcastEngine:
             if self.is_paused:
                 return recipient.id, False, "Paused", None, "TASK_PAUSED"
 
-            url, headers, payload = build_template_payload(
-                recipient.phone_number,
-                task_obj.template_name,
-                recipient.owner_name,
-                recipient.truck_number,
-                task_obj.language_code,
-                template_config
+            success, error_reason = await asyncio.to_thread(
+                _db_call,
+                send_whatsapp_template,
+                to_phone=recipient.phone_number,
+                template_name=task_obj.template_name,
+                customer_name=recipient.owner_name,
+                vehicle_number=recipient.truck_number,
+                language_code=task_obj.language_code,
+                template_config=template_config,
+                record_chat_message=False
             )
+            if success:
+                return recipient.id, True, None, "fake_wamid", None
+            else:
+                return recipient.id, False, error_reason or "Send failed", None, "FAILED"
 
-            for attempt in range(1, MAX_RETRIES + 1):
-                try:
-                    response = await client.post(url, json=payload, headers=headers, timeout=12.0)
-
-                    if response.status_code in (200, 201):
-                        resp_data = response.json()
-                        messages = resp_data.get("messages", [])
-                        wamid = messages[0].get("id") if messages else None
-                        return recipient.id, True, None, wamid, None
-
-                    try:
-                        resp_json = response.json()
-                        err_obj = resp_json.get("error", {})
-                        error_msg = err_obj.get("message", "Unknown Meta error")
-                        error_code = str(err_obj.get("code", f"HTTP_{response.status_code}"))
-                    except Exception:
-                        error_msg = response.text[:200]
-                        error_code = f"HTTP_{response.status_code}"
-
-                    # Handle Rate Limit Hit (Meta 429 or Error 130429 or 4)
-                    if error_code in ("4", "130429", "HTTP_429") and attempt < MAX_RETRIES:
-                        print(f"⚠️ Rate limit hit for {recipient.phone_number}. Backing off for {10 * attempt}s...")
-                        await asyncio.sleep(10 * attempt)
-                        continue
-
-                    return recipient.id, False, error_msg, None, error_code
-
-                except httpx.TimeoutException:
-                    if attempt < MAX_RETRIES:
-                        await asyncio.sleep(3)
-                        continue
-                    return recipient.id, False, "HTTP Timeout", None, "TIMEOUT"
-                except Exception as e:
-                    return recipient.id, False, str(e), None, "CLIENT_ERROR"
-
-            return recipient.id, False, "Max retries exhausted", None, "EXHAUSTED"
 
     async def run_broadcast_async(self):
         """
@@ -314,15 +293,15 @@ class AsyncBroadcastEngine:
         """
         from django.utils import timezone
         try:
-            task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=self.task_id)
+            task_obj = await asyncio.to_thread(_db_call, BroadcastTask.objects.get, id=self.task_id)
         except BroadcastTask.DoesNotExist:
             print(f"❌ BroadcastTask {self.task_id} not found.")
             return
 
         task_obj.status = 'running'
-        await asyncio.to_thread(task_obj.save)
+        await asyncio.to_thread(_db_call, task_obj.save)
 
-        template_config = await asyncio.to_thread(get_template_config, task_obj.template_name)
+        template_config = await asyncio.to_thread(_db_call, get_template_config, task_obj.template_name)
 
         # HTTPX Client with pooled connections for max speed
         limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
@@ -332,27 +311,27 @@ class AsyncBroadcastEngine:
             BATCH_SIZE = 1000
             while True:
                 # Refresh task status to check for admin Pause/Cancel signals
-                task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=self.task_id)
+                task_obj = await asyncio.to_thread(_db_call, BroadcastTask.objects.get, id=self.task_id)
                 if task_obj.status in ('paused', 'cancelled', 'stopped'):
                     print(f"🛑 BroadcastTask {self.task_id} status changed to '{task_obj.status}'. Halting workers.")
                     return
 
-                pending_recipients = await asyncio.to_thread(
-                    list,
-                    BroadcastRecipient.objects.filter(
+                def fetch_pending():
+                    return list(BroadcastRecipient.objects.filter(
                         task_id=self.task_id, status__in=['pending', 'queued']
-                    )[:BATCH_SIZE]
-                )
+                    )[:BATCH_SIZE])
+
+                pending_recipients = await asyncio.to_thread(_db_call, fetch_pending)
 
                 if not pending_recipients:
                     break  # All recipients processed!
 
                 # Mark batch as 'queued'
                 recipient_ids = [r.id for r in pending_recipients]
-                await asyncio.to_thread(
-                    BroadcastRecipient.objects.filter(id__in=recipient_ids).update,
-                    status='queued'
-                )
+                def mark_queued():
+                    BroadcastRecipient.objects.filter(id__in=recipient_ids).update(status='queued')
+
+                await asyncio.to_thread(_db_call, mark_queued)
 
                 # Dispatch async send tasks concurrently
                 tasks = [
@@ -394,21 +373,34 @@ class AsyncBroadcastEngine:
                     updated_recipients.append(rec)
 
                 # Perform high-performance bulk DB update
-                await asyncio.to_thread(
-                    BroadcastRecipient.objects.bulk_update,
-                    updated_recipients,
-                    ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
-                )
+                def perform_bulk_update():
+                    BroadcastRecipient.objects.bulk_update(
+                        updated_recipients,
+                        ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
+                    )
+                await asyncio.to_thread(_db_call, perform_bulk_update)
 
                 if chat_logs_to_create:
                     try:
-                        await asyncio.to_thread(
-                            ChatMessage.objects.bulk_create,
-                            chat_logs_to_create,
-                            ignore_conflicts=True
-                        )
+                        def perform_bulk_create_logs():
+                            ChatMessage.objects.bulk_create(
+                                chat_logs_to_create,
+                                ignore_conflicts=True
+                            )
+                        await asyncio.to_thread(_db_call, perform_bulk_create_logs)
                     except Exception:
                         pass
+
+                # Update main task progress
+                def update_task_progress():
+                    t = BroadcastTask.objects.get(id=self.task_id)
+                    t.processed_records += len(results)
+                    t.success_count += batch_success
+                    t.failed_count += batch_failed
+                    t.save()
+
+                await asyncio.to_thread(_db_call, update_task_progress)
+
 
 
                 # Update Task counters in DB
@@ -641,9 +633,12 @@ def create_broadcast_campaign(template_name, language_code="en_US",
     ]
 
     # Bulk insert in batches of 2000
-    BroadcastRecipient.objects.bulk_create(recipient_objects, batch_size=2000)
+    _db_call(BroadcastRecipient.objects.bulk_create, recipient_objects, batch_size=2000)
     print(f"✅ Successfully initialized BroadcastTask #{task_obj.id} with {total_unique} recipients.")
+    from django.db import connection
+    connection.close()
     return task_obj.id
+
 
 
 def execute_broadcast_task_sync(task_id):
@@ -652,18 +647,20 @@ def execute_broadcast_task_sync(task_id):
     Safe for threading / background execution.
     """
     try:
-        task_obj = BroadcastTask.objects.get(id=task_id)
+        task_obj = _db_call(BroadcastTask.objects.get, id=task_id)
         engine = AsyncBroadcastEngine(task_id, rate_limit_per_sec=task_obj.rate_limit_per_sec)
         asyncio.run(engine.run_broadcast_async())
     except Exception as e:
         print(f"❌ Execution error on Task #{task_id}: {e}")
         try:
-            task_obj = BroadcastTask.objects.get(id=task_id)
+            task_obj = _db_call(BroadcastTask.objects.get, id=task_id)
             task_obj.status = 'failed'
             task_obj.failed_details = str(e)
-            task_obj.save()
+            _db_call(task_obj.save)
         except Exception:
             pass
+
+
 
 
 def run_massive_broadcast(template_name, language_code="en_US", csv_or_excel_path=None, rate_limit_per_sec=50):

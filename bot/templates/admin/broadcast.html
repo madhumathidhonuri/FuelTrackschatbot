@@ -299,7 +299,11 @@
         <script id="templates-mapping-json" type="application/json">
             {{ templates_mapping_json|safe }}
         </script>
+        <script id="active-task-id-json" type="application/json">
+            {{ active_task_id|default:"null" }}
+        </script>
     </div>
+
 
     <!-- Active Task Card -->
     <div id="progress-card" class="card" style="display: none;">
@@ -443,7 +447,15 @@
     // Run on load to set initial state
     updateLanguages(templateSelect.value);
 
-    let currentTaskId = {% if active_task_id %}{ { active_task_id } } {% else %} null{% endif %};
+    function getCsrfToken() {
+        const input = document.querySelector('input[name=csrfmiddlewaretoken]');
+        return input ? input.value : '';
+    }
+
+
+    const activeTaskIdElem = document.getElementById('active-task-id-json');
+    const rawTaskId = activeTaskIdElem ? activeTaskIdElem.textContent.trim() : "null";
+    let currentTaskId = (rawTaskId !== "null" && rawTaskId !== "") ? parseInt(rawTaskId, 10) : null;
     let poller = null;
 
     if (currentTaskId) {
@@ -504,9 +516,11 @@
                     if (data.status === 'paused') {
                         pauseBtn.innerText = 'Resume';
                         pauseBtn.style.backgroundColor = '#22c55e';
+                        isPaused = true;
                     } else if (data.status === 'running') {
                         pauseBtn.innerText = 'Pause';
                         pauseBtn.style.backgroundColor = '#f59e0b';
+                        isPaused = false;
                     }
                 }
 
@@ -529,7 +543,7 @@
     function togglePauseResume() {
         if (!currentTaskId) return;
         const action = isPaused ? 'resume' : 'pause';
-        fetch(`../broadcast-${action}/${currentTaskId}/`, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+        fetch(`../broadcast-${action}/${currentTaskId}/`, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -541,8 +555,9 @@
 
     function cancelBroadcast() {
         if (!currentTaskId || !confirm("Are you sure you want to cancel this broadcast completely? Starting a new broadcast will start from 0.")) return;
-        fetch(`../broadcast-cancel/${currentTaskId}/`, { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+        fetch(`../broadcast-cancel/${currentTaskId}/`, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
             .then(res => res.json())
+
             .then(data => {
                 if (data.success) {
                     const statusBadge = document.getElementById('task-status');

@@ -1,4 +1,4 @@
-from django.test import TestCase, Client
+from django.test import TestCase, TransactionTestCase, Client
 from unittest.mock import patch, MagicMock
 from django.urls import reverse
 from bot.models import FleetCustomer, ChatMessage, AdCampaign, WhatsAppTemplate, AgentNotificationLog
@@ -1378,7 +1378,7 @@ class WebhookTests(TestCase):
             "AC_Temperature_Sensor_Catalog.pdf")
 
 
-class ExcelUploadAndBroadcastTests(TestCase):
+class ExcelUploadAndBroadcastTests(TransactionTestCase):
     def setUp(self):
         from django.contrib.auth.models import User
         self.admin_user = User.objects.create_superuser(

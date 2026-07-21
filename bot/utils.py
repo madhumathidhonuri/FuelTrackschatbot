@@ -122,6 +122,26 @@ def parse_excel_or_csv(file_path_or_buffer, filename=None):
     return customers_data
 
 
+def normalize_phone_number(phone):
+    """
+    Cleans and normalizes phone numbers to standard format (with 91 country code for Indian 10-digit numbers).
+    """
+    if not phone:
+        return ""
+    phone = str(phone).strip()
+    if phone.endswith('.0'):
+        phone = phone[:-2]
+    phone = ''.join(filter(str.isdigit, phone))
+    if not phone:
+        return ""
+    if len(phone) == 10:
+        phone = '91' + phone
+    elif len(phone) == 11 and phone.startswith('0'):
+        phone = '91' + phone[1:]
+    return phone
+
+
+
 def upload_media_to_meta(file_path_or_field):
     """
     Uploads a file to Meta Cloud API and returns the media_id.
