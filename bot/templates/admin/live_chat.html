@@ -389,6 +389,165 @@
         margin-right: 2px;
     }
 
+    /* WhatsApp Voice Note Player Component */
+    .wa-audio-player {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(0, 0, 0, 0.05);
+        padding: 8px 12px;
+        border-radius: 12px;
+        margin: 4px 0;
+        min-width: 260px;
+        max-width: 330px;
+        box-sizing: border-box;
+    }
+    .wa-audio-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background-color: #00a884;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        flex-shrink: 0;
+        position: relative;
+    }
+    .wa-audio-avatar-mic {
+        position: absolute;
+        bottom: -2px;
+        right: -2px;
+        background: #fff;
+        border-radius: 50%;
+        padding: 2px;
+        display: flex;
+    }
+    .wa-audio-play-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: none;
+        background: #00a884;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.2s, transform 0.1s;
+    }
+    .wa-audio-play-btn:hover {
+        background: #008f6f;
+        transform: scale(1.05);
+    }
+    .wa-audio-controls {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+    }
+    .wa-audio-slider-container {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .wa-audio-progress {
+        width: 100%;
+        height: 5px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #c1c7cd;
+        outline: none;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    .wa-audio-progress::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #00a884;
+        cursor: pointer;
+    }
+    .wa-audio-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        color: #667781;
+    }
+    .wa-audio-speed-btn {
+        background: rgba(0,0,0,0.08);
+        border: none;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #111b21;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .wa-audio-speed-btn:hover {
+        background: rgba(0,0,0,0.15);
+    }
+
+    /* Reply Preview Bar & Quoted Box */
+    .reply-preview-bar {
+        background: #f0f2f5;
+        border-left: 4px solid #00a884;
+        padding: 8px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        font-size: 13px;
+    }
+    .reply-preview-title {
+        font-weight: 600;
+        color: #00a884;
+        font-size: 12px;
+    }
+    .reply-preview-content {
+        color: #111b21;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        max-width: 500px;
+    }
+    .quoted-message-box {
+        background: rgba(0, 0, 0, 0.05);
+        border-left: 3.5px solid #00a884;
+        border-radius: 4px;
+        padding: 5px 8px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        color: #4a4a4a;
+    }
+    .quoted-message-author {
+        font-weight: 600;
+        color: #00a884;
+        font-size: 11px;
+        margin-bottom: 2px;
+    }
+    .message-actions {
+        position: absolute;
+        top: 4px;
+        right: 6px;
+        display: none;
+        background: rgba(255,255,255,0.9);
+        border-radius: 50%;
+        padding: 3px;
+        cursor: pointer;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .message:hover .message-actions {
+        display: flex;
+    }
+
     /* Loader */
     .loader {
         display: none;
@@ -474,6 +633,14 @@
             <div class="chat-messages" id="chatMessages">
                 <div class="loader" id="chatLoader">Loading messages...</div>
                 <!-- Messages go here -->
+            </div>
+
+            <div id="replyBar" class="reply-preview-bar hidden">
+                <div>
+                    <div class="reply-preview-title" id="replyTitle">Replying to Customer</div>
+                    <div class="reply-preview-content" id="replyText">Quoted message...</div>
+                </div>
+                <button onclick="cancelReply()" style="background:none; border:none; color:#54656f; cursor:pointer; font-size:16px; font-weight:bold;">✕</button>
             </div>
 
             <div class="chat-input-container">
@@ -658,10 +825,112 @@
         }
     }
 
+    let currentlyPlayingAudioId = null;
+    let activeReplyData = null;
+
+    function toggleAudioPlay(playerIdx) {
+        const audio = document.getElementById(`audio_${playerIdx}`);
+        const btn = document.getElementById(`btn_${playerIdx}`);
+        if (!audio || !btn) return;
+
+        if (currentlyPlayingAudioId && currentlyPlayingAudioId !== playerIdx) {
+            pauseAudio(currentlyPlayingAudioId);
+        }
+
+        if (audio.paused) {
+            audio.play().then(() => {
+                currentlyPlayingAudioId = playerIdx;
+                btn.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+            }).catch(err => {
+                console.error("Audio playback error:", err);
+                alert("Could not play audio file. Make sure the file exists or check browser permissions.");
+            });
+        } else {
+            pauseAudio(playerIdx);
+        }
+    }
+
+    function pauseAudio(playerIdx) {
+        const audio = document.getElementById(`audio_${playerIdx}`);
+        const btn = document.getElementById(`btn_${playerIdx}`);
+        if (audio) audio.pause();
+        if (btn) btn.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+        if (currentlyPlayingAudioId === playerIdx) currentlyPlayingAudioId = null;
+    }
+
+    function updateAudioProgress(playerIdx) {
+        const audio = document.getElementById(`audio_${playerIdx}`);
+        const seek = document.getElementById(`seek_${playerIdx}`);
+        const timeDisplay = document.getElementById(`time_${playerIdx}`);
+        if (!audio || !seek || !timeDisplay) return;
+
+        if (audio.duration && !isNaN(audio.duration)) {
+            const pct = (audio.currentTime / audio.duration) * 100;
+            seek.value = pct;
+            timeDisplay.innerText = formatAudioTime(audio.currentTime) + ' / ' + formatAudioTime(audio.duration);
+        } else {
+            timeDisplay.innerText = formatAudioTime(audio.currentTime);
+        }
+    }
+
+    function seekAudio(playerIdx, pct) {
+        const audio = document.getElementById(`audio_${playerIdx}`);
+        if (audio && audio.duration && !isNaN(audio.duration)) {
+            audio.currentTime = (pct / 100) * audio.duration;
+        }
+    }
+
+    function cycleAudioSpeed(playerIdx) {
+        const audio = document.getElementById(`audio_${playerIdx}`);
+        const speedBtn = document.getElementById(`speed_${playerIdx}`);
+        if (!audio || !speedBtn) return;
+
+        const currentSpeed = audio.playbackRate || 1;
+        let nextSpeed = 1;
+        if (currentSpeed === 1) nextSpeed = 1.5;
+        else if (currentSpeed === 1.5) nextSpeed = 2;
+        else nextSpeed = 1;
+
+        audio.playbackRate = nextSpeed;
+        speedBtn.innerText = nextSpeed + 'x';
+    }
+
+    function onAudioEnded(playerIdx) {
+        pauseAudio(playerIdx);
+        const seek = document.getElementById(`seek_${playerIdx}`);
+        if (seek) seek.value = 0;
+    }
+
+    function formatAudioTime(secs) {
+        if (isNaN(secs) || secs === Infinity) return "0:00";
+        const m = Math.floor(secs / 60);
+        const s = Math.floor(secs % 60);
+        return m + ":" + (s < 10 ? "0" : "") + s;
+    }
+
+    // --- WhatsApp Reply Feature ---
+    function triggerReply(author, snippet) {
+        activeReplyData = { author, snippet };
+        document.getElementById('replyTitle').innerText = `Replying to ${author}`;
+        document.getElementById('replyText').innerText = snippet;
+        document.getElementById('replyBar').classList.remove('hidden');
+        document.getElementById('messageInput').focus();
+    }
+
+    function cancelReply() {
+        activeReplyData = null;
+        document.getElementById('replyBar').classList.add('hidden');
+    }
+
     async function sendMessage() {
         const input = document.getElementById('messageInput');
-        const text = input.value.trim();
+        let text = input.value.trim();
         if (!text || !currentPhone) return;
+
+        if (activeReplyData) {
+            text = `[Replying to ${activeReplyData.author}: ${activeReplyData.snippet}]\n` + text;
+            cancelReply();
+        }
 
         // Optimistic UI Append
         const chatBox = document.getElementById('chatMessages');
@@ -1004,26 +1273,54 @@
             const videoMatch = rawContent.match(/\/media\/[^\s"'>]+\.(mp4|webm|mov|avi)/i);
             const docMatch = rawContent.match(/\/media\/[^\s"'>]+\.(pdf|doc|docx|xls|xlsx|txt)/i);
 
+            let quoteHtml = '';
+            const quoteMatch = rawContent.match(/^\[Replying to ([^:]+):\s*([^\]]+)\]\n?/i);
+            if (quoteMatch) {
+                const qAuthor = quoteMatch[1];
+                const qSnippet = quoteMatch[2];
+                rawContent = rawContent.replace(quoteMatch[0], '');
+                quoteHtml = `
+                    <div class="quoted-message-box">
+                        <div class="quoted-message-author">${qAuthor}</div>
+                        <div>${qSnippet}</div>
+                    </div>
+                `;
+            }
+
             let renderedMediaHtml = '';
             let displayText = rawContent;
 
             if (audioMatch) {
                 const audioUrl = audioMatch[0];
                 displayText = rawContent.replace(audioUrl, '').trim();
-                const audioTitle = m.role === 'user' ? '🎤 Incoming Voice Note' : '🎤 Sent Voice Note';
+                const playerIdx = 'wa_aud_' + Math.random().toString(36).substr(2, 9);
+                const isUser = m.role === 'user';
+                
                 renderedMediaHtml = `
-                    <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-                        ${audioTitle}
+                    <div class="wa-audio-player" id="player_${playerIdx}">
+                        <audio id="audio_${playerIdx}" src="${audioUrl}" preload="metadata" ontimeupdate="updateAudioProgress('${playerIdx}')" onended="onAudioEnded('${playerIdx}')"></audio>
+                        <div class="wa-audio-avatar" style="background-color: ${isUser ? '#00a884' : '#128c7e'};">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                            <div class="wa-audio-avatar-mic">
+                                <svg viewBox="0 0 24 24" width="10" height="10" fill="#00a884"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                            </div>
+                        </div>
+                        <button class="wa-audio-play-btn" id="btn_${playerIdx}" onclick="toggleAudioPlay('${playerIdx}')" title="Play Voice Note">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <div class="wa-audio-controls">
+                            <div class="wa-audio-slider-container">
+                                <input type="range" class="wa-audio-progress" id="seek_${playerIdx}" value="0" min="0" max="100" oninput="seekAudio('${playerIdx}', this.value)">
+                            </div>
+                            <div class="wa-audio-info-row">
+                                <span id="time_${playerIdx}">0:00</span>
+                                <button class="wa-audio-speed-btn" id="speed_${playerIdx}" onclick="cycleAudioSpeed('${playerIdx}')" title="Playback Speed">1x</button>
+                            </div>
+                        </div>
                     </div>
-                    <audio controls style="width: 100%; min-width: 240px; max-width: 320px; height: 40px; outline: none; margin: 4px 0; border-radius: 20px;">
-                        <source src="${audioUrl}" type="audio/mpeg">
-                        <source src="${audioUrl}" type="audio/ogg">
-                        <source src="${audioUrl}" type="audio/mp4">
-                        Your browser does not support playing this audio file.
-                    </audio>
-                    <div style="margin-top: 4px; font-size: 11px;">
-                        <a href="${audioUrl}" target="_blank" download style="color: inherit; text-decoration: underline; opacity: 0.9;">
-                            ⬇ Click to Listen / Download Audio
+                    <div style="margin-top: 2px; font-size: 11px; padding-left: 2px;">
+                        <a href="${audioUrl}" target="_blank" download style="color: inherit; text-decoration: underline; opacity: 0.85;">
+                            ⬇ Download Voice File
                         </a>
                     </div>
                 `;
@@ -1057,9 +1354,21 @@
             }
 
             let safeText = displayText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+            const authorName = m.role === 'user' ? (document.getElementById('chatHeaderName').innerText || 'Customer') : 'Agent';
+            const rawSnippet = audioMatch ? '🎤 Voice Note' : (rawContent.slice(0, 60) + (rawContent.length > 60 ? '...' : ''));
+            const safeAuthorEsc = authorName.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+            const safeSnippetEsc = rawSnippet.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+            const replyActionHtml = `
+                <div class="message-actions" onclick="triggerReply('${safeAuthorEsc}', '${safeSnippetEsc}')" title="Reply to this message">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="#54656f"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                </div>
+            `;
 
             if (audioMatch) {
                 div.innerHTML = `
+                    ${replyActionHtml}
+                    ${quoteHtml}
                     ${renderedMediaHtml}
                     ${safeText && !safeText.includes("[Audio Message Received]") && !safeText.startsWith("[Audio Sent:") ? `<div style="margin-top:6px; font-size: 13px;">${safeText}</div>` : ''}
                     <div class="message-time" style="display: flex; align-items: center; justify-content: flex-end; margin-top: 4px;">
@@ -1069,6 +1378,8 @@
                 `;
             } else {
                 div.innerHTML = `
+                    ${replyActionHtml}
+                    ${quoteHtml}
                     ${safeText}
                     ${renderedMediaHtml}
                     <div class="message-time" style="display: flex; align-items: center; justify-content: flex-end;">
