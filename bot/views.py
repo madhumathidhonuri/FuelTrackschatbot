@@ -1231,7 +1231,12 @@ def whatsapp_webhook(request):
                                 user_text = ""
                     elif message_obj.get("type") in ["audio", "image", "video", "document"]:
                         media_type = message_obj.get("type")
-                        user_text = f"[{media_type.capitalize()} Message Received]"
+                        from bot.utils import download_media_from_meta
+                        media_url = download_media_from_meta(message_obj, message_id=message_id)
+                        if media_url:
+                            user_text = f"[{media_type.capitalize()} Message Received]\n{media_url}"
+                        else:
+                            user_text = f"[{media_type.capitalize()} Message Received]"
                     else:
                         user_text = ""
 

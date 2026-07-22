@@ -939,7 +939,7 @@
                         </div>
                         <div class="customer-time">${formatListDate(c.last_message_time)}</div>
                     </div>
-                    <div class="customer-preview">${c.last_message}</div>
+                    <div class="customer-preview">${(c.last_message || '').split('\n')[0]}</div>
                 </div>
             `;
             listDiv.appendChild(item);
@@ -987,8 +987,6 @@
             const div = document.createElement('div');
             div.className = `message ${m.role === 'user' ? 'msg-user' : 'msg-assistant'}`;
             
-            const safeContent = m.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
-            
             let statusIcon = '';
             if (m.role === 'assistant') {
                 if (m.status === 'read') {
@@ -996,18 +994,89 @@
                 } else if (m.status === 'delivered') {
                     statusIcon = `<svg viewBox="0 0 16 15" width="16" height="15" class="status-icon" style="margin-left: 4px; vertical-align: middle;"><path fill="#8696a0" d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/></svg>`;
                 } else {
-                    // sent (single tick)
                     statusIcon = `<svg viewBox="0 0 16 15" width="16" height="15" class="status-icon" style="margin-left: 4px; vertical-align: middle;"><path fill="#8696a0" d="M10.91 3.316l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/></svg>`;
                 }
             }
 
-            div.innerHTML = `
-                ${safeContent}
-                <div class="message-time" style="display: flex; align-items: center; justify-content: flex-end;">
-                    ${formatTime(m.timestamp)}
-                    ${statusIcon}
-                </div>
-            `;
+            const rawContent = m.content || '';
+            const audioMatch = rawContent.match(/\/media\/[^\s"'>]+\.(mp3|ogg|wav|mp4|webm|m4a|aac|amr)/i);
+            const imageMatch = rawContent.match(/\/media\/[^\s"'>]+\.(jpg|jpeg|png|gif|webp)/i);
+            const videoMatch = rawContent.match(/\/media\/[^\s"'>]+\.(mp4|webm|mov|avi)/i);
+            const docMatch = rawContent.match(/\/media\/[^\s"'>]+\.(pdf|doc|docx|xls|xlsx|txt)/i);
+
+            let renderedMediaHtml = '';
+            let displayText = rawContent;
+
+            if (audioMatch) {
+                const audioUrl = audioMatch[0];
+                displayText = rawContent.replace(audioUrl, '').trim();
+                const audioTitle = m.role === 'user' ? '🎤 Incoming Voice Note' : '🎤 Sent Voice Note';
+                renderedMediaHtml = `
+                    <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                        ${audioTitle}
+                    </div>
+                    <audio controls style="width: 100%; min-width: 240px; max-width: 320px; height: 40px; outline: none; margin: 4px 0; border-radius: 20px;">
+                        <source src="${audioUrl}" type="audio/mpeg">
+                        <source src="${audioUrl}" type="audio/ogg">
+                        <source src="${audioUrl}" type="audio/mp4">
+                        Your browser does not support playing this audio file.
+                    </audio>
+                    <div style="margin-top: 4px; font-size: 11px;">
+                        <a href="${audioUrl}" target="_blank" download style="color: inherit; text-decoration: underline; opacity: 0.9;">
+                            ⬇ Click to Listen / Download Audio
+                        </a>
+                    </div>
+                `;
+            } else if (imageMatch) {
+                const imgUrl = imageMatch[0];
+                renderedMediaHtml = `
+                    <div style="margin-top: 5px;">
+                        <a href="${imgUrl}" target="_blank">
+                            <img src="${imgUrl}" style="max-width: 100%; max-height: 250px; border-radius: 8px; object-fit: contain; cursor: pointer;" alt="Image">
+                        </a>
+                    </div>
+                `;
+            } else if (videoMatch && !audioMatch) {
+                const videoUrl = videoMatch[0];
+                renderedMediaHtml = `
+                    <div style="margin-top: 5px;">
+                        <video controls style="max-width: 100%; max-height: 250px; border-radius: 8px;">
+                            <source src="${videoUrl}">
+                        </video>
+                    </div>
+                `;
+            } else if (docMatch) {
+                const docUrl = docMatch[0];
+                renderedMediaHtml = `
+                    <div style="margin-top: 5px; font-size: 13px;">
+                        📄 <a href="${docUrl}" target="_blank" download style="color: inherit; text-decoration: underline; font-weight: 500;">
+                            Download Attached Document
+                        </a>
+                    </div>
+                `;
+            }
+
+            let safeText = displayText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+
+            if (audioMatch) {
+                div.innerHTML = `
+                    ${renderedMediaHtml}
+                    ${safeText && !safeText.includes("[Audio Message Received]") && !safeText.startsWith("[Audio Sent:") ? `<div style="margin-top:6px; font-size: 13px;">${safeText}</div>` : ''}
+                    <div class="message-time" style="display: flex; align-items: center; justify-content: flex-end; margin-top: 4px;">
+                        ${formatTime(m.timestamp)}
+                        ${statusIcon}
+                    </div>
+                `;
+            } else {
+                div.innerHTML = `
+                    ${safeText}
+                    ${renderedMediaHtml}
+                    <div class="message-time" style="display: flex; align-items: center; justify-content: flex-end;">
+                        ${formatTime(m.timestamp)}
+                        ${statusIcon}
+                    </div>
+                `;
+            }
             chatBox.appendChild(div);
         });
 

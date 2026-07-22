@@ -1359,8 +1359,18 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 if converted_file_path and os.path.exists(converted_file_path):
                     os.remove(converted_file_path)
 
+            # Save local copy for Live Chat playback/display
+            from django.conf import settings
+            outgoing_dir = os.path.join(settings.MEDIA_ROOT, "outgoing_media")
+            os.makedirs(outgoing_dir, exist_ok=True)
+            safe_file_name = "".join(c for c in file_name if c.isalnum() or c in (".", "-", "_")) or "file"
+            outgoing_path = os.path.join(outgoing_dir, safe_file_name)
+            with open(outgoing_path, "wb") as f:
+                f.write(file_data)
+            media_rel_url = f"/media/outgoing_media/{safe_file_name}"
+
             # Step 3: Log in chat history
-            log_content = f"[{media_type.capitalize()} Sent: {file_name}]"
+            log_content = f"[{media_type.capitalize()} Sent: {file_name}]\n{media_rel_url}"
             if caption_text:
                 log_content += f"\nCaption: {caption_text}"
             ChatMessage.objects.create(

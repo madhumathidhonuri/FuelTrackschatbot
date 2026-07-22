@@ -3278,3 +3278,33 @@ class MarketingMessagesAPITests(TestCase):
         self.assertIn("graph.facebook.com", called_url)
         self.assertIn(f"/{PHONE_NUMBER_ID}/messages", called_url)
         self.assertNotIn("marketing_messages", called_url)
+
+    @patch("requests.get")
+    @patch("os.getenv")
+    def test_download_media_from_meta_and_audio_webhook(self, mock_getenv, mock_get):
+        mock_getenv.side_effect = lambda key, default=None: {
+            "WHATSAPP_TOKEN": "fake_token",
+        }.get(key, default)
+
+        # Mock Meta API responses
+        meta_url_resp = MagicMock()
+        meta_url_resp.status_code = 200
+        meta_url_resp.json.return_value = {
+            "url": "https://lookaside.fbsbx.com/media_download",
+            "mime_type": "audio/ogg; codecs=opus"
+        }
+
+        media_bytes_resp = MagicMock()
+        media_bytes_resp.status_code = 200
+        media_bytes_resp.content = b"OggS_fake_audio_bytes"
+
+        mock_get.side_effect = [meta_url_resp, media_bytes_resp]
+
+        from bot.utils import download_media_from_meta
+        msg_obj = {
+            "type": "audio",
+            "audio": {"id": "123456789", "mime_type": "audio/ogg"}
+        }
+        rel_url = download_media_from_meta(msg_obj, message_id="wamid_test_audio")
+        self.assertIsNotNone(rel_url)
+        self.assertTrue(rel_url.startswith("/media/incoming_media/wamid_test_audio"))
