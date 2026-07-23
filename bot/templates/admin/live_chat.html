@@ -1267,11 +1267,20 @@
                 }
             }
 
-            const rawContent = m.content || '';
-            const audioMatch = rawContent.match(/\/media\/[^\s"'>]+\.(mp3|ogg|wav|mp4|webm|m4a|aac|amr)/i);
-            const imageMatch = rawContent.match(/\/media\/[^\s"'>]+\.(jpg|jpeg|png|gif|webp)/i);
-            const videoMatch = rawContent.match(/\/media\/[^\s"'>]+\.(mp4|webm|mov|avi)/i);
-            const docMatch = rawContent.match(/\/media\/[^\s"'>]+\.(pdf|doc|docx|xls|xlsx|txt)/i);
+            let rawContent = m.content || '';
+            if (rawContent.includes('[System Sent Broadcast:')) {
+                const markerEnd = rawContent.indexOf(']');
+                if (markerEnd !== -1) {
+                    const afterMarker = rawContent.substring(markerEnd + 1).trim();
+                    if (afterMarker) {
+                        rawContent = afterMarker;
+                    }
+                }
+            }
+            const audioMatch = rawContent.match(/(https?:\/\/[^\s"'>]+\.(mp3|ogg|wav|mp4|webm|m4a|aac|amr)|\/media\/[^\s"'>]+\.(mp3|ogg|wav|mp4|webm|m4a|aac|amr))/i);
+            const imageMatch = rawContent.match(/(https?:\/\/[^\s"'>]+\.(jpg|jpeg|png|gif|webp)|\/media\/[^\s"'>]+\.(jpg|jpeg|png|gif|webp))/i);
+            const videoMatch = rawContent.match(/(https?:\/\/[^\s"'>]+\.(mp4|webm|mov|avi)|\/media\/[^\s"'>]+\.(mp4|webm|mov|avi))/i);
+            const docMatch = rawContent.match(/(https?:\/\/[^\s"'>]+\.(pdf|doc|docx|xls|xlsx|txt)|\/media\/[^\s"'>]+\.(pdf|doc|docx|xls|xlsx|txt))/i);
 
             let quoteHtml = '';
             const quoteMatch = rawContent.match(/^\[Replying to ([^:]+):\s*([^\]]+)\]\n?/i);

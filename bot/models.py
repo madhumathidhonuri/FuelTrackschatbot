@@ -272,6 +272,11 @@ class WhatsAppTemplate(models.Model):
         default='en_US',
         help_text="Comma-separated approved language codes (e.g. en_US,te)"
     )
+    body_text = models.TextField(
+        blank=True,
+        default='',
+        help_text="Template body content with optional placeholders like {{1}}, {{2}}"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):

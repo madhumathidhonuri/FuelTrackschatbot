@@ -408,11 +408,12 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
                         processed += 1
                         if success:
                             success_count += 1
+                            fmt_text = get_formatted_template_text(template_name, cust.get('owner_name'), cust.get('truck_number'))
                             chat_history_batch.append(
                                 ChatMessage(
                                     phone_number=cust['phone_number'],
                                     role='assistant',
-                                    content=chat_msg_content
+                                    content=f"[System Sent Broadcast: {template_name}]\n\n{fmt_text}"
                                 )
                             )
                         else:
@@ -488,6 +489,89 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
 
 
 
+DEFAULT_TEMPLATE_BODY_TEXTS = {
+    "ais_140_notice_telugu": (
+        "⚠️ ప్రభుత్వ నోటీసు (GOVERNMENT NOTICE) - AIS 140 గడువు:\n"
+        "(1) అన్ని లీజు హోల్డర్లు & MDL హోల్డర్లు తమ వాహనాలను డిపార్ట్‌మెంట్‌లో నమోదు చేసి, జూన్ 25, 2026 నాటికి అన్ని మినరల్ క్యారియింగ్ వాహనాలకు AIS-140 ఇన్‌స్టాల్ చేయాలి.\n"
+        "(2) అన్ని మినరల్ ట్రాన్స్‌పోర్టింగ్ వాహనాలకు 31.07.2026 లోపు ఎంపనెల్డ్ ఏజెన్సీలతో సంప్రదించి AIS-140 పరికరాన్ని ఫిక్స్ చేయాలి.\n"
+        "(3) 01.08.2026 నుండి AIS-140 లేకుండా ట్రాన్సిట్ ఫారమ్స్/పాసెస్ జనరేట్ కావు.\n"
+        "*గడువు దాటకముందే సంప్రదించండి — మిస్టర్ కరుణాకర్ రెడ్డి: +91 90006 66914 | సపోర్ట్: +91 73374 33350 / 51 / 56.*"
+    ),
+    "ais_140_gps_mining_device": (
+        "తెలంగాణ ప్రభుత్వ మైనింగ్ డిపార్ట్‌మెంట్ ద్వారా ఆమోదించబడిన AIS 140 పరికరం మైనింగ్ వాహనాలకు ఇప్పుడు తప్పనిసరి.\n"
+        "మా వద్ద లభించే AIS 140 ట్రాకర్లు అత్యంత నాణ్యమైనవి, నమ్మకమైనవి మరియు బెస్ట్ ప్రైస్ గ్యారెంటీతో లభిస్తాయి.\n"
+        "సంప్రదించండి: మిస్టర్ కరుణాకర్ రెడ్డి +91 90006 66914 | సపోర్ట్: +91 73374 33350 / 51 / 56"
+    ),
+    "gps_tracking_device": (
+        "Hello {{1}}! Protect and track your vehicle {{2}} in real-time with Fuel Tracks AIS 140 GPS Tracking Devices. "
+        "Get live location, speed alerts, and 24/7 monitoring.\n"
+        "Call Us: +91 90006 66914 | +91 73374 33350"
+    ),
+    "fuel_alert": (
+        "Hello {{1}}, smart fuel monitoring alert for vehicle {{2}}. Detect fuel theft & drops with 99% accuracy using Fuel Tracks digital fuel sensors.\n"
+        "Contact: +91 90006 66914 | +91 73374 33350"
+    ),
+    "fleet_update": (
+        "Hello {{1}}, here is your fleet tracking update for vehicle {{2}}. Monitor live status, route history, and fuel efficiency with Fuel Tracks.\n"
+        "Contact: +91 90006 66914 | +91 73374 33350"
+    ),
+    "hello_world": (
+        "Welcome to Fuel Tracks Technologies! We offer AIS 140 Certified GPS Trackers and Smart Fuel Monitoring Solutions for your fleet.\n"
+        "Contact: +91 90006 66914 | +91 73374 33350"
+    ),
+}
+
+
+def get_formatted_template_text(template_name, customer_name=None, vehicle_number=None):
+    from bot.models import WhatsAppTemplate
+    tmpl = WhatsAppTemplate.objects.filter(template_name=template_name).first()
+    text = ""
+    if tmpl and tmpl.body_text:
+        text = tmpl.body_text
+    else:
+        text = DEFAULT_TEMPLATE_BODY_TEXTS.get(template_name, f"Broadcast template: {template_name}")
+
+    c_name = customer_name or "Customer"
+    v_num = vehicle_number or "N/A"
+    text = text.replace("{{1}}", c_name).replace("{{2}}", v_num)
+
+    media_prefix = ""
+    if tmpl and tmpl.has_header:
+        if tmpl.header_file:
+            try:
+                media_prefix = f"{tmpl.header_file.url}\n"
+            except Exception:
+                pass
+        elif tmpl.header_image_url:
+            media_prefix = f"{tmpl.header_image_url}\n"
+
+    return f"{media_prefix}{text}".strip()
+
+
+def resolve_broadcast_content(content, customer=None):
+    if not content or "[System Sent Broadcast:" not in content:
+        return content
+
+    start_idx = content.find("[System Sent Broadcast:")
+    end_idx = content.find("]", start_idx)
+    if start_idx != -1 and end_idx != -1:
+        marker = content[start_idx:end_idx + 1]
+        inner = marker.replace("[System Sent Broadcast:", "").replace("]", "").strip()
+        if " - " in inner:
+            template_name = inner.split(" - ")[0].strip()
+        else:
+            template_name = inner.strip()
+
+        after_marker = content[end_idx + 1:].strip()
+        if after_marker:
+            return after_marker
+
+        c_name = customer.owner_name if customer else None
+        v_num = customer.truck_number if customer else None
+        return get_formatted_template_text(template_name, c_name, v_num)
+    return content
+
+
 def sync_whatsapp_templates_from_meta():
     """
     Fetches templates from Meta Graph API using WHATSAPP_BUSINESS_ACCOUNT_ID and WHATSAPP_TOKEN.
@@ -540,10 +624,12 @@ def sync_whatsapp_templates_from_meta():
             header_type = 'none'
             header_handle_url = ''   # extracted from example.header_handle
 
+            body_text = ""
             for comp in item.get("components", []):
                 comp_type = comp.get("type")
                 if comp_type == "BODY":
                     text = comp.get("text", "")
+                    body_text = text
                     matches = re.findall(r'\{\{(\d+)\}\}', text)
                     if matches:
                         has_vars = True
@@ -567,9 +653,12 @@ def sync_whatsapp_templates_from_meta():
                     "has_header": False,
                     "header_type": "none",
                     "header_handle_url": "",
-                    "category": item.get("category", "")
+                    "category": item.get("category", ""),
+                    "body_text": ""
                 }
             grouped[name]["languages"].add(lang)
+            if body_text and not grouped[name]["body_text"]:
+                grouped[name]["body_text"] = body_text
             if has_vars:
                 grouped[name]["has_variables"] = True
                 grouped[name]["var_count"] = max(grouped[name]["var_count"], var_count)
@@ -592,6 +681,7 @@ def sync_whatsapp_templates_from_meta():
                 category_lower = 'marketing'
 
             handle_url = info.get("header_handle_url", "")
+            b_text = info.get("body_text", "")
 
             obj, created = WhatsAppTemplate.objects.get_or_create(
                 template_name=name,
@@ -604,6 +694,7 @@ def sync_whatsapp_templates_from_meta():
                     "has_header": info["has_header"],
                     "header_type": info["header_type"],
                     "header_image_url": handle_url,
+                    "body_text": b_text,
                 }
             )
 
@@ -617,6 +708,8 @@ def sync_whatsapp_templates_from_meta():
                 "has_header": info["has_header"],
                 "header_type": info["header_type"],
             }
+            if b_text:
+                update_fields["body_text"] = b_text
 
             # Store header_handle_url in header_image_url if we got one and it changed
             if handle_url and obj.header_image_url != handle_url:
@@ -950,24 +1043,9 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 request, f"Broadcast task #{
                     task.id} started successfully!")
             return redirect(".")
-        # Ensure default templates are populated if missing (with correct
-        # languages)
-        default_templates = [
-            ("hello_world", "Default Greetings", False,
-             "en_US", False, "none", "", "utility"),
-            ("gps_tracking_device", "GPS Tracking Devices promo",
-             False, "en_US", False, "none", "", "marketing"),
-            ("ais_140_gps_mining_device", "AIS 140 mining tracker template",
-             False, "en_US,te", True, "image", "", "marketing"),
-            ("ais_140_notice_telugu", "AIS 140 Notice (Telugu)",
-             False, "te", False, "none", "", "utility"),
-            ("fuel_alert", "Fuel theft/drop alerts", True,
-             "en_US,te", False, "none", "", "utility"),
-            ("fleet_update", "Fleet status summary updates",
-             True, "en_US,te", False, "none", "", "utility"),
-        ]
+        # Ensure default templates are populated if missing
         for name, desc, has_vars, langs, has_header, header_type, header_img, category in default_templates:
-            WhatsAppTemplate.objects.get_or_create(
+            tmpl_obj, _ = WhatsAppTemplate.objects.get_or_create(
                 template_name=name,
                 defaults={
                     "description": desc,
@@ -976,9 +1054,13 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                     "has_header": has_header,
                     "header_type": header_type,
                     "header_image_url": header_img,
-                    "category": category
+                    "category": category,
+                    "body_text": DEFAULT_TEMPLATE_BODY_TEXTS.get(name, "")
                 }
             )
+            if tmpl_obj and not tmpl_obj.body_text and name in DEFAULT_TEMPLATE_BODY_TEXTS:
+                tmpl_obj.body_text = DEFAULT_TEMPLATE_BODY_TEXTS[name]
+                tmpl_obj.save(update_fields=['body_text'])
 
         # Attempt to sync from Meta Graph API
         sync_whatsapp_templates_from_meta()
@@ -991,10 +1073,10 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             langs = [l.strip() for l in t.languages.split(",") if l.strip()]
             templates_mapping[t.template_name] = langs
 
-        # Clean up any stale running task that hasn't updated in >300 seconds (5 mins) (e.g. killed by server restart)
+        # Clean up any stale running task that hasn't updated in >300 seconds (5 mins)
         from django.utils import timezone
         from datetime import timedelta
-        # 30 minutes: long enough for a 50k-number broadcast (was 5 min — killed tasks too early)
+        # 30 minutes: long enough for a 50k-number broadcast
         stale_threshold = timezone.now() - timedelta(seconds=1800)
         BroadcastTask.objects.filter(
             status='running', updated_at__lt=stale_threshold
@@ -1018,21 +1100,26 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             task = BroadcastTask.objects.get(id=task_id)
             failed_list = []
             if task.failed_details:
-                try:
-                    failed_list = json.loads(task.failed_details)
-                except Exception:
-                    pass
+                failed_list = json.loads(task.failed_details)
             return JsonResponse({
-                "id": task.id,
                 "status": task.status,
-                "template_name": task.template_name,
-                "language_code": task.language_code,
                 "total_records": task.total_records,
                 "processed_records": task.processed_records,
                 "success_count": task.success_count,
                 "failed_count": task.failed_count,
-                "failed_details": failed_list,
+                "delivered_count": task.delivered_count,
+                "read_count": task.read_count,
+                "failed_details": failed_list
             })
+        except BroadcastTask.DoesNotExist:
+            return JsonResponse({"error": "Task not found"}, status=404)
+
+    def stop_broadcast(self, request, task_id):
+        try:
+            task = BroadcastTask.objects.get(id=task_id)
+            task.status = 'stopped'
+            task.save()
+            return JsonResponse({"success": True, "message": "Broadcast stop signal sent."})
         except BroadcastTask.DoesNotExist:
             return JsonResponse({"error": "Task not found"}, status=404)
 
@@ -1069,28 +1156,26 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         import datetime
         from django.utils import timezone
 
-        from_date_str = request.GET.get('from_date') or request.GET.get('date')
-        from_time_str = request.GET.get('from_time')
-        to_date_str = request.GET.get('to_date') or from_date_str
-        to_time_str = request.GET.get('to_time')
+        from_date_str = request.GET.get('from_date', '').strip()
+        to_date_str = request.GET.get('to_date', '').strip()
+        from_time_str = request.GET.get('from_time', '').strip()
+        to_time_str = request.GET.get('to_time', '').strip()
 
         if not from_date_str:
-            messages.error(request, "Please select a From Date.")
-            return redirect('admin:bot_fleetcustomer_broadcast')
+            from_date = timezone.now().date()
+        else:
+            try:
+                from_date = datetime.datetime.strptime(from_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                from_date = timezone.now().date()
 
-        try:
-            from_date = datetime.datetime.strptime(from_date_str, "%Y-%m-%d").date()
-        except ValueError:
-            messages.error(request, "Invalid From Date format.")
-            return redirect('admin:bot_fleetcustomer_broadcast')
-
-        if to_date_str:
+        if not to_date_str:
+            to_date = from_date
+        else:
             try:
                 to_date = datetime.datetime.strptime(to_date_str, "%Y-%m-%d").date()
             except ValueError:
                 to_date = from_date
-        else:
-            to_date = from_date
 
         if from_time_str:
             try:
@@ -1153,13 +1238,14 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                 df.to_excel(writer, index=False, sheet_name='Sent Templates')
         else:
             with pd.ExcelWriter(response, engine='openpyxl') as writer:
-                df = pd.DataFrame(
+                df.to_excel(
+                    writer,
+                    index=False,
                     columns=[
                         'Phone Number',
                         'Customer Name',
                         'Template',
                         'Time'])
-                df.to_excel(writer, index=False, sheet_name='Sent Templates')
 
         return response
 
@@ -1211,12 +1297,13 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             msg = msg_id_to_msg.get(customer.last_msg_id)
             if not msg:
                 continue
-            content = msg.content or ''
+            raw_content = msg.content or ''
+            clean_content = resolve_broadcast_content(raw_content, customer)
             result.append({
                 "phone_number": customer.phone_number,
                 "owner_name": customer.owner_name or "Unknown",
                 "is_bot_paused": customer.is_bot_paused,
-                "last_message": content[:50] + ("..." if len(content) > 50 else ""),
+                "last_message": clean_content[:50] + ("..." if len(clean_content) > 50 else ""),
                 "last_message_time": msg.timestamp.isoformat() if msg.timestamp else "",
                 "timestamp_val": msg.timestamp.timestamp() if msg.timestamp else 0,
             })
@@ -1224,14 +1311,14 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return JsonResponse({"customers": result})
 
     def api_chat_history(self, request, phone_number):
-        # Limit to last 200 messages to avoid memory blowout on large conversations
+        customer = FleetCustomer.objects.filter(phone_number=phone_number).first()
         msgs = ChatMessage.objects.filter(
             phone_number=phone_number
         ).order_by('-id')[:200]
         data = [
             {
                 "role": m.role,
-                "content": m.content,
+                "content": resolve_broadcast_content(m.content, customer),
                 "timestamp": m.timestamp.isoformat(),
                 "status": m.status,
             }

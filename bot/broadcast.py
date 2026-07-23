@@ -193,10 +193,12 @@ def send_whatsapp_template(to_phone, template_name, customer_name=None,
 
                 if record_chat_message:
                     try:
+                        from bot.admin import get_formatted_template_text
+                        fmt_text = get_formatted_template_text(template_name, customer_name, vehicle_number)
                         ChatMessage.objects.create(
                             phone_number=to_phone,
                             role='assistant',
-                            content=f"[System Sent Broadcast: {template_name}]",
+                            content=f"[System Sent Broadcast: {template_name}]\n\n{fmt_text}",
                             message_id=msg_id
                         )
                     except Exception:
@@ -358,10 +360,12 @@ class AsyncBroadcastEngine:
                         rec.wamid = wamid
                         rec.sent_at = timezone.now()
                         batch_success += 1
+                        from bot.admin import get_formatted_template_text
+                        fmt_text = get_formatted_template_text(task_obj.template_name, getattr(rec, 'customer_name', None), getattr(rec, 'vehicle_number', None))
                         chat_logs_to_create.append(ChatMessage(
                             phone_number=rec.phone_number,
                             role='assistant',
-                            content=f"[System Sent Broadcast: {task_obj.template_name}]",
+                            content=f"[System Sent Broadcast: {task_obj.template_name}]\n\n{fmt_text}",
                             message_id=wamid
                         ))
                     else:
@@ -491,10 +495,12 @@ async def _process_chunk_async(task_id, chunk_size=1000):
             rec.wamid = wamid
             rec.sent_at = timezone.now()
             batch_success += 1
+            from bot.admin import get_formatted_template_text
+            fmt_text = get_formatted_template_text(task_obj.template_name, getattr(rec, 'customer_name', None), getattr(rec, 'vehicle_number', None))
             chat_logs_to_create.append(ChatMessage(
                 phone_number=rec.phone_number,
                 role='assistant',
-                content=f"[System Sent Broadcast: {task_obj.template_name}]",
+                content=f"[System Sent Broadcast: {task_obj.template_name}]\n\n{fmt_text}",
                 message_id=wamid
             ))
         else:

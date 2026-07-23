@@ -3308,3 +3308,57 @@ class MarketingMessagesAPITests(TestCase):
         rel_url = download_media_from_meta(msg_obj, message_id="wamid_test_audio")
         self.assertIsNotNone(rel_url)
         self.assertTrue(rel_url.startswith("/media/incoming_media/wamid_test_audio"))
+
+
+class BroadcastTemplateResolutionTests(TestCase):
+    def test_resolve_broadcast_content_existing_marker(self):
+        from bot.admin import resolve_broadcast_content
+        customer = FleetCustomer.objects.create(
+            phone_number="919550685179",
+            owner_name="JALA YEDUKONDALU",
+            truck_number="TS08UB1234"
+        )
+        content = "[System Sent Broadcast: ais_140_notice_telugu - Broadcast template: ais_140_notice_telugu]"
+        resolved = resolve_broadcast_content(content, customer)
+        self.assertIn("ప్రభుత్వ నోటీసు", resolved)
+        self.assertNotIn("[System Sent Broadcast:", resolved)
+
+    def test_resolve_broadcast_content_with_variables(self):
+        from bot.admin import resolve_broadcast_content
+        customer = FleetCustomer.objects.create(
+            phone_number="919876543210",
+            owner_name="MANJUNATH REDDY",
+            truck_number="KA01AB1234"
+        )
+        content = "[System Sent Broadcast: gps_tracking_device]"
+        resolved = resolve_broadcast_content(content, customer)
+        self.assertIn("Hello MANJUNATH REDDY!", resolved)
+        self.assertIn("vehicle KA01AB1234", resolved)
+        self.assertNotIn("[System Sent Broadcast:", resolved)
+
+    def test_api_chat_history_renders_real_whatsapp_template(self):
+        from django.contrib.auth.models import User
+        admin_user = User.objects.create_superuser("admin", "admin@example.com", "password")
+        self.client.force_login(admin_user)
+
+        customer = FleetCustomer.objects.create(
+            phone_number="919550685179",
+            owner_name="JALA YEDUKONDALU",
+            truck_number="TS08UB1234"
+        )
+        ChatMessage.objects.create(
+            phone_number=customer.phone_number,
+            role="assistant",
+            content="[System Sent Broadcast: ais_140_notice_telugu - Broadcast template: ais_140_notice_telugu]"
+        )
+
+        url = reverse("admin:bot_fleetcustomer_chat_history", args=[customer.phone_number])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        messages = data.get("messages", [])
+        self.assertEqual(len(messages), 1)
+        self.assertIn("ప్రభుత్వ నోటీసు", messages[0]["content"])
+        self.assertNotIn("[System Sent Broadcast:", messages[0]["content"])
+
+
