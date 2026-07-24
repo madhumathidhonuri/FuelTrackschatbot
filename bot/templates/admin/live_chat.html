@@ -825,6 +825,17 @@
         }
     }
 
+    function handleImageError(imgElem, imgUrl) {
+        if (!imgElem || !imgElem.parentElement) return;
+        const fileName = imgUrl ? imgUrl.split('/').pop() : 'Template Image';
+        imgElem.parentElement.innerHTML = `
+            <div style="padding: 10px 14px; background: rgba(0,0,0,0.05); border-radius: 8px; margin-bottom: 6px; font-size: 13px; color: #54656f; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 18px;">🖼️</span>
+                <span>Template Media: <a href="${imgUrl}" target="_blank" style="color: #00a884; font-weight: 600; text-decoration: underline;">${fileName}</a></span>
+            </div>
+        `;
+    }
+
     let currentlyPlayingAudioId = null;
     let activeReplyData = null;
 
@@ -1355,10 +1366,11 @@
             } else if (imageMatch) {
                 const imgUrl = imageMatch[0];
                 displayText = rawContent.replace(imgUrl, '').trim();
+                const safeUrlEsc = imgUrl.replace(/'/g, "\\'");
                 renderedMediaHtml = `
                     <div style="margin-bottom: 6px;">
                         <a href="${imgUrl}" target="_blank" style="display: block;">
-                            <img src="${imgUrl}" style="max-width: 100%; max-height: 300px; border-radius: 8px; object-fit: contain; cursor: pointer; display: block;" alt="Template Image" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\'padding: 8px 12px; background: rgba(0,0,0,0.05); border-radius: 8px; margin-bottom: 6px; font-size: 13px; color: #54656f; display: flex; align-items: center; gap: 6px;\'>🖼️ <a href=\'${imgUrl}\' target=\'_blank\' style=\'color: inherit; text-decoration: underline;\'>View Template Image (${imgUrl.split('/').pop()})</a></div>';">
+                            <img src="${imgUrl}" style="max-width: 100%; max-height: 320px; border-radius: 8px; object-fit: contain; cursor: pointer; display: block;" alt="Template Image" onerror="handleImageError(this, '${safeUrlEsc}')">
                         </a>
                     </div>
                 `;

@@ -548,9 +548,15 @@ def get_formatted_template_text(template_name, customer_name=None, vehicle_numbe
     if tmpl and tmpl.has_header:
         if tmpl.header_file:
             try:
-                media_prefix = f"{tmpl.header_file.url}\n"
+                if hasattr(tmpl.header_file, 'storage') and tmpl.header_file.storage.exists(tmpl.header_file.name):
+                    media_prefix = f"{tmpl.header_file.url}\n"
+                elif tmpl.header_image_url:
+                    media_prefix = f"{tmpl.header_image_url}\n"
+                else:
+                    media_prefix = f"{tmpl.header_file.url}\n"
             except Exception:
-                pass
+                if tmpl.header_image_url:
+                    media_prefix = f"{tmpl.header_image_url}\n"
         elif tmpl.header_image_url:
             media_prefix = f"{tmpl.header_image_url}\n"
 
