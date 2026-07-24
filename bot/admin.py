@@ -489,6 +489,15 @@ def run_broadcast_thread(task_id, file_path, template_name, language_code):
 
 
 
+DEFAULT_TEMPLATES = [
+    ("ais_140_notice_telugu", "AIS 140 Notice Telugu", False, "te,en_US", True, "image", "", "marketing"),
+    ("ais_140_gps_mining_device", "AIS 140 Mining Device", False, "te,en_US", True, "image", "", "marketing"),
+    ("gps_tracking_device", "GPS Tracking Device", True, "en_US,te", False, "none", "", "marketing"),
+    ("fuel_alert", "Fuel Alert", True, "en_US,te", False, "none", "", "utility"),
+    ("fleet_update", "Fleet Update", True, "en_US,te", False, "none", "", "utility"),
+    ("hello_world", "Hello World", False, "en_US", False, "none", "", "utility"),
+]
+
 DEFAULT_TEMPLATE_BODY_TEXTS = {
     "ais_140_notice_telugu": (
         "⚠️ ప్రభుత్వ నోటీసు (GOVERNMENT NOTICE) - AIS 140 గడువు:\n"
@@ -1044,7 +1053,7 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                     task.id} started successfully!")
             return redirect(".")
         # Ensure default templates are populated if missing
-        for name, desc, has_vars, langs, has_header, header_type, header_img, category in default_templates:
+        for name, desc, has_vars, langs, has_header, header_type, header_img, category in DEFAULT_TEMPLATES:
             tmpl_obj, _ = WhatsAppTemplate.objects.get_or_create(
                 template_name=name,
                 defaults={

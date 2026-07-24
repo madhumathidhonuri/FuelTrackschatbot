@@ -1196,6 +1196,25 @@
             const colorIdx = (c.phone_number ? c.phone_number.charCodeAt(c.phone_number.length - 1) : 0) % colors.length;
             const avatarColor = colors[colorIdx];
 
+            let previewText = c.last_message || '';
+            const imgMatchInPreview = previewText.match(/(https?:\/\/[^\s"'>]+\.(jpg|jpeg|png|gif|webp)|\/media\/[^\s"'>]+\.(jpg|jpeg|png|gif|webp))/i);
+            if (imgMatchInPreview) {
+                const rest = previewText.replace(imgMatchInPreview[0], '').trim();
+                previewText = '📷 ' + (rest || 'Photo');
+            } else {
+                const audMatchInPreview = previewText.match(/(https?:\/\/[^\s"'>]+\.(mp3|ogg|wav|mp4|webm|m4a|aac|amr)|\/media\/[^\s"'>]+\.(mp3|ogg|wav|mp4|webm|m4a|aac|amr))/i);
+                if (audMatchInPreview) {
+                    const rest = previewText.replace(audMatchInPreview[0], '').trim();
+                    previewText = '🎤 ' + (rest || 'Voice Note');
+                } else {
+                    const docMatchInPreview = previewText.match(/(https?:\/\/[^\s"'>]+\.(pdf|doc|docx|xls|xlsx|txt)|\/media\/[^\s"'>]+\.(pdf|doc|docx|xls|xlsx|txt))/i);
+                    if (docMatchInPreview) {
+                        const rest = previewText.replace(docMatchInPreview[0], '').trim();
+                        previewText = '📄 ' + (rest || 'Document');
+                    }
+                }
+            }
+
             item.innerHTML = `
                 <div class="customer-avatar" style="background-color: ${avatarColor}">
                     <span style="font-size:18px; color:#fff; font-weight:500;">${firstLetter}</span>
@@ -1208,7 +1227,7 @@
                         </div>
                         <div class="customer-time">${formatListDate(c.last_message_time)}</div>
                     </div>
-                    <div class="customer-preview">${(c.last_message || '').split('\n')[0]}</div>
+                    <div class="customer-preview">${previewText.split('\n')[0]}</div>
                 </div>
             `;
             listDiv.appendChild(item);
@@ -1335,28 +1354,31 @@
                 `;
             } else if (imageMatch) {
                 const imgUrl = imageMatch[0];
+                displayText = rawContent.replace(imgUrl, '').trim();
                 renderedMediaHtml = `
-                    <div style="margin-top: 5px;">
-                        <a href="${imgUrl}" target="_blank">
-                            <img src="${imgUrl}" style="max-width: 100%; max-height: 250px; border-radius: 8px; object-fit: contain; cursor: pointer;" alt="Image">
+                    <div style="margin-bottom: 6px;">
+                        <a href="${imgUrl}" target="_blank" style="display: block;">
+                            <img src="${imgUrl}" style="max-width: 100%; max-height: 300px; border-radius: 8px; object-fit: contain; cursor: pointer; display: block;" alt="Template Image" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\'padding: 8px 12px; background: rgba(0,0,0,0.05); border-radius: 8px; margin-bottom: 6px; font-size: 13px; color: #54656f; display: flex; align-items: center; gap: 6px;\'>🖼️ <a href=\'${imgUrl}\' target=\'_blank\' style=\'color: inherit; text-decoration: underline;\'>View Template Image (${imgUrl.split('/').pop()})</a></div>';">
                         </a>
                     </div>
                 `;
             } else if (videoMatch && !audioMatch) {
                 const videoUrl = videoMatch[0];
+                displayText = rawContent.replace(videoUrl, '').trim();
                 renderedMediaHtml = `
-                    <div style="margin-top: 5px;">
-                        <video controls style="max-width: 100%; max-height: 250px; border-radius: 8px;">
+                    <div style="margin-bottom: 6px;">
+                        <video controls style="max-width: 100%; max-height: 300px; border-radius: 8px; display: block;">
                             <source src="${videoUrl}">
                         </video>
                     </div>
                 `;
             } else if (docMatch) {
                 const docUrl = docMatch[0];
+                displayText = rawContent.replace(docUrl, '').trim();
                 renderedMediaHtml = `
-                    <div style="margin-top: 5px; font-size: 13px;">
+                    <div style="margin-bottom: 6px; font-size: 13px; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px;">
                         📄 <a href="${docUrl}" target="_blank" download style="color: inherit; text-decoration: underline; font-weight: 500;">
-                            Download Attached Document
+                            Download Attached Document (${docUrl.split('/').pop()})
                         </a>
                     </div>
                 `;
@@ -1389,8 +1411,8 @@
                 div.innerHTML = `
                     ${replyActionHtml}
                     ${quoteHtml}
-                    ${safeText}
                     ${renderedMediaHtml}
+                    ${safeText ? `<div style="${renderedMediaHtml ? 'margin-top: 4px;' : ''}">${safeText}</div>` : ''}
                     <div class="message-time" style="display: flex; align-items: center; justify-content: flex-end;">
                         ${formatTime(m.timestamp)}
                         ${statusIcon}
