@@ -913,6 +913,54 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
     return None
 
 
+def find_recent_broadcast_template(user_phone):
+    """
+    Looks up the most recent broadcast template sent to the user within the last 24 hours.
+    First checks BroadcastRecipient, then falls back to ChatMessage history.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from django.db.models import Q
+    twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
+
+    # 1. Check BroadcastRecipient for a recent broadcast task
+    try:
+        rec = BroadcastRecipient.objects.filter(
+            Q(sent_at__gte=twenty_four_hours_ago) | Q(updated_at__gte=twenty_four_hours_ago) | Q(sent_at__isnull=True),
+            phone_number=user_phone
+        ).order_by('-id').first()
+        if rec and rec.task and rec.task.template_name:
+            return rec.task.template_name
+    except Exception:
+        pass
+
+    # 2. Check ChatMessage history for system sent broadcast marker
+    try:
+        recent_broadcast_msg = ChatMessage.objects.filter(
+            phone_number=user_phone,
+            role='assistant',
+            content__startswith="[System Sent Broadcast:",
+            timestamp__gte=twenty_four_hours_ago
+        ).order_by('-timestamp').first()
+
+        if recent_broadcast_msg:
+            content = recent_broadcast_msg.content
+            if " - " in content:
+                parts = content.replace(
+                    "[System Sent Broadcast:", "").replace(
+                    "]", "").strip().split(" - ")
+                if parts:
+                    return parts[0].strip()
+            else:
+                return content.replace(
+                    "[System Sent Broadcast:", "").replace(
+                    "]", "").strip().split("\n")[0].strip()
+    except Exception:
+        pass
+
+    return None
+
+
 def notify_agent_of_incoming_message(
         customer, user_phone, user_text, suppress_alert=False, is_button_reply=False):
     """
@@ -928,82 +976,8 @@ def notify_agent_of_incoming_message(
     if clean_user == clean_agent:
         return
 
-    # Check if a log entry was created for this user within the last 15 minutes
-    from django.utils import timezone
-    from datetime import timedelta
-    time_threshold = timezone.now() - timedelta(minutes=15)
-    recent_log = AgentNotificationLog.objects.filter(
-        phone_number=user_phone,
-        created_at__gte=time_threshold
-    ).first()
-
-    # If a recent log exists, append the message content and update details if
-    # needed
-    if recent_log:
-        try:
-            if recent_log.message_content:
-                recent_log.message_content = f"{
-                    recent_log.message_content}\n{user_text}"
-            else:
-                recent_log.message_content = user_text
-
-            # Check if this new message can be matched to a recent broadcast
-            # template
-            recent_assistant_msg = ChatMessage.objects.filter(
-                phone_number=user_phone,
-                role='assistant'
-            ).order_by('-id').first()
-
-            template_name = None
-            if recent_assistant_msg and recent_assistant_msg.content.startswith(
-                    "[System Sent Broadcast:"):
-                content = recent_assistant_msg.content
-                if " - " in content:
-                    parts = content.replace(
-                        "[System Sent Broadcast:", "").replace(
-                        "]", "").strip().split(" - ")
-                    if parts:
-                        template_name = parts[0].strip()
-                else:
-                    template_name = content.replace(
-                        "[System Sent Broadcast:", "").replace(
-                        "]", "").strip()
-
-            if template_name or is_button_reply:
-                recent_log.is_template_reply = True
-                if template_name:
-                    recent_log.template_name = template_name
-
-            recent_log.save()
-            print(
-                f"[INFO] Appended message from {user_phone} to existing AgentNotificationLog {
-                    recent_log.id}.")
-        except Exception as e:
-            print(
-                f"[ERROR] Failed to update existing AgentNotificationLog entry: {e}")
-        return
-
-    # Check if the customer recently received a broadcast template
-    recent_assistant_msg = ChatMessage.objects.filter(
-        phone_number=user_phone,
-        role='assistant'
-    ).order_by('-id').first()
-
-    template_name = None
-    if recent_assistant_msg and recent_assistant_msg.content.startswith(
-            "[System Sent Broadcast:"):
-        content = recent_assistant_msg.content
-        if " - " in content:
-            parts = content.replace(
-                "[System Sent Broadcast:", "").replace(
-                "]", "").strip().split(" - ")
-            if parts:
-                template_name = parts[0].strip()
-        else:
-            template_name = content.replace(
-                "[System Sent Broadcast:", "").replace(
-                "]", "").strip()
-
+    # Check if the customer recently received a broadcast template (within 24h)
+    template_name = find_recent_broadcast_template(user_phone)
     is_template_reply = is_button_reply or (template_name is not None)
 
     if is_template_reply:
@@ -1014,7 +988,7 @@ def notify_agent_of_incoming_message(
             f"Truck: {
                 customer.truck_number if (
                     customer and customer.truck_number) else 'Not provided'}\n"
-            f"Template: {template_name}\n"
+            f"Template: {template_name or 'N/A'}\n"
             f"User Reply: '{user_text}'"
         )
     else:
@@ -1048,6 +1022,7 @@ def notify_agent_of_incoming_message(
         )
     except Exception as e:
         print(f"[ERROR] Failed to create AgentNotificationLog entry: {e}")
+
 
 
 def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
@@ -1296,6 +1271,27 @@ def whatsapp_webhook(request):
                                 "products", "office location", "talk to an agent", "start", "stop"]:
                             clean_text = last_line_clean
 
+                    # Determine if we should suppress the generic agent alert
+                    # (because a more specific alert will be sent later in the flow)
+                    is_talk_to_agent = clean_text == "talk to an agent"
+                    is_contact_req = has_keyword_match(
+                        clean_text, CONTACT_KEYWORDS)
+                    is_escalation = any(
+                        kw in clean_text for kw in USER_ESCALATION_KEYWORDS)
+                    suppress_generic_alert = is_talk_to_agent or is_contact_req or is_escalation
+
+                    is_button_reply = message_obj.get(
+                        "type") in ["button", "interactive"]
+
+                    # ALWAYS notify/log agent of customer message or template reply
+                    notify_agent_of_incoming_message(
+                        customer,
+                        user_phone,
+                        user_text,
+                        suppress_alert=suppress_generic_alert,
+                        is_button_reply=is_button_reply
+                    )
+
                     # Opt-out compliance: if customer is inactive, ignore all
                     # unless "start"
                     if not created and not customer.is_active and clean_text != "start":
@@ -1312,27 +1308,6 @@ def whatsapp_webhook(request):
                             customer.bot_paused_at = None
                             customer.save()
                             print(f"[UNPAUSED] Auto-unpaused bot for {user_phone} after 24 hours.")
-
-                    # Determine if we should suppress the generic agent alert
-                    # (because a more specific alert will be sent later in the flow)
-                    is_talk_to_agent = clean_text == "talk to an agent"
-                    is_contact_req = has_keyword_match(
-                        clean_text, CONTACT_KEYWORDS)
-                    is_escalation = any(
-                        kw in clean_text for kw in USER_ESCALATION_KEYWORDS)
-                    suppress_generic_alert = is_talk_to_agent or is_contact_req or is_escalation
-
-                    is_button_reply = message_obj.get(
-                        "type") in ["button", "interactive"]
-
-                    # Notify agent of customer message or template reply
-                    notify_agent_of_incoming_message(
-                        customer,
-                        user_phone,
-                        user_text,
-                        suppress_alert=suppress_generic_alert,
-                        is_button_reply=is_button_reply
-                    )
 
                     # Check for Meta Facebook Ad Referral payload
                     referral_data = message_obj.get("referral")
@@ -1622,6 +1597,7 @@ def whatsapp_webhook(request):
                         send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
                         return JsonResponse({"status": "success"})
 
+                    elif handle_name_flow:
                         if not asked_for_name:
                             professional_welcome = (
                                 "Welcome to Fuel Tracks Technologies Private Limited!\n\n"

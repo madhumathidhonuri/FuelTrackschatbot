@@ -539,9 +539,8 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 3 calls: one for handoff_intro, one for the contact card,
-        # and one for agent notification.
-        self.assertEqual(mock_post.call_count, 3)
+        # We expect 2 calls: one for contact_reply to customer, and one for agent notification.
+        self.assertEqual(mock_post.call_count, 2)
 
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
@@ -549,15 +548,9 @@ class WebhookTests(TestCase):
             "Technical Sales Expert",
             kwargs_intro["json"]["text"]["body"])
 
-        _, kwargs_card = mock_post.call_args_list[1]
-        self.assertEqual(kwargs_card["json"]["type"], "contacts")
-
-        _, kwargs_notify = mock_post.call_args_list[2]
+        _, kwargs_notify = mock_post.call_args_list[1]
         self.assertEqual(kwargs_notify["json"]["type"], "text")
         self.assertEqual(kwargs_notify["json"]["to"], "919000666914")
-        self.assertIn(
-            "Contact Card Request Alert",
-            kwargs_notify["json"]["text"]["body"])
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -608,24 +601,17 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 3 calls: one for handoff_intro, one for the contact card,
-        # and one for agent notification.
-        self.assertEqual(mock_post.call_count, 3)
+        # We expect 2 calls: one for contact_reply to customer, and one for agent notification.
+        self.assertEqual(mock_post.call_count, 2)
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
         self.assertIn(
             "Technical Sales Expert",
             kwargs_intro["json"]["text"]["body"])
 
-        _, kwargs_card = mock_post.call_args_list[1]
-        self.assertEqual(kwargs_card["json"]["type"], "contacts")
-
-        _, kwargs_notify = mock_post.call_args_list[2]
+        _, kwargs_notify = mock_post.call_args_list[1]
         self.assertEqual(kwargs_notify["json"]["type"], "text")
         self.assertEqual(kwargs_notify["json"]["to"], "919000666914")
-        self.assertIn(
-            "Contact Card Request Alert",
-            kwargs_notify["json"]["text"]["body"])
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -678,24 +664,17 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 3 calls: handoff_intro, the contact card, and agent
-        # notification
-        self.assertEqual(mock_post.call_count, 3)
+        # We expect 2 calls: contact_reply and agent notification
+        self.assertEqual(mock_post.call_count, 2)
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
         self.assertIn(
             "Technical Sales Expert",
             kwargs_intro["json"]["text"]["body"])
 
-        _, kwargs_card = mock_post.call_args_list[1]
-        self.assertEqual(kwargs_card["json"]["type"], "contacts")
-
-        _, kwargs_notify = mock_post.call_args_list[2]
+        _, kwargs_notify = mock_post.call_args_list[1]
         self.assertEqual(kwargs_notify["json"]["type"], "text")
         self.assertEqual(kwargs_notify["json"]["to"], "919000666914")
-        self.assertIn(
-            "Contact Card Request Alert",
-            kwargs_notify["json"]["text"]["body"])
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -2413,9 +2392,9 @@ class AdditionalBotFlowTests(TestCase):
 
         _, kwargs_agent = mock_post.call_args_list[0]
         agent_body = kwargs_agent["json"]["text"]["body"]
-        self.assertIn("7337433350", agent_body)
-        self.assertIn("7337433351", agent_body)
-        self.assertIn("7337433356", agent_body)
+        self.assertIn("73374 33350", agent_body)
+        self.assertIn("73374 33351", agent_body)
+        self.assertIn("73374 33356", agent_body)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -2539,11 +2518,8 @@ class AdditionalBotFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # Expecting 3 post calls:
-        # 1. Handoff intro text to user
-        # 2. Vcard to user
-        # 3. Notification to AGENT_NOTIFY_PHONE (+919000666914)
-        self.assertEqual(mock_post.call_count, 3)
+        # Expecting 2 post calls: contact reply to user + notification to AGENT_NOTIFY_PHONE (+919000666914)
+        self.assertEqual(mock_post.call_count, 2)
         called_numbers = [call[1]["json"]["to"]
                           for call in mock_post.call_args_list]
         self.assertIn("919000666914", called_numbers)
@@ -2725,11 +2701,8 @@ class AdditionalBotFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 3 calls (similar to standard contact request):
-        # 1. Handoff intro text to user
-        # 2. Vcard to user
-        # 3. Notification to AGENT_NOTIFY_PHONE (+919000666914)
-        self.assertEqual(mock_post.call_count, 3)
+        # Expecting 2 post calls: contact reply to user + notification to AGENT_NOTIFY_PHONE (+919000666914)
+        self.assertEqual(mock_post.call_count, 2)
         called_numbers = [call[1]["json"]["to"]
                           for call in mock_post.call_args_list]
         self.assertIn("919000666914", called_numbers)
@@ -2770,7 +2743,7 @@ class AdditionalBotFlowTests(TestCase):
             content_type="application/json"
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(mock_post.call_count, 3)
+        self.assertEqual(mock_post.call_count, 2)
         called_numbers_en = [call[1]["json"]["to"]
                              for call in mock_post.call_args_list]
         self.assertIn("919000666914", called_numbers_en)
@@ -3196,17 +3169,56 @@ class AgentNotificationTests(TestCase):
             )
             self.assertEqual(response.status_code, 200)
 
-        # Check notification logs in DB
-        logs = AgentNotificationLog.objects.filter(phone_number="917777777777")
-        self.assertEqual(logs.count(), 1)
-        log = logs.first()
-        self.assertEqual(log.message_content, "Hi\nBabu\ndash cam")
+        # Check notification logs in DB (each incoming message creates a log entry for Excel exports)
+        logs = list(AgentNotificationLog.objects.filter(phone_number="917777777777").order_by('id'))
+        self.assertEqual(len(logs), 3)
+        self.assertEqual(logs[0].message_content, "Hi")
+        self.assertEqual(logs[1].message_content, "Babu")
+        self.assertEqual(logs[2].message_content, "dash cam")
 
-        # Verify that only 1 notification was sent to agent (+919000666914)
+        # Verify notifications sent to agent (+919000666914)
         agent_notifications = [
             call[1]["json"] for call in mock_post.call_args_list if call[1].get(
                 "json", {}).get("to") == "919000666914"]
-        self.assertEqual(len(agent_notifications), 1)
+        self.assertEqual(len(agent_notifications), 3)
+
+    def test_find_recent_broadcast_template_lookup(self):
+        from bot.views import find_recent_broadcast_template
+        from bot.models import BroadcastTask, BroadcastRecipient
+        # Create broadcast recipient entry
+        task = BroadcastTask.objects.create(template_name="ais_140_notice_telugu", language_code="en")
+        BroadcastRecipient.objects.create(
+            task=task,
+            phone_number="919999888777",
+            status="sent"
+        )
+        template_name = find_recent_broadcast_template("919999888777")
+        self.assertEqual(template_name, "ais_140_notice_telugu")
+
+    def test_excel_export_contains_template_reply_columns(self):
+        from bot.models import FleetCustomer, AgentNotificationLog
+        from bot.admin import AgentNotificationLogAdmin
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+
+        customer = FleetCustomer.objects.create(owner_name="Test Owner", phone_number="919999888777")
+        AgentNotificationLog.objects.create(
+            customer=customer,
+            phone_number="919999888777",
+            message_content="సేల్స్ ని సంప్రదించండి",
+            is_template_reply=True,
+            template_name="ais_140_notice_telugu",
+            notification_sent=True
+        )
+
+        admin = AgentNotificationLogAdmin(AgentNotificationLog, AdminSite())
+        factory = RequestFactory()
+        request = factory.post(reverse("admin:bot_agentnotificationlog_export_excel"))
+        request.user = MagicMock()
+        response = admin.export_excel(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 class MarketingMessagesAPITests(TestCase):

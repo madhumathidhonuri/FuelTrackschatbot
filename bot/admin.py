@@ -221,16 +221,22 @@ class AgentNotificationLogAdmin(admin.ModelAdmin):
                     'customer__owner_name',
                     'phone_number',
                     'message_content',
+                    'is_template_reply',
+                    'template_name',
                     'created_at'))
             df = pd.DataFrame(data)
 
             if not df.empty:
                 if 'created_at' in df.columns:
                     df['created_at'] = df['created_at'].dt.tz_localize(None)
+                if 'is_template_reply' in df.columns:
+                    df['is_template_reply'] = df['is_template_reply'].map({True: 'Yes', False: 'No'})
                 df.rename(columns={
                     'customer__owner_name': 'Customer Name',
                     'phone_number': 'Phone Number',
                     'message_content': 'Message',
+                    'is_template_reply': 'Is Template Reply',
+                    'template_name': 'Template Name',
                     'created_at': 'Time'
                 }, inplace=True)
 
