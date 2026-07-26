@@ -974,7 +974,7 @@ def notify_agent_of_incoming_message(
     clean_user = ''.join(c for c in user_phone if c.isdigit())
     clean_agent = ''.join(c for c in AGENT_NOTIFY_PHONE if c.isdigit())
     if clean_user == clean_agent:
-        return
+        suppress_alert = True
 
     # Check if the customer recently received a broadcast template (within 24h)
     template_name = find_recent_broadcast_template(user_phone)

@@ -3110,8 +3110,9 @@ class AgentNotificationTests(TestCase):
                           for call in mock_post.call_args_list]
         self.assertEqual(len(called_numbers), 1)
 
-        # Check that no AgentNotificationLog was created
-        self.assertEqual(AgentNotificationLog.objects.count(), 0)
+        # Check that AgentNotificationLog WAS created for Excel export, but notification_sent is False
+        self.assertEqual(AgentNotificationLog.objects.count(), 1)
+        self.assertFalse(AgentNotificationLog.objects.first().notification_sent)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
