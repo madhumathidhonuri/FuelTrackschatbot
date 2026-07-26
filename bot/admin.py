@@ -111,12 +111,103 @@ class ChatMessageAdmin(admin.ModelAdmin):
     search_fields = ('phone_number', 'content')
     list_display_links = ('timestamp',)
     ordering = ('-timestamp',)
+    actions = ['export_selected_excel']
 
     def phone_number_link(self, obj):
         from django.utils.html import format_html
         url = f"/admin/bot/fleetcustomer/live-chat/?phone={obj.phone_number}"
         return format_html('<a href="{}">{}</a>', url, obj.phone_number)
     phone_number_link.short_description = "Phone Number"
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'export-excel/',
+                self.admin_site.admin_view(self.export_excel),
+                name='bot_chatmessage_export_excel'
+            ),
+        ]
+        return custom_urls + urls
+
+    def export_excel(self, request):
+        import pandas as pd
+        from django.http import HttpResponse
+        from django.utils import timezone
+        from bot.views import find_recent_broadcast_template
+
+        role_filter = request.GET.get('role', 'user')
+        qs = ChatMessage.objects.all().order_by('-timestamp')
+        if role_filter != 'all':
+            qs = qs.filter(role=role_filter)
+
+        phone_numbers = list(qs.values_list('phone_number', flat=True).distinct())
+        customer_map = {
+            c.phone_number: c.owner_name
+            for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        }
+
+        data = []
+        for msg in qs:
+            cust_name = customer_map.get(msg.phone_number, 'Unknown')
+            template_name = find_recent_broadcast_template(msg.phone_number) if msg.role == 'user' else ''
+            data.append({
+                'Phone Number': msg.phone_number,
+                'Customer Name': cust_name,
+                'Role': msg.role,
+                'Message': msg.content,
+                'Is Template Reply': 'Yes' if template_name else 'No',
+                'Template Name': template_name or '',
+                'Timestamp': msg.timestamp.astimezone().replace(tzinfo=None)
+            })
+
+        df = pd.DataFrame(data)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        filename = f"chat_messages_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        with pd.ExcelWriter(response, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Chat Messages')
+
+        return response
+
+    def export_selected_excel(self, request, queryset):
+        import pandas as pd
+        from django.http import HttpResponse
+        from django.utils import timezone
+        from bot.views import find_recent_broadcast_template
+
+        phone_numbers = list(queryset.values_list('phone_number', flat=True).distinct())
+        customer_map = {
+            c.phone_number: c.owner_name
+            for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        }
+
+        data = []
+        for msg in queryset.order_by('-timestamp'):
+            cust_name = customer_map.get(msg.phone_number, 'Unknown')
+            template_name = find_recent_broadcast_template(msg.phone_number) if msg.role == 'user' else ''
+            data.append({
+                'Phone Number': msg.phone_number,
+                'Customer Name': cust_name,
+                'Role': msg.role,
+                'Message': msg.content,
+                'Is Template Reply': 'Yes' if template_name else 'No',
+                'Template Name': template_name or '',
+                'Timestamp': msg.timestamp.astimezone().replace(tzinfo=None)
+            })
+
+        df = pd.DataFrame(data)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        filename = f"selected_chat_messages_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        with pd.ExcelWriter(response, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Selected Messages')
+
+        return response
+    export_selected_excel.short_description = "Export Selected Chat Messages to Excel"
 
 
 @admin.register(AgentNotificationLog)
@@ -889,6 +980,16 @@ class FleetCustomerAdmin(admin.ModelAdmin):
                     self.live_chat_view),
                 name='bot_fleetcustomer_live_chat'),
             path(
+                'live-chat/export-excel/',
+                self.admin_site.admin_view(
+                    self.export_today_live_chat_leads_excel),
+                name='bot_fleetcustomer_live_chat_export_excel'),
+            path(
+                'todays-leads/',
+                self.admin_site.admin_view(
+                    self.todays_leads_view),
+                name='bot_fleetcustomer_todays_leads'),
+            path(
                 'live-chat/api/list/',
                 self.admin_site.admin_view(
                     self.api_chat_list),
@@ -1282,6 +1383,112 @@ class FleetCustomerAdmin(admin.ModelAdmin):
             'api_customer_url': reverse('admin:bot_fleetcustomer_chat_customer', args=['PHONE_PLACEHOLDER']),
         }
         return render(request, "admin/live_chat.html", context)
+
+    def export_today_live_chat_leads_excel(self, request):
+        import pandas as pd
+        from django.http import HttpResponse
+        from django.utils import timezone
+        from datetime import datetime
+        from bot.views import find_recent_broadcast_template
+
+        from_date = request.GET.get('from_date') or request.POST.get('from_date')
+        to_date = request.GET.get('to_date') or request.POST.get('to_date')
+
+        now = timezone.now()
+        if from_date:
+            try:
+                start_dt = timezone.make_aware(datetime.strptime(f"{from_date} 00:00:00", "%Y-%m-%d %H:%M:%S"))
+            except Exception:
+                start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        if to_date:
+            try:
+                end_dt = timezone.make_aware(datetime.strptime(f"{to_date} 23:59:59", "%Y-%m-%d %H:%M:%S"))
+            except Exception:
+                end_dt = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        else:
+            end_dt = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        user_msgs = ChatMessage.objects.filter(
+            role='user',
+            timestamp__gte=start_dt,
+            timestamp__lte=end_dt
+        ).order_by('timestamp')
+
+        phone_numbers = list(user_msgs.values_list('phone_number', flat=True).distinct())
+        customer_map = {
+            c.phone_number: c.owner_name
+            for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        }
+
+        data = []
+        for msg in user_msgs:
+            cust_name = customer_map.get(msg.phone_number, "Unknown")
+            template_name = find_recent_broadcast_template(msg.phone_number)
+            data.append({
+                'Phone Number': msg.phone_number,
+                'Customer Name': cust_name,
+                'Message': msg.content,
+                'Is Template Reply': 'Yes' if template_name else 'No',
+                'Template Name': template_name or '',
+                'Time': msg.timestamp.astimezone().replace(tzinfo=None)
+            })
+
+        df = pd.DataFrame(data)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        filename = f"live_chat_leads_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        with pd.ExcelWriter(response, engine='openpyxl') as writer:
+            if not df.empty:
+                df.to_excel(writer, index=False, sheet_name='Live Chat Leads')
+            else:
+                df.to_excel(
+                    writer,
+                    index=False,
+                    columns=['Phone Number', 'Customer Name', 'Message', 'Is Template Reply', 'Template Name', 'Time'])
+
+        return response
+
+    def todays_leads_view(self, request):
+        from django.utils import timezone
+        from bot.views import find_recent_broadcast_template
+
+        now = timezone.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        user_msgs = ChatMessage.objects.filter(
+            role='user',
+            timestamp__gte=today_start
+        ).order_by('-timestamp')
+
+        phone_numbers = list(user_msgs.values_list('phone_number', flat=True).distinct())
+        customer_map = {
+            c.phone_number: c.owner_name
+            for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)
+        }
+
+        leads = []
+        for msg in user_msgs:
+            cust_name = customer_map.get(msg.phone_number, "Unknown")
+            template_name = find_recent_broadcast_template(msg.phone_number)
+            leads.append({
+                'phone': msg.phone_number,
+                'name': cust_name,
+                'message': msg.content,
+                'is_template': template_name is not None,
+                'template_name': template_name or '',
+                'time': msg.timestamp.astimezone().strftime("%I:%M %p")
+            })
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': "Today's Active Sales Leads",
+            'leads': leads
+        }
+        return render(request, 'admin/todays_leads.html', context)
 
     def api_chat_list(self, request):
         from django.db.models import Subquery, OuterRef, Q

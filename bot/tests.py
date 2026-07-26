@@ -3375,3 +3375,50 @@ class BroadcastTemplateResolutionTests(TestCase):
         self.assertNotIn("[System Sent Broadcast:", messages[0]["content"])
 
 
+class FailSafeLeadsExportTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='password123'
+        )
+        self.client.login(username='admin', password='password123')
+        self.customer = FleetCustomer.objects.create(
+            phone_number="919876543210",
+            owner_name="Test Customer",
+            is_active=True
+        )
+        self.msg = ChatMessage.objects.create(
+            phone_number="919876543210",
+            role="user",
+            content="సేల్స్ ని సంప్రదించండి"
+        )
+
+    def test_export_today_live_chat_leads_excel(self):
+        url = reverse("admin:bot_fleetcustomer_live_chat_export_excel")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['Content-Type'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    def test_chat_message_export_excel(self):
+        url = reverse("admin:bot_chatmessage_export_excel")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['Content-Type'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    def test_todays_leads_view(self):
+        url = reverse("admin:bot_fleetcustomer_todays_leads")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Today's Active Sales Leads")
+        self.assertContains(response, "919876543210")
+        self.assertContains(response, "Test Customer")
+
+

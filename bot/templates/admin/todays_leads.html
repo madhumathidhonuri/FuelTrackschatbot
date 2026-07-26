@@ -1,0 +1,67 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1e293b;">🔥 Today's Active Sales Leads</h1>
+        <div style="display: flex; gap: 10px;">
+            <a href="/admin/bot/fleetcustomer/live-chat/" style="background-color: #475569; color: white; padding: 10px 16px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                💬 Live Chat Dashboard
+            </a>
+            <a href="/admin/bot/fleetcustomer/live-chat/export-excel/" style="background-color: #10b981; color: white; padding: 10px 18px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                📥 Download Today's Leads (Excel)
+            </a>
+        </div>
+    </div>
+
+    <p style="color: #64748b; margin-bottom: 20px; font-size: 14px;">
+        Below is the real-time list of all customer responses and messages received today. Click <strong>Open Live Chat</strong> to reply directly to any customer.
+    </p>
+
+    <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <th style="padding: 14px 16px;">Time</th>
+                    <th style="padding: 14px 16px;">Customer Name</th>
+                    <th style="padding: 14px 16px;">Phone Number</th>
+                    <th style="padding: 14px 16px;">Latest Message</th>
+                    <th style="padding: 14px 16px;">Template Reply?</th>
+                    <th style="padding: 14px 16px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr style="border-bottom: 1px solid #f1f5f9; font-size: 14px;">
+                    <td style="padding: 12px 16px; font-weight: 500; color: #64748b; white-space: nowrap;">{{ lead.time }}</td>
+                    <td style="padding: 12px 16px; font-weight: 600; color: #0f172a;">{{ lead.name }}</td>
+                    <td style="padding: 12px 16px; font-weight: 500; font-family: monospace; color: #334155;">{{ lead.phone }}</td>
+                    <td style="padding: 12px 16px; color: #334155; max-width: 350px;">{{ lead.message }}</td>
+                    <td style="padding: 12px 16px; white-space: nowrap;">
+                        {% if lead.is_template %}
+                            <span style="background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; display: inline-block;">
+                                Yes ({% if lead.template_name %}{{ lead.template_name }}{% else %}Broadcast{% endif %})
+                            </span>
+                        {% else %}
+                            <span style="background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 12px; font-size: 12px; display: inline-block;">No</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px 16px; white-space: nowrap;">
+                        <a href="/admin/bot/fleetcustomer/live-chat/?phone={{ lead.phone }}" style="background-color: #2563eb; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                            💬 Open Live Chat
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="padding: 40px; text-align: center; color: #94a3b8; font-size: 15px;">
+                        No customer messages received today yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
