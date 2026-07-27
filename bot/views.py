@@ -300,6 +300,9 @@ def extract_customer_details_with_ai(user_text):
     Intelligently scans the incoming user text using Llama 3.1 to catch
     names and vehicle numbers. Returns a structured data dictionary.
     """
+    if not user_text or len(user_text.strip()) < 12:
+        return {"name": None, "truck_number": None}
+
     try:
         ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
@@ -716,7 +719,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
         messages_payload = [{"role": "system", "content": system_prompt}]
 
         history = ChatMessage.objects.filter(
-            phone_number=user_phone).order_by('-id')[:6]
+            phone_number=user_phone).order_by('-id')[:4]
         history_list = list(reversed(history))
 
         # To prevent user message duplication, check if the latest message in
@@ -1012,12 +1015,13 @@ def notify_agent_of_incoming_message(
                 f"[ERROR] Failed to send WhatsApp notification to agent: {e}")
 
     try:
+        safe_template_name = template_name[:95] if template_name else None
         AgentNotificationLog.objects.create(
             customer=customer,
             phone_number=user_phone,
             message_content=user_text,
             is_template_reply=is_template_reply,
-            template_name=template_name,
+            template_name=safe_template_name,
             notification_sent=notification_sent
         )
     except Exception as e:
