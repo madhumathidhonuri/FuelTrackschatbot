@@ -628,9 +628,15 @@ DEFAULT_TEMPLATE_BODY_TEXTS = {
 }
 
 
-def get_formatted_template_text(template_name, customer_name=None, vehicle_number=None):
-    from bot.models import WhatsAppTemplate
-    tmpl = WhatsAppTemplate.objects.filter(template_name=template_name).first()
+def get_formatted_template_text(template_name, customer_name=None, vehicle_number=None, templates_cache=None):
+    if templates_cache is not None and template_name in templates_cache:
+        tmpl = templates_cache[template_name]
+    else:
+        from bot.models import WhatsAppTemplate
+        tmpl = WhatsAppTemplate.objects.filter(template_name=template_name).first()
+        if templates_cache is not None:
+            templates_cache[template_name] = tmpl
+
     text = ""
     if tmpl and tmpl.body_text:
         text = tmpl.body_text
@@ -660,7 +666,7 @@ def get_formatted_template_text(template_name, customer_name=None, vehicle_numbe
     return f"{media_prefix}{text}".strip()
 
 
-def resolve_broadcast_content(content, customer=None):
+def resolve_broadcast_content(content, customer=None, templates_cache=None):
     if not content or "[System Sent Broadcast:" not in content:
         return content
 
@@ -680,7 +686,7 @@ def resolve_broadcast_content(content, customer=None):
 
         c_name = customer.owner_name if customer else None
         v_num = customer.truck_number if customer else None
-        return get_formatted_template_text(template_name, c_name, v_num)
+        return get_formatted_template_text(template_name, c_name, v_num, templates_cache=templates_cache)
     return content
 
 
@@ -1513,46 +1519,60 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         return render(request, 'admin/todays_leads.html', context)
 
     def api_chat_list(self, request):
-        from django.db.models import Subquery, OuterRef, Q
+        from django.db.models import Max, Q
 
         q = request.GET.get('q', '').strip().lower()
 
-        # Correlated subquery: for each FleetCustomer, find the id of their latest ChatMessage
-        latest_msg_subquery = ChatMessage.objects.filter(
-            phone_number=OuterRef('phone_number')
-        ).order_by('-id').values('id')[:1]
-
-        qs = FleetCustomer.objects.annotate(last_msg_id=Subquery(latest_msg_subquery)).filter(last_msg_id__isnull=False)
-
         if q:
-            qs = qs.filter(Q(owner_name__icontains=q) | Q(phone_number__icontains=q)).order_by('-last_msg_id')[:50]
+            matching_phones = list(
+                FleetCustomer.objects.filter(
+                    Q(owner_name__icontains=q) | Q(phone_number__icontains=q)
+                ).values_list('phone_number', flat=True)[:100]
+            )
+
+            latest_msg_ids = list(
+                ChatMessage.objects.filter(
+                    Q(phone_number__in=matching_phones) | Q(content__icontains=q)
+                )
+                .values('phone_number')
+                .annotate(max_id=Max('id'))
+                .order_by('-max_id')[:50]
+            )
         else:
-            qs = qs.order_by('-last_msg_id')[:150]
+            latest_msg_ids = list(
+                ChatMessage.objects.values('phone_number')
+                .annotate(max_id=Max('id'))
+                .order_by('-max_id')[:150]
+            )
 
-        customers_list = list(qs)
-
-        if not customers_list:
+        max_ids = [item['max_id'] for item in latest_msg_ids]
+        if not max_ids:
             return JsonResponse({"customers": []})
 
-        # Batch-fetch all the "latest" messages in one query
-        msg_id_to_msg = {
-            m.id: m
-            for m in ChatMessage.objects.filter(
-                id__in=[c.last_msg_id for c in customers_list]
-            ).only('id', 'phone_number', 'content', 'timestamp')
+        latest_msgs = list(
+            ChatMessage.objects.filter(id__in=max_ids)
+            .only('id', 'phone_number', 'content', 'timestamp')
+            .order_by('-id')
+        )
+
+        phone_numbers = [m.phone_number for m in latest_msgs]
+        customer_map = {
+            c.phone_number: c
+            for c in FleetCustomer.objects.filter(phone_number__in=phone_numbers)
         }
 
+        templates_cache = {}
         result = []
-        for customer in customers_list:
-            msg = msg_id_to_msg.get(customer.last_msg_id)
-            if not msg:
-                continue
+        for msg in latest_msgs:
+            customer = customer_map.get(msg.phone_number)
+            owner_name = customer.owner_name if customer else "Unknown"
+            is_paused = customer.is_bot_paused if customer else False
             raw_content = msg.content or ''
-            clean_content = resolve_broadcast_content(raw_content, customer)
+            clean_content = resolve_broadcast_content(raw_content, customer, templates_cache=templates_cache)
             result.append({
-                "phone_number": customer.phone_number,
-                "owner_name": customer.owner_name or "Unknown",
-                "is_bot_paused": customer.is_bot_paused,
+                "phone_number": msg.phone_number,
+                "owner_name": owner_name or "Unknown",
+                "is_bot_paused": is_paused,
                 "last_message": clean_content[:50] + ("..." if len(clean_content) > 50 else ""),
                 "last_message_time": msg.timestamp.isoformat() if msg.timestamp else "",
                 "timestamp_val": msg.timestamp.timestamp() if msg.timestamp else 0,
@@ -1565,10 +1585,11 @@ class FleetCustomerAdmin(admin.ModelAdmin):
         msgs = ChatMessage.objects.filter(
             phone_number=phone_number
         ).order_by('-id')[:200]
+        templates_cache = {}
         data = [
             {
                 "role": m.role,
-                "content": resolve_broadcast_content(m.content, customer),
+                "content": resolve_broadcast_content(m.content, customer, templates_cache=templates_cache),
                 "timestamp": m.timestamp.isoformat(),
                 "status": m.status,
             }
