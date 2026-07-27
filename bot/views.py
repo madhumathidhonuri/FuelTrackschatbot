@@ -317,11 +317,21 @@ def extract_customer_details_with_ai(user_text):
             f"Message: '{user_text}'"
         )
 
-        completion = ai_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": extraction_prompt}],
-            temperature=0.0,
-        )
+        models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"]
+        completion = None
+        for model_name in models_to_try:
+            try:
+                completion = ai_client.chat.completions.create(
+                    model=model_name,
+                    messages=[{"role": "user", "content": extraction_prompt}],
+                    temperature=0.0,
+                )
+                break
+            except Exception as model_err:
+                print(f"[WARNING] Extraction call failed on '{model_name}': {model_err}")
+
+        if not completion:
+            return {"name": None, "truck_number": None}
 
         content = completion.choices[0].message.content
         if not isinstance(content, str):
@@ -753,11 +763,21 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 break
 
         ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        completion = ai_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=messages_payload,
-            temperature=0.1,
-        )
+        models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"]
+        completion = None
+        for model_name in models_to_try:
+            try:
+                completion = ai_client.chat.completions.create(
+                    model=model_name,
+                    messages=messages_payload,
+                    temperature=0.1,
+                )
+                break
+            except Exception as model_err:
+                print(f"[WARNING] Groq call failed on model '{model_name}': {model_err}. Retrying with next model...")
+
+        if not completion:
+            raise Exception("All Groq models failed or rate limited.")
 
         ai_reply = completion.choices[0].message.content
 
