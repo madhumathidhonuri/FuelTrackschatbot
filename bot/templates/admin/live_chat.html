@@ -585,9 +585,9 @@
                 </div>
                 <div style="font-size: 16px; font-weight: bold;">Chats</div>
             </div>
-            <a href="/admin/bot/fleetcustomer/live-chat/export-excel/" title="Export Today's Leads to Excel" style="background-color: #10b981; color: white; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+            <button type="button" onclick="openExportModal()" title="Export Leads by Date & Time" style="background-color: #10b981; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                 📥 Export Excel
-            </a>
+            </button>
         </div>
         <div class="search-container">
             <div class="search-box">
@@ -677,6 +677,57 @@
                 </button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Date & Time Export Modal -->
+<div id="exportModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+    <div style="background: white; border-radius: 12px; padding: 24px; width: 440px; max-width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); font-family: inherit;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                📥 Export Live Chat Data (Excel)
+            </h3>
+            <button onclick="closeExportModal()" style="background: none; border: none; font-size: 20px; color: #64748b; cursor: pointer; line-height: 1;">✕</button>
+        </div>
+
+        <!-- Quick Presets -->
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 8px;">Quick Presets</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <button type="button" onclick="setExportPreset('today')" style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer;">Today</button>
+                <button type="button" onclick="setExportPreset('yesterday')" style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer;">Yesterday</button>
+                <button type="button" onclick="setExportPreset('last24')" style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer;">Last 24 Hours</button>
+                <button type="button" onclick="setExportPreset('last7days')" style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer;">Last 7 Days</button>
+            </div>
+        </div>
+
+        <form id="exportForm" method="GET" action="/admin/bot/fleetcustomer/live-chat/export-excel/">
+            <div style="margin-bottom: 14px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">From (Date & Time):</label>
+                <input type="datetime-local" id="from_datetime" name="from_datetime" required style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+            </div>
+
+            <div style="margin-bottom: 14px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">To (Date & Time):</label>
+                <input type="datetime-local" id="to_datetime" name="to_datetime" required style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">Include Messages:</label>
+                <select name="role" id="exportRole" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; background: white;">
+                    <option value="user">User Leads Only (Default)</option>
+                    <option value="all">All Messages (User + AI Responses)</option>
+                    <option value="assistant">AI Responses Only</option>
+                </select>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+                <button type="button" onclick="closeExportModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Cancel</button>
+                <button type="submit" onclick="setTimeout(closeExportModal, 500)" style="background: #10b981; color: white; border: none; padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    📥 Download Excel
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1530,7 +1581,49 @@
                 selectCustomer(matchingCustomer);
             }
         }
-    });
+    // --- Excel Export Modal Logic ---
+    function openExportModal() {
+        const modal = document.getElementById('exportModal');
+        modal.classList.remove('hidden');
+        if (!document.getElementById('from_datetime').value) {
+            setExportPreset('today');
+        }
+    }
+
+    function closeExportModal() {
+        document.getElementById('exportModal').classList.add('hidden');
+    }
+
+    function formatLocalDateTime(d) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function setExportPreset(preset) {
+        const now = new Date();
+        const fromInput = document.getElementById('from_datetime');
+        const toInput = document.getElementById('to_datetime');
+
+        if (preset === 'today') {
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+            const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            fromInput.value = formatLocalDateTime(start);
+            toInput.value = formatLocalDateTime(end);
+        } else if (preset === 'yesterday') {
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+            const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+            fromInput.value = formatLocalDateTime(start);
+            toInput.value = formatLocalDateTime(end);
+        } else if (preset === 'last24') {
+            const start = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+            fromInput.value = formatLocalDateTime(start);
+            toInput.value = formatLocalDateTime(now);
+        } else if (preset === 'last7days') {
+            const start = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            fromInput.value = formatLocalDateTime(start);
+            toInput.value = formatLocalDateTime(now);
+        }
+    }
 
     // Initial load
     fetchCustomers();
