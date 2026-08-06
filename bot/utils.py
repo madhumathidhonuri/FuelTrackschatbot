@@ -152,10 +152,84 @@ def normalize_phone_number(phone):
 
 
 
+def compress_image_if_needed(file_path_or_field, max_bytes=4 * 1024 * 1024):
+    """
+    Checks if an image exceeds max_bytes (default 4MB to stay safely under Meta's 5MB limit).
+    If so, resizes/compresses the image using Pillow and returns (temp_file_path, is_temp, mime_type).
+    If compression fails or image is already <= max_bytes, returns (file_path_or_field, False, None).
+    """
+    import os
+    import tempfile
+    import mimetypes
+    try:
+        from PIL import Image
+    except ImportError:
+        return file_path_or_field, False, None
+
+    file_name = None
+    if hasattr(file_path_or_field, "name"):
+        file_name = file_path_or_field.name
+    elif isinstance(file_path_or_field, str):
+        file_name = file_path_or_field
+
+    if not file_name:
+        return file_path_or_field, False, None
+
+    mime_type = mimetypes.guess_type(file_name)[0] or ""
+    if not mime_type.startswith("image/"):
+        return file_path_or_field, False, None
+
+    file_size = 0
+    if isinstance(file_path_or_field, str):
+        if os.path.exists(file_path_or_field):
+            file_size = os.path.getsize(file_path_or_field)
+    elif hasattr(file_path_or_field, "size"):
+        file_size = file_path_or_field.size
+    elif hasattr(file_path_or_field, "seek") and hasattr(file_path_or_field, "tell"):
+        try:
+            file_path_or_field.seek(0, os.SEEK_END)
+            file_size = file_path_or_field.tell()
+            file_path_or_field.seek(0)
+        except Exception:
+            pass
+
+    if file_size <= max_bytes and file_size > 0:
+        return file_path_or_field, False, None
+
+    try:
+        if isinstance(file_path_or_field, str):
+            img = Image.open(file_path_or_field)
+        else:
+            file_path_or_field.seek(0)
+            img = Image.open(file_path_or_field)
+
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+
+        max_dim = 1920
+        if max(img.width, img.height) > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp_path = tmp.name
+        tmp.close()
+
+        img.save(tmp_path, "JPEG", quality=82, optimize=True)
+
+        if os.path.getsize(tmp_path) > max_bytes:
+            img.save(tmp_path, "JPEG", quality=60, optimize=True)
+
+        return tmp_path, True, "image/jpeg"
+    except Exception as err:
+        logger.warning(f"Image compression failed: {err}")
+        return file_path_or_field, False, None
+
+
 def upload_media_to_meta(file_path_or_field):
     """
     Uploads a file to Meta Cloud API and returns the media_id.
     Accepts a local file path (str) or a Django FieldFile/File object.
+    Auto-compresses large images to ensure compliance with Meta's 5MB upload limit.
     """
     import os
     import requests
@@ -167,6 +241,9 @@ def upload_media_to_meta(file_path_or_field):
         raise ValueError(
             "PHONE_NUMBER_ID and WHATSAPP_TOKEN must be configured in environment.")
 
+    # Check and auto-compress image if size > 4MB
+    target_to_upload, is_temp, new_mime = compress_image_if_needed(file_path_or_field, max_bytes=4 * 1024 * 1024)
+
     url = f"https://graph.facebook.com/v19.0/{phone_number_id}/media"
     headers = {
         "Authorization": f"Bearer {whatsapp_token}"
@@ -174,35 +251,32 @@ def upload_media_to_meta(file_path_or_field):
 
     file_name = None
     file_obj = None
-    mime_type = "image/jpeg"  # Default fallback
-
-    # Check if it's a Django FieldFile or File object (it will have open
-    # method and name)
-    if hasattr(file_path_or_field, "name") and hasattr(
-            file_path_or_field, "open"):
-        file_name = os.path.basename(file_path_or_field.name)
-        guess = mimetypes.guess_type(file_name)[0]
-        if guess:
-            mime_type = guess
-        file_obj = file_path_or_field
-        try:
-            file_obj.seek(0)
-        except Exception:
-            pass
-    elif isinstance(file_path_or_field, str):
-        if not os.path.exists(file_path_or_field):
-            raise FileNotFoundError(
-                f"File not found on local disk: {file_path_or_field}")
-        file_name = os.path.basename(file_path_or_field)
-        guess = mimetypes.guess_type(file_name)[0]
-        if guess:
-            mime_type = guess
-        file_obj = open(file_path_or_field, "rb")
-    else:
-        raise TypeError(
-            "file_path_or_field must be a string file path or a Django File/FieldFile object.")
+    mime_type = new_mime or "image/jpeg"  # Default fallback
 
     try:
+        if hasattr(target_to_upload, "name") and hasattr(target_to_upload, "open"):
+            file_name = os.path.basename(target_to_upload.name)
+            guess = mimetypes.guess_type(file_name)[0]
+            if guess and not new_mime:
+                mime_type = guess
+            file_obj = target_to_upload
+            try:
+                file_obj.seek(0)
+            except Exception:
+                pass
+        elif isinstance(target_to_upload, str):
+            if not os.path.exists(target_to_upload):
+                raise FileNotFoundError(
+                    f"File not found on local disk: {target_to_upload}")
+            file_name = os.path.basename(target_to_upload)
+            guess = mimetypes.guess_type(file_name)[0]
+            if guess and not new_mime:
+                mime_type = guess
+            file_obj = open(target_to_upload, "rb")
+        else:
+            raise TypeError(
+                "file_path_or_field must be a string file path or a Django File/FieldFile object.")
+
         files = {
             "messaging_product": (None, "whatsapp"),
             "file": (file_name, file_obj, mime_type),
@@ -221,12 +295,17 @@ def upload_media_to_meta(file_path_or_field):
                     response.status_code}: {
                     response.text}")
     finally:
-        if isinstance(file_path_or_field, str):
+        if isinstance(target_to_upload, str):
             try:
                 if file_obj:
                     file_obj.close()
             except Exception:
                 pass
+            if is_temp and os.path.exists(target_to_upload):
+                try:
+                    os.remove(target_to_upload)
+                except Exception:
+                    pass
         else:
             try:
                 if file_obj:

@@ -874,27 +874,37 @@ def sync_whatsapp_templates_from_meta():
                                 tmp.write(chunk)
                             tmp_path = tmp.name
 
+                        # Check & compress image if size exceeds 4MB
+                        from bot.utils import compress_image_if_needed
+                        upload_file_path, is_compressed_temp, compressed_mime = compress_image_if_needed(tmp_path, max_bytes=4 * 1024 * 1024)
+
                         # Upload to Meta Media API
                         import mimetypes
-                        mime = mimetypes.guess_type(tmp_path)[0] or content_type
+                        mime = compressed_mime or mimetypes.guess_type(tmp_path)[0] or content_type
+                        upload_ext = ".jpg" if is_compressed_temp else ext
                         upload_url = f"https://graph.facebook.com/v19.0/{phone_number_id}/media"
-                        with open(tmp_path, "rb") as f:
+                        with open(upload_file_path, "rb") as f:
                             upload_resp = requests.post(
                                 upload_url,
                                 headers={"Authorization": f"Bearer {token}"},
                                 files={
                                     "messaging_product": (None, "whatsapp"),
-                                    "file": (f"header{ext}", f, mime),
+                                    "file": (f"header{upload_ext}", f, mime),
                                     "type": (None, mime),
                                 },
                                 timeout=30
                             )
 
-                        # Clean up temp file
+                        # Clean up temp files
                         try:
                             os.remove(tmp_path)
                         except Exception:
                             pass
+                        if is_compressed_temp and os.path.exists(upload_file_path):
+                            try:
+                                os.remove(upload_file_path)
+                            except Exception:
+                                pass
 
                         if upload_resp.status_code == 200:
                             new_media_id = upload_resp.json().get("id", "")

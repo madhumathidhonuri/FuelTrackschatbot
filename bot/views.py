@@ -306,6 +306,7 @@ def extract_customer_details_with_ai(user_text):
     try:
         ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+        clean_text = user_text.strip()[:400]
         extraction_prompt = (
             "Analyze the following user message sent to a vehicle tracking business. "
             "Extract ONLY the sender's own name and their truck or vehicle number if explicitly stated. "
@@ -314,7 +315,7 @@ def extract_customer_details_with_ai(user_text):
             "Respond ONLY with a raw JSON object with keys 'name' and 'truck_number'. "
             "If a value is not explicitly stated by the user about themselves, set it to null. "
             "Do not include markdown formatting or backticks.\n"
-            f"Message: '{user_text}'"
+            f"Message: '{clean_text}'"
         )
 
         models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"]
@@ -328,7 +329,7 @@ def extract_customer_details_with_ai(user_text):
                 )
                 break
             except Exception as model_err:
-                print(f"[WARNING] Extraction call failed on '{model_name}': {model_err}")
+                print(f"[INFO] Extraction model '{model_name}' unavailable or limited: {model_err}")
 
         if not completion:
             return {"name": None, "truck_number": None}
@@ -732,19 +733,26 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             phone_number=user_phone).order_by('-id')[:4]
         history_list = list(reversed(history))
 
+        def _trim_history(text, max_len=350):
+            if not text:
+                return ""
+            if len(text) > max_len:
+                return text[:max_len] + "..."
+            return text
+
         # To prevent user message duplication, check if the latest message in
         # history is the same user query
         if history_list and history_list[-1].role == 'user' and history_list[-1].content == new_user_message:
-            # It's already in history; append all history entries
+            # It's already in history; append trimmed history entries
             for msg in history_list:
                 messages_payload.append(
-                    {"role": msg.role, "content": msg.content})
+                    {"role": msg.role, "content": _trim_history(msg.content)})
         else:
             # Not in history (or history is empty/different); append history,
             # then append the new message
             for msg in history_list:
                 messages_payload.append(
-                    {"role": msg.role, "content": msg.content})
+                    {"role": msg.role, "content": _trim_history(msg.content)})
             messages_payload.append(
                 {"role": "user", "content": new_user_message})
 
@@ -763,7 +771,15 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 break
 
         ai_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"]
+
+        # Calculate estimated total prompt length
+        total_chars = sum(len(m["content"]) for m in messages_payload)
+        # If payload is large (>7500 chars / ~1800 tokens), prioritize llama-3.3-70b-versatile to avoid llama-3.1 6k TPM limit
+        if total_chars > 7500:
+            models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
+        else:
+            models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"]
+
         completion = None
         for model_name in models_to_try:
             try:
@@ -774,7 +790,11 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 )
                 break
             except Exception as model_err:
-                print(f"[WARNING] Groq call failed on model '{model_name}': {model_err}. Retrying with next model...")
+                err_str = str(model_err)
+                if "413" in err_str or "rate_limit" in err_str or "tokens per minute" in err_str:
+                    print(f"[INFO] Groq model '{model_name}' TPM limit exceeded. Retrying with next model...")
+                else:
+                    print(f"[WARNING] Groq call failed on model '{model_name}': {model_err}. Retrying with next model...")
 
         if not completion:
             raise Exception("All Groq models failed or rate limited.")

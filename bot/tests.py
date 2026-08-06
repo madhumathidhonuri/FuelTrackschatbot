@@ -3422,3 +3422,30 @@ class FailSafeLeadsExportTests(TestCase):
         self.assertContains(response, "Test Customer")
 
 
+class ImageCompressionTests(TestCase):
+    def test_compress_image_if_needed(self):
+        from bot.utils import compress_image_if_needed
+        from PIL import Image
+        import tempfile
+        import os
+
+        # Create a temporary large image
+        tmp_img = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        img = Image.new("RGB", (3000, 3000), color="red")
+        img.save(tmp_img.name, format="PNG")
+        tmp_img.close()
+
+        try:
+            # Force max_bytes to 10KB so it triggers compression
+            result_path, is_temp, mime_type = compress_image_if_needed(tmp_img.name, max_bytes=10 * 1024)
+            self.assertTrue(is_temp)
+            self.assertEqual(mime_type, "image/jpeg")
+            self.assertTrue(os.path.getsize(result_path) <= os.path.getsize(tmp_img.name) or os.path.getsize(result_path) < 100 * 1024)
+            if is_temp and os.path.exists(result_path):
+                os.remove(result_path)
+        finally:
+            if os.path.exists(tmp_img.name):
+                os.remove(tmp_img.name)
+
+
+
