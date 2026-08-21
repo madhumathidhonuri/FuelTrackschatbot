@@ -48,14 +48,22 @@ _phone_number_id_ctx = contextvars.ContextVar("phone_number_id", default=None)
 
 # 🌟 CONFIGURATION PARAMETER
 # Include your full country code (e.g., +91...)
-_env_agent_phones = os.getenv("AGENT_NOTIFY_PHONES")
-if _env_agent_phones:
-    AGENT_NOTIFY_PHONES = [p.strip() for p in _env_agent_phones.split(",") if p.strip()]
+_raw_phones = os.getenv("AGENT_NOTIFY_PHONES") or os.getenv("AGENT_NOTIFY_PHONE")
+if _raw_phones and ("," in _raw_phones or ";" in _raw_phones):
+    AGENT_NOTIFY_PHONES = [p.strip() for p in re.split(r'[,;]', _raw_phones) if p.strip()]
+elif _raw_phones and os.getenv("AGENT_NOTIFY_PHONE_2"):
+    AGENT_NOTIFY_PHONES = [_raw_phones.strip(), os.getenv("AGENT_NOTIFY_PHONE_2").strip()]
 else:
     AGENT_NOTIFY_PHONES = [
         os.getenv("AGENT_NOTIFY_PHONE", "+919000666914"),
         os.getenv("AGENT_NOTIFY_PHONE_2", "+917337433356")
     ]
+# Ensure default agent numbers are included unless explicitly overridden with custom list
+if "+917337433356" not in AGENT_NOTIFY_PHONES and not os.getenv("AGENT_NOTIFY_PHONES"):
+    AGENT_NOTIFY_PHONES.append("+917337433356")
+if "+919000666914" not in AGENT_NOTIFY_PHONES and not os.getenv("AGENT_NOTIFY_PHONES"):
+    AGENT_NOTIFY_PHONES.insert(0, "+919000666914")
+
 AGENT_NOTIFY_PHONES = list(dict.fromkeys(AGENT_NOTIFY_PHONES))
 AGENT_NOTIFY_PHONE = AGENT_NOTIFY_PHONES[0]  # Kept for backward compatibility
 
@@ -960,6 +968,8 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
             messages = resp_data.get("messages", [])
             if messages:
                 return messages[0].get("id")
+        else:
+            print(f"[ERROR] Meta API response for {to_phone}: Status {res.status_code} - {res.text}")
     except Exception as e:
         print(f"Failed to post outgoing message via Meta API: {e}")
     return None
@@ -973,8 +983,13 @@ def notify_agents(agent_alert):
     sent_any = False
     for phone in AGENT_NOTIFY_PHONES:
         try:
-            send_whatsapp_message(phone, agent_alert)
-            sent_any = True
+            print(f"[AGENT_NOTIFY] Dispatching alert to agent {phone}...")
+            msg_id = send_whatsapp_message(phone, agent_alert)
+            if msg_id:
+                print(f"[AGENT_NOTIFY] Alert successfully sent to {phone} (Message ID: {msg_id})")
+                sent_any = True
+            else:
+                print(f"[AGENT_NOTIFY] Notice: Message to {phone} did not return a message ID. Check Meta Graph response above.")
         except Exception as e:
             print(
                 f"[ERROR] Failed to send WhatsApp notification to agent ({phone}): {e}")
