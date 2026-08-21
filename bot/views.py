@@ -48,7 +48,16 @@ _phone_number_id_ctx = contextvars.ContextVar("phone_number_id", default=None)
 
 # 🌟 CONFIGURATION PARAMETER
 # Include your full country code (e.g., +91...)
-AGENT_NOTIFY_PHONE = "+919000666914"
+_env_agent_phones = os.getenv("AGENT_NOTIFY_PHONES")
+if _env_agent_phones:
+    AGENT_NOTIFY_PHONES = [p.strip() for p in _env_agent_phones.split(",") if p.strip()]
+else:
+    AGENT_NOTIFY_PHONES = [
+        os.getenv("AGENT_NOTIFY_PHONE", "+919000666914"),
+        os.getenv("AGENT_NOTIFY_PHONE_2", "+917337433356")
+    ]
+AGENT_NOTIFY_PHONES = list(dict.fromkeys(AGENT_NOTIFY_PHONES))
+AGENT_NOTIFY_PHONE = AGENT_NOTIFY_PHONES[0]  # Kept for backward compatibility
 
 
 def has_keyword_match(text, keywords):
@@ -403,7 +412,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 text_content="",
                 contact_data=corporate_vcard)
 
-            # Notify the agent
+            # Notify the agents
             agent_alert = (
                 f"🚨 Contact Card Request Alert!\n"
                 f"Customer: {customer.owner_name if customer else 'Unknown'}\n"
@@ -414,7 +423,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                 f"User Msg: '{new_user_message}'\n"
                 f"Action: Sent contact card of Mr. Karunakar Reddy to customer."
             )
-            send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+            notify_agents(agent_alert)
             return None  # ✅ Caller must NOT call send_whatsapp_message again
 
         # 🌟 HIGH-PRIORITY OVERRIDE 2: Tenglish notification shortcut
@@ -956,6 +965,22 @@ def send_whatsapp_message(to_phone, text_content, buttons=None, document_url=Non
     return None
 
 
+def notify_agents(agent_alert):
+    """
+    Sends WhatsApp notification alert to all configured agent phone numbers.
+    Returns True if at least one notification was sent successfully.
+    """
+    sent_any = False
+    for phone in AGENT_NOTIFY_PHONES:
+        try:
+            send_whatsapp_message(phone, agent_alert)
+            sent_any = True
+        except Exception as e:
+            print(
+                f"[ERROR] Failed to send WhatsApp notification to agent ({phone}): {e}")
+    return sent_any
+
+
 def find_recent_broadcast_template(user_phone):
     """
     Looks up the most recent broadcast template sent to the user within the last 24 hours.
@@ -1015,8 +1040,8 @@ def notify_agent_of_incoming_message(
         return
 
     clean_user = ''.join(c for c in user_phone if c.isdigit())
-    clean_agent = ''.join(c for c in AGENT_NOTIFY_PHONE if c.isdigit())
-    if clean_user == clean_agent:
+    clean_agents = [''.join(c for c in p if c.isdigit()) for p in AGENT_NOTIFY_PHONES]
+    if clean_user in clean_agents:
         suppress_alert = True
 
     # Check if the customer recently received a broadcast template (within 24h)
@@ -1047,12 +1072,7 @@ def notify_agent_of_incoming_message(
 
     notification_sent = False
     if not suppress_alert:
-        try:
-            send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
-            notification_sent = True
-        except Exception as e:
-            print(
-                f"[ERROR] Failed to send WhatsApp notification to agent: {e}")
+        notification_sent = notify_agents(agent_alert)
 
     try:
         safe_template_name = template_name[:95] if template_name else None
@@ -1077,8 +1097,8 @@ def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
     # Exclude notifications when the message is sent to/by the agent phone
     # itself
     clean_user = ''.join(c for c in user_phone if c.isdigit())
-    clean_agent = ''.join(c for c in AGENT_NOTIFY_PHONE if c.isdigit())
-    if clean_user == clean_agent:
+    clean_agents = [''.join(c for c in p if c.isdigit()) for p in AGENT_NOTIFY_PHONES]
+    if clean_user in clean_agents:
         return
 
     # Prevent duplicate notifications for the same message content using cache
@@ -1119,7 +1139,7 @@ def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
             f"Bot Reply: '{bot_reply[:150]}...'\n"
             f"Reason: {reason}"
         )
-        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+        notify_agents(agent_alert)
         # cache for 10 minutes to avoid duplicates
         cache.set(cache_key, True, timeout=600)
 
@@ -1575,7 +1595,7 @@ def whatsapp_webhook(request):
                                 customer.truck_number or 'Not provided'}\n"
                             f"Requested: Talk to an Agent"
                         )
-                        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+                        notify_agents(agent_alert)
                         return JsonResponse({"status": "success"})
 
                     elif is_contact_request:
@@ -1638,7 +1658,7 @@ def whatsapp_webhook(request):
                             f"Truck: {customer.truck_number if customer and customer.truck_number else 'Not provided'}\n"
                             f"Button/Text: '{user_text}'"
                         )
-                        send_whatsapp_message(AGENT_NOTIFY_PHONE, agent_alert)
+                        notify_agents(agent_alert)
                         return JsonResponse({"status": "success"})
 
                     elif handle_name_flow:
