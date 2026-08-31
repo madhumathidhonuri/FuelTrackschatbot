@@ -335,7 +335,12 @@ def extract_customer_details_with_ai(user_text):
             f"Message: '{clean_text}'"
         )
 
-        models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"]
+        models_to_try = [
+            "openai/gpt-oss-20b",
+            "openai/gpt-oss-120b",
+            "qwen/qwen3.8-27b",
+            "qwen/qwen3.6-27b"
+        ]
         completion = None
         for model_name in models_to_try:
             try:
@@ -791,11 +796,21 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
         # Calculate estimated total prompt length
         total_chars = sum(len(m["content"]) for m in messages_payload)
-        # If payload is large (>7500 chars / ~1800 tokens), prioritize llama-3.3-70b-versatile to avoid llama-3.1 6k TPM limit
+        # Prioritize high-capacity and fast active Groq models
         if total_chars > 7500:
-            models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
+            models_to_try = [
+                "openai/gpt-oss-120b",
+                "openai/gpt-oss-20b",
+                "qwen/qwen3.8-27b",
+                "qwen/qwen3.6-27b"
+            ]
         else:
-            models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it"]
+            models_to_try = [
+                "openai/gpt-oss-20b",
+                "openai/gpt-oss-120b",
+                "qwen/qwen3.8-27b",
+                "qwen/qwen3.6-27b"
+            ]
 
         completion = None
         for model_name in models_to_try:
