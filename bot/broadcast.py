@@ -300,10 +300,20 @@ class AsyncBroadcastEngine:
             print(f"❌ BroadcastTask {self.task_id} not found.")
             return
 
-        task_obj.status = 'running'
-        await asyncio.to_thread(_db_call, task_obj.save)
+        def set_task_running():
+            t = BroadcastTask.objects.get(id=self.task_id)
+            t.status = 'running'
+            t.save()
+            return t
+        task_obj = await asyncio.to_thread(_db_call, set_task_running)
 
         template_config = await asyncio.to_thread(_db_call, get_template_config, task_obj.template_name)
+        
+        def fetch_tmpl_cache():
+            from bot.models import WhatsAppTemplate
+            tmpl = WhatsAppTemplate.objects.filter(template_name=task_obj.template_name).first()
+            return {task_obj.template_name: tmpl}
+        templates_cache = await asyncio.to_thread(_db_call, fetch_tmpl_cache)
 
         # HTTPX Client with pooled connections for max speed
         limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
@@ -313,7 +323,9 @@ class AsyncBroadcastEngine:
             BATCH_SIZE = 1000
             while True:
                 # Refresh task status to check for admin Pause/Cancel signals
-                task_obj = await asyncio.to_thread(_db_call, BroadcastTask.objects.get, id=self.task_id)
+                def get_current_task():
+                    return BroadcastTask.objects.get(id=self.task_id)
+                task_obj = await asyncio.to_thread(_db_call, get_current_task)
                 if task_obj.status in ('paused', 'cancelled', 'stopped'):
                     print(f"🛑 BroadcastTask {self.task_id} status changed to '{task_obj.status}'. Halting workers.")
                     return
@@ -361,7 +373,12 @@ class AsyncBroadcastEngine:
                         rec.sent_at = timezone.now()
                         batch_success += 1
                         from bot.admin import get_formatted_template_text
-                        fmt_text = get_formatted_template_text(task_obj.template_name, getattr(rec, 'customer_name', None), getattr(rec, 'vehicle_number', None))
+                        fmt_text = get_formatted_template_text(
+                            task_obj.template_name,
+                            rec.owner_name,
+                            rec.truck_number,
+                            templates_cache=templates_cache
+                        )
                         chat_logs_to_create.append(ChatMessage(
                             phone_number=rec.phone_number,
                             role='assistant',
@@ -405,19 +422,21 @@ class AsyncBroadcastEngine:
                 await asyncio.to_thread(_db_call, update_task_progress)
 
                 # Log progress
-                # Note: task_obj counters not updated here to avoid double-count — DB is source of truth
-                task_obj = await asyncio.to_thread(_db_call, BroadcastTask.objects.get, id=self.task_id)
+                task_obj = await asyncio.to_thread(_db_call, get_current_task)
                 print(f"📦 Task {self.task_id} Progress: {task_obj.processed_records}/{task_obj.total_records} | Success: {task_obj.success_count} | Failed: {task_obj.failed_count}")
 
                 if task_obj.processed_records >= task_obj.total_records:
                     break
 
         # Final check — use _db_call to ensure connection is properly managed
-        task_obj = await asyncio.to_thread(_db_call, BroadcastTask.objects.get, id=self.task_id)
-        if task_obj.processed_records >= task_obj.total_records:
-            task_obj.status = 'completed'
-            await asyncio.to_thread(_db_call, task_obj.save)
-            print(f"🏁 BroadcastTask {self.task_id} Completed Successfully!")
+        def complete_task_if_done():
+            t = BroadcastTask.objects.get(id=self.task_id)
+            if t.processed_records >= t.total_records:
+                t.status = 'completed'
+                t.save()
+                print(f"🏁 BroadcastTask {self.task_id} Completed Successfully!")
+            return t
+        await asyncio.to_thread(_db_call, complete_task_if_done)
 
 
 async def _process_chunk_async(task_id, chunk_size=1000):
@@ -427,7 +446,9 @@ async def _process_chunk_async(task_id, chunk_size=1000):
     """
     from django.utils import timezone
     try:
-        task_obj = await asyncio.to_thread(BroadcastTask.objects.get, id=task_id)
+        def get_task():
+            return BroadcastTask.objects.get(id=task_id)
+        task_obj = await asyncio.to_thread(_db_call, get_task)
     except BroadcastTask.DoesNotExist:
         return {"error": f"BroadcastTask #{task_id} not found"}
 
@@ -441,22 +462,35 @@ async def _process_chunk_async(task_id, chunk_size=1000):
             "percent": round((task_obj.processed_records / task_obj.total_records) * 100, 1) if task_obj.total_records > 0 else 0
         }
 
-    task_obj.status = 'running'
-    await asyncio.to_thread(task_obj.save)
+    def set_running():
+        t = BroadcastTask.objects.get(id=task_id)
+        t.status = 'running'
+        t.save()
+        return t
+    task_obj = await asyncio.to_thread(_db_call, set_running)
 
-    template_config = await asyncio.to_thread(get_template_config, task_obj.template_name)
+    template_config = await asyncio.to_thread(_db_call, get_template_config, task_obj.template_name)
+    def fetch_tmpl_cache():
+        from bot.models import WhatsAppTemplate
+        tmpl = WhatsAppTemplate.objects.filter(template_name=task_obj.template_name).first()
+        return {task_obj.template_name: tmpl}
+    templates_cache = await asyncio.to_thread(_db_call, fetch_tmpl_cache)
+
     engine = AsyncBroadcastEngine(task_id, rate_limit_per_sec=task_obj.rate_limit_per_sec)
 
-    pending_recipients = await asyncio.to_thread(
-        list,
-        BroadcastRecipient.objects.filter(
+    def fetch_pending():
+        return list(BroadcastRecipient.objects.filter(
             task_id=task_id, status__in=['pending', 'queued']
-        )[:chunk_size]
-    )
+        )[:chunk_size])
+    pending_recipients = await asyncio.to_thread(_db_call, fetch_pending)
 
     if not pending_recipients:
-        task_obj.status = 'completed'
-        await asyncio.to_thread(task_obj.save)
+        def mark_complete():
+            t = BroadcastTask.objects.get(id=task_id)
+            t.status = 'completed'
+            t.save()
+            return t
+        task_obj = await asyncio.to_thread(_db_call, mark_complete)
         return {
             "status": "completed",
             "processed": task_obj.processed_records,
@@ -467,10 +501,9 @@ async def _process_chunk_async(task_id, chunk_size=1000):
         }
 
     recipient_ids = [r.id for r in pending_recipients]
-    await asyncio.to_thread(
-        BroadcastRecipient.objects.filter(id__in=recipient_ids).update,
-        status='queued'
-    )
+    def mark_queued():
+        BroadcastRecipient.objects.filter(id__in=recipient_ids).update(status='queued')
+    await asyncio.to_thread(_db_call, mark_queued)
 
     limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
     async with httpx.AsyncClient(limits=limits) as client:
@@ -496,7 +529,12 @@ async def _process_chunk_async(task_id, chunk_size=1000):
             rec.sent_at = timezone.now()
             batch_success += 1
             from bot.admin import get_formatted_template_text
-            fmt_text = get_formatted_template_text(task_obj.template_name, getattr(rec, 'customer_name', None), getattr(rec, 'vehicle_number', None))
+            fmt_text = get_formatted_template_text(
+                task_obj.template_name,
+                rec.owner_name,
+                rec.truck_number,
+                templates_cache=templates_cache
+            )
             chat_logs_to_create.append(ChatMessage(
                 phone_number=rec.phone_number,
                 role='assistant',
@@ -510,31 +548,34 @@ async def _process_chunk_async(task_id, chunk_size=1000):
             batch_failed += 1
         updated_recipients.append(rec)
 
-    await asyncio.to_thread(
-        BroadcastRecipient.objects.bulk_update,
-        updated_recipients,
-        ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
-    )
+    def perform_bulk_update():
+        BroadcastRecipient.objects.bulk_update(
+            updated_recipients,
+            ['status', 'wamid', 'error_message', 'error_code', 'sent_at']
+        )
+    await asyncio.to_thread(_db_call, perform_bulk_update)
 
     if chat_logs_to_create:
         try:
-            await asyncio.to_thread(
-                ChatMessage.objects.bulk_create,
-                chat_logs_to_create,
-                ignore_conflicts=True
-            )
+            def perform_bulk_create_logs():
+                ChatMessage.objects.bulk_create(
+                    chat_logs_to_create,
+                    ignore_conflicts=True
+                )
+            await asyncio.to_thread(_db_call, perform_bulk_create_logs)
         except Exception:
             pass
 
-
-    task_obj.processed_records += len(results)
-    task_obj.success_count += batch_success
-    task_obj.failed_count += batch_failed
-
-    if task_obj.processed_records >= task_obj.total_records:
-        task_obj.status = 'completed'
-
-    await asyncio.to_thread(task_obj.save)
+    def update_task_final():
+        t = BroadcastTask.objects.get(id=task_id)
+        t.processed_records += len(results)
+        t.success_count += batch_success
+        t.failed_count += batch_failed
+        if t.processed_records >= t.total_records:
+            t.status = 'completed'
+        t.save()
+        return t
+    task_obj = await asyncio.to_thread(_db_call, update_task_final)
 
     percent = round((task_obj.processed_records / task_obj.total_records) * 100, 1) if task_obj.total_records > 0 else 100.0
 
