@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    home,
     whatsapp_webhook,
     export_customers_excel,
     serve_catalog,
@@ -8,6 +9,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path('', home, name='home'),
     path('webhook/', whatsapp_webhook, name='whatsapp_webhook'),
     path(
         'export-customers/',

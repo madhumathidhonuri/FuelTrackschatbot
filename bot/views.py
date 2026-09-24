@@ -46,6 +46,39 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 # Context variable to hold the phone number ID for the current request
 _phone_number_id_ctx = contextvars.ContextVar("phone_number_id", default=None)
 
+def home(request):
+    return HttpResponse("""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FuelTracks WhatsApp AI Bot</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; max-width: 480px; border: 1px solid #334155; }
+        h1 { color: #38bdf8; margin-top: 0; font-size: 1.75rem; }
+        p { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
+        .status { display: inline-flex; align-items: center; gap: 0.5rem; background: #064e3b; color: #34d399; padding: 0.35rem 0.85rem; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; margin-bottom: 1.25rem; }
+        .btn { display: inline-block; background: #2563eb; color: #fff; padding: 0.65rem 1.25rem; border-radius: 0.5rem; text-decoration: none; font-weight: 500; margin-top: 1rem; transition: background 0.2s; }
+        .btn:hover { background: #1d4ed8; }
+        .links { margin-top: 1.5rem; font-size: 0.85rem; color: #64748b; }
+        code { background: #334155; color: #38bdf8; padding: 0.2rem 0.4rem; border-radius: 0.25rem; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="status">&#x1F7E2; Service Operational</div>
+        <h1>FuelTracks WhatsApp AI Bot</h1>
+        <p>The backend webhook service and AI response engine are running live.</p>
+        <a href="/admin/" class="btn">Go to Admin Dashboard</a>
+        <div class="links">
+            Webhook Endpoint: <code>/webhook/</code>
+        </div>
+    </div>
+</body>
+</html>""")
+
+
 # 🌟 CONFIGURATION PARAMETER
 # Include your full country code (e.g., +91...)
 _raw_phones = os.getenv("AGENT_NOTIFY_PHONES") or os.getenv("AGENT_NOTIFY_PHONE")
