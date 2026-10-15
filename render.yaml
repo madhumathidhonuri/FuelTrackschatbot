@@ -31,6 +31,8 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: AGENT_NOTIFY_PHONES
+        sync: false
       - key: DJANGO_SUPERUSER_USERNAME
         value: admin
       - key: DJANGO_SUPERUSER_EMAIL

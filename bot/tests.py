@@ -2,6 +2,7 @@ from django.test import TestCase, TransactionTestCase, Client
 from unittest.mock import patch, MagicMock
 from django.urls import reverse
 from bot.models import FleetCustomer, ChatMessage, AdCampaign, WhatsAppTemplate, AgentNotificationLog
+from bot.views import AGENT_NOTIFY_PHONES
 import json
 import os
 from django.conf import settings
@@ -539,8 +540,8 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 3 calls: one for contact_reply to customer, and two for agent notifications.
-        self.assertEqual(mock_post.call_count, 3)
+        # We expect calls: one for contact_reply to customer, and for agent notifications.
+        self.assertEqual(mock_post.call_count, 1 + len(AGENT_NOTIFY_PHONES))
 
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
@@ -549,8 +550,9 @@ class WebhookTests(TestCase):
             kwargs_intro["json"]["text"]["body"])
 
         called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -601,8 +603,8 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 3 calls: one for contact_reply to customer, and two for agent notifications.
-        self.assertEqual(mock_post.call_count, 3)
+        # We expect calls: one for contact_reply to customer, and for agent notifications.
+        self.assertEqual(mock_post.call_count, 1 + len(AGENT_NOTIFY_PHONES))
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
         self.assertIn(
@@ -610,8 +612,9 @@ class WebhookTests(TestCase):
             kwargs_intro["json"]["text"]["body"])
 
         called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -664,8 +667,8 @@ class WebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # We expect 3 calls: contact_reply and 2 agent notifications
-        self.assertEqual(mock_post.call_count, 3)
+        # We expect calls: contact_reply and agent notifications
+        self.assertEqual(mock_post.call_count, 1 + len(AGENT_NOTIFY_PHONES))
         _, kwargs_intro = mock_post.call_args_list[0]
         self.assertEqual(kwargs_intro["json"]["type"], "text")
         self.assertIn(
@@ -673,8 +676,9 @@ class WebhookTests(TestCase):
             kwargs_intro["json"]["text"]["body"])
 
         called_numbers = [call[1]["json"]["to"] for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -2463,12 +2467,12 @@ class AdditionalBotFlowTests(TestCase):
             system_prompt)
 
         # Verify that the agents were notified
-        # Expecting 3 post calls: 1 to client, 2 to AGENT_NOTIFY_PHONES
-        self.assertEqual(mock_post.call_count, 3)
+        self.assertEqual(mock_post.call_count, 1 + len(AGENT_NOTIFY_PHONES))
         called_numbers = [call[1]["json"]["to"]
                           for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -2518,12 +2522,13 @@ class AdditionalBotFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # Expecting 3 post calls: contact reply to user + notifications to AGENT_NOTIFY_PHONES
-        self.assertEqual(mock_post.call_count, 3)
+        # Expecting post calls: contact reply to user + notifications to AGENT_NOTIFY_PHONES
+        self.assertEqual(mock_post.call_count, 1 + len(AGENT_NOTIFY_PHONES))
         called_numbers = [call[1]["json"]["to"]
                           for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -2702,12 +2707,13 @@ class AdditionalBotFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # Expecting 3 post calls: contact reply to user + notification to AGENT_NOTIFY_PHONES
-        self.assertEqual(mock_post.call_count, 3)
+        # Expecting post calls: contact reply to user + notification to AGENT_NOTIFY_PHONES
+        self.assertEqual(mock_post.call_count, 1 + len(AGENT_NOTIFY_PHONES))
         called_numbers = [call[1]["json"]["to"]
                           for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
         # Payload representing clicking "Talk to Sales"
         payload_en = {
@@ -2745,11 +2751,12 @@ class AdditionalBotFlowTests(TestCase):
             content_type="application/json"
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(mock_post.call_count, 3)
+        self.assertEqual(mock_post.call_count, 1 + len(AGENT_NOTIFY_PHONES))
         called_numbers_en = [call[1]["json"]["to"]
                              for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers_en)
-        self.assertIn("917337433356", called_numbers_en)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers_en)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -2940,11 +2947,12 @@ class AgentNotificationTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # Verify that notification was sent to +919000666914 and +917337433356
+        # Verify that notification was sent to all AGENT_NOTIFY_PHONES
         called_numbers = [call[1]["json"]["to"]
                           for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
         # Check notification content contains "Customer Message Alert" and user
         # message
@@ -3030,8 +3038,9 @@ class AgentNotificationTests(TestCase):
         # Verify notification was sent
         called_numbers = [call[1]["json"]["to"]
                           for call in mock_post.call_args_list]
-        self.assertIn("919000666914", called_numbers)
-        self.assertIn("917337433356", called_numbers)
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            self.assertIn(clean_p, called_numbers)
 
         # Check notification content contains "Template Reply Alert" and
         # template name
@@ -3119,7 +3128,7 @@ class AgentNotificationTests(TestCase):
         self.assertEqual(AgentNotificationLog.objects.count(), 1)
         self.assertFalse(AgentNotificationLog.objects.first().notification_sent)
 
-        # Also test message from the second agent number 917337433356
+        # Also test message from the second agent number 917337433352
         mock_post.reset_mock()
         payload_2 = {
             "object": "whatsapp_business_account",
@@ -3130,7 +3139,7 @@ class AgentNotificationTests(TestCase):
                             "value": {
                                 "messages": [
                                     {
-                                        "from": "917337433356",
+                                        "from": "917337433352",
                                         "id": "msg_agent_456",
                                         "type": "text",
                                         "text": {"body": "Any update on fleet?"}
@@ -3151,6 +3160,39 @@ class AgentNotificationTests(TestCase):
         called_numbers_2 = [call[1]["json"]["to"]
                             for call in mock_post.call_args_list]
         self.assertEqual(len(called_numbers_2), 1)
+
+        # Also test message from the third agent number 916281670029
+        mock_post.reset_mock()
+        payload_3 = {
+            "object": "whatsapp_business_account",
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "messages": [
+                                    {
+                                        "from": "916281670029",
+                                        "id": "msg_agent_789",
+                                        "type": "text",
+                                        "text": {"body": "Checking leads"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        response_3 = self.client.post(
+            reverse("whatsapp_webhook"),
+            data=json.dumps(payload_3),
+            content_type="application/json"
+        )
+        self.assertEqual(response_3.status_code, 200)
+        called_numbers_3 = [call[1]["json"]["to"]
+                            for call in mock_post.call_args_list]
+        self.assertEqual(len(called_numbers_3), 1)
 
     @patch("bot.views.requests.post")
     @patch("bot.views.Groq")
@@ -3215,16 +3257,13 @@ class AgentNotificationTests(TestCase):
         self.assertEqual(logs[1].message_content, "Babu")
         self.assertEqual(logs[2].message_content, "dash cam")
 
-        # Verify notifications sent to agents (+919000666914 and +917337433356)
-        agent_notifications = [
-            call[1]["json"] for call in mock_post.call_args_list if call[1].get(
-                "json", {}).get("to") == "919000666914"]
-        self.assertEqual(len(agent_notifications), 3)
-
-        agent_notifications_2 = [
-            call[1]["json"] for call in mock_post.call_args_list if call[1].get(
-                "json", {}).get("to") == "917337433356"]
-        self.assertEqual(len(agent_notifications_2), 3)
+        # Verify notifications sent to all configured agents
+        for agent_p in AGENT_NOTIFY_PHONES:
+            clean_p = ''.join(c for c in agent_p if c.isdigit())
+            agent_notifications = [
+                call[1]["json"] for call in mock_post.call_args_list if call[1].get(
+                    "json", {}).get("to") == clean_p]
+            self.assertEqual(len(agent_notifications), 3)
 
     def test_find_recent_broadcast_template_lookup(self):
         from bot.views import find_recent_broadcast_template

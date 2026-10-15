@@ -79,25 +79,53 @@ def home(request):
 </html>""")
 
 
+def normalize_phone_number(phone):
+    """Normalize phone number to international E.164 format with + prefix."""
+    if not phone:
+        return ""
+    digits = ''.join(c for c in str(phone) if c.isdigit())
+    if len(digits) == 10:
+        return f"+91{digits}"
+    elif digits and not str(phone).strip().startswith("+"):
+        return f"+{digits}"
+    return str(phone).strip()
+
+
+def is_agent_phone(user_phone):
+    """Checks if the given phone number belongs to one of the configured agent numbers."""
+    clean_user = ''.join(c for c in str(user_phone) if c.isdigit())
+    if not clean_user:
+        return False
+    clean_agents = [''.join(c for c in p if c.isdigit()) for p in AGENT_NOTIFY_PHONES]
+    return any(clean_user == ca or (len(clean_user) >= 10 and len(ca) >= 10 and clean_user[-10:] == ca[-10:]) for ca in clean_agents)
+
+
 # 🌟 CONFIGURATION PARAMETER
 # Include your full country code (e.g., +91...)
 _raw_phones = os.getenv("AGENT_NOTIFY_PHONES") or os.getenv("AGENT_NOTIFY_PHONE")
 if _raw_phones and ("," in _raw_phones or ";" in _raw_phones):
-    AGENT_NOTIFY_PHONES = [p.strip() for p in re.split(r'[,;]', _raw_phones) if p.strip()]
+    AGENT_NOTIFY_PHONES = [normalize_phone_number(p) for p in re.split(r'[,;]', _raw_phones) if p.strip()]
 elif _raw_phones and os.getenv("AGENT_NOTIFY_PHONE_2"):
-    AGENT_NOTIFY_PHONES = [_raw_phones.strip(), os.getenv("AGENT_NOTIFY_PHONE_2").strip()]
+    AGENT_NOTIFY_PHONES = [
+        normalize_phone_number(_raw_phones),
+        normalize_phone_number(os.getenv("AGENT_NOTIFY_PHONE_2"))
+    ]
+elif _raw_phones:
+    AGENT_NOTIFY_PHONES = [normalize_phone_number(_raw_phones)]
 else:
     AGENT_NOTIFY_PHONES = [
-        os.getenv("AGENT_NOTIFY_PHONE", "+919000666914"),
-        os.getenv("AGENT_NOTIFY_PHONE_2", "+917337433356")
+        "+919000666914",
+        "+916281670029",
+        "+917337433352"
     ]
-# Ensure default agent numbers are included unless explicitly overridden with custom list
-if "+917337433356" not in AGENT_NOTIFY_PHONES and not os.getenv("AGENT_NOTIFY_PHONES"):
-    AGENT_NOTIFY_PHONES.append("+917337433356")
-if "+919000666914" not in AGENT_NOTIFY_PHONES and not os.getenv("AGENT_NOTIFY_PHONES"):
-    AGENT_NOTIFY_PHONES.insert(0, "+919000666914")
 
-AGENT_NOTIFY_PHONES = list(dict.fromkeys(AGENT_NOTIFY_PHONES))
+# Ensure default agent numbers are included unless explicitly overridden with custom list
+if not os.getenv("AGENT_NOTIFY_PHONES"):
+    for def_num in ["+919000666914", "+916281670029", "+917337433352"]:
+        if def_num not in AGENT_NOTIFY_PHONES:
+            AGENT_NOTIFY_PHONES.append(def_num)
+
+AGENT_NOTIFY_PHONES = list(dict.fromkeys([p for p in AGENT_NOTIFY_PHONES if p]))
 AGENT_NOTIFY_PHONE = AGENT_NOTIFY_PHONES[0]  # Kept for backward compatibility
 
 
@@ -1102,9 +1130,7 @@ def notify_agent_of_incoming_message(
     if getattr(settings, 'DISABLE_INCOMING_NOTIFICATIONS', False):
         return
 
-    clean_user = ''.join(c for c in user_phone if c.isdigit())
-    clean_agents = [''.join(c for c in p if c.isdigit()) for p in AGENT_NOTIFY_PHONES]
-    if clean_user in clean_agents:
+    if is_agent_phone(user_phone):
         suppress_alert = True
 
     # Check if the customer recently received a broadcast template (within 24h)
@@ -1157,11 +1183,8 @@ def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
     Checks if the user text or the bot reply indicates that the agent (Karunakar Reddy)
     needs to be notified or contact is requested, and sends the notification if so.
     """
-    # Exclude notifications when the message is sent to/by the agent phone
-    # itself
-    clean_user = ''.join(c for c in user_phone if c.isdigit())
-    clean_agents = [''.join(c for c in p if c.isdigit()) for p in AGENT_NOTIFY_PHONES]
-    if clean_user in clean_agents:
+    # Exclude notifications when the message is sent to/by an agent phone itself
+    if is_agent_phone(user_phone):
         return
 
     # Prevent duplicate notifications for the same message content using cache
