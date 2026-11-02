@@ -1444,8 +1444,18 @@ def whatsapp_webhook(request):
                                 return JsonResponse({"status": "success"})
                             else:
                                 print(f"[WARNING] FuelTracks credentials lookup returned {resp.status_code}: {resp.text}")
+                                send_whatsapp_message(
+                                    user_phone,
+                                    "We could not find an active FuelTracks account for this phone number yet. If your account was just created, please wait a moment or contact FuelTracks Support at +91 73374 33350."
+                                )
+                                return JsonResponse({"status": "success"})
                         except Exception as cred_err:
                             print(f"[ERROR] Failed to fetch FuelTracks credentials: {cred_err}")
+                            send_whatsapp_message(
+                                user_phone,
+                                "We are unable to retrieve your account details at this moment. Please contact FuelTracks Support at +91 73374 33350."
+                            )
+                            return JsonResponse({"status": "success"})
 
                     # Fallback for button reply text containing welcome message
                     # prefix (e.g. from copy-paste/forwarding)
