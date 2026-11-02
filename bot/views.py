@@ -1411,6 +1411,42 @@ def whatsapp_webhook(request):
                         f"[INCOMING] Received text/action: '{user_text}' from {user_phone}")
                     clean_text = user_text.strip().lower()
 
+                    # --- FuelTracks Credentials Quick Reply Interceptor ---
+                    if "get my account details" in clean_text or "account details" in clean_text or "credentials" in clean_text:
+                        fueltracks_api = os.getenv("FUELTRACKS_API_URL", "https://api.fueltracks.in")
+                        bot_secret = os.getenv("WHATSAPP_APP_SECRET", "")
+                        try:
+                            import requests
+                            resp = requests.get(
+                                f"{fueltracks_api}/api/auth/customer-credentials",
+                                params={"phone": user_phone},
+                                headers={"x-bot-secret": bot_secret},
+                                timeout=6
+                            )
+                            if resp.status_code == 200:
+                                u_data = resp.json().get("data", {})
+                                cust_name = u_data.get("name") or "Customer"
+                                cust_user = u_data.get("username") or "—"
+                                cust_pass = u_data.get("password") or "—"
+
+                                creds_msg = (
+                                    f"Hello {cust_name},\n\n"
+                                    f"Here are your FuelTracks login credentials:\n\n"
+                                    f"👤 *User ID:* {cust_user}\n"
+                                    f"🔑 *Password:* {cust_pass}\n\n"
+                                    f"*Access FuelTracks:*\n"
+                                    f"🌐 *Web Portal:* https://app.fueltracks.in\n"
+                                    f"📱 *Android App:* https://play.google.com/store/apps/details?id=com.fueltracks.customer\n"
+                                    f"🍏 *iOS App:* https://apps.apple.com/in/app/fueltracks-vehicle-tracking/id6814368846\n\n"
+                                    f"Please change your password after logging in."
+                                )
+                                send_whatsapp_message(user_phone, creds_msg)
+                                return JsonResponse({"status": "success"})
+                            else:
+                                print(f"[WARNING] FuelTracks credentials lookup returned {resp.status_code}: {resp.text}")
+                        except Exception as cred_err:
+                            print(f"[ERROR] Failed to fetch FuelTracks credentials: {cred_err}")
+
                     # Fallback for button reply text containing welcome message
                     # prefix (e.g. from copy-paste/forwarding)
                     lines = [
