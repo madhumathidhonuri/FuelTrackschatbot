@@ -1424,16 +1424,23 @@ def whatsapp_webhook(request):
                                 timeout=6
                             )
                             if resp.status_code == 200:
-                                u_data = resp.json().get("data", {})
-                                cust_name = u_data.get("name") or "Customer"
-                                cust_user = u_data.get("username") or "—"
-                                cust_pass = u_data.get("password") or "—"
+                                res_json = resp.json()
+                                accounts = res_json.get("accounts") or []
+                                if not accounts and res_json.get("data"):
+                                    accounts = [res_json["data"]]
 
+                                cust_name = accounts[0].get("name") if accounts else "Customer"
+                                creds_lines = []
+                                for acc in accounts:
+                                    u = acc.get("username") or acc.get("email") or "—"
+                                    p = acc.get("password") or "(Active / Existing Password)"
+                                    creds_lines.append(f"👤 *User ID:* {u}\n🔑 *Password:* {p}")
+
+                                creds_block = "\n\n".join(creds_lines)
                                 creds_msg = (
                                     f"Hello {cust_name},\n\n"
                                     f"Here are your FuelTracks login credentials:\n\n"
-                                    f"👤 *User ID:* {cust_user}\n"
-                                    f"🔑 *Password:* {cust_pass}\n\n"
+                                    f"{creds_block}\n\n"
                                     f"*Access FuelTracks:*\n"
                                     f"🌐 *Web Portal:* https://app.fueltracks.in\n"
                                     f"📱 *Android App:* https://play.google.com/store/apps/details?id=com.fueltracks.customer\n"
