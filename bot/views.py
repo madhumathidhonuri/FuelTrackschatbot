@@ -1447,20 +1447,40 @@ def whatsapp_webhook(request):
                                     f"🍏 *iOS App:* https://apps.apple.com/in/app/fueltracks-vehicle-tracking/id6814368846\n\n"
                                     f"Please change your password after logging in."
                                 )
-                                send_whatsapp_message(user_phone, creds_msg)
+                                resp_msg_id = send_whatsapp_message(user_phone, creds_msg)
+                                ChatMessage.objects.create(
+                                    phone_number=user_phone,
+                                    role='assistant',
+                                    content=creds_msg,
+                                    message_id=resp_msg_id
+                                )
                                 return JsonResponse({"status": "success"})
                             else:
                                 print(f"[WARNING] FuelTracks credentials lookup returned {resp.status_code}: {resp.text}")
-                                send_whatsapp_message(
-                                    user_phone,
-                                    "We could not find an active FuelTracks account for this phone number yet. If your account was just created, please wait a moment or contact FuelTracks Support at +91 73374 33350."
+                                not_found_msg = (
+                                    "We could not find an active FuelTracks account for this phone number yet. "
+                                    "If your account was just created, please wait a moment or contact FuelTracks Support at +91 73374 33350."
+                                )
+                                resp_msg_id = send_whatsapp_message(user_phone, not_found_msg)
+                                ChatMessage.objects.create(
+                                    phone_number=user_phone,
+                                    role='assistant',
+                                    content=not_found_msg,
+                                    message_id=resp_msg_id
                                 )
                                 return JsonResponse({"status": "success"})
                         except Exception as cred_err:
                             print(f"[ERROR] Failed to fetch FuelTracks credentials: {cred_err}")
-                            send_whatsapp_message(
-                                user_phone,
-                                "We are unable to retrieve your account details at this moment. Please contact FuelTracks Support at +91 73374 33350."
+                            err_msg = (
+                                "We are unable to retrieve your account details at this moment. "
+                                "Please contact FuelTracks Support at +91 73374 33350."
+                            )
+                            resp_msg_id = send_whatsapp_message(user_phone, err_msg)
+                            ChatMessage.objects.create(
+                                phone_number=user_phone,
+                                role='assistant',
+                                content=err_msg,
+                                message_id=resp_msg_id
                             )
                             return JsonResponse({"status": "success"})
 
