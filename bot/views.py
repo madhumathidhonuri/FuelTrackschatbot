@@ -1444,8 +1444,7 @@ def whatsapp_webhook(request):
                                     f"*Access FuelTracks:*\n"
                                     f"🌐 *Web Portal:* https://app.fueltracks.in\n"
                                     f"📱 *Android App:* https://play.google.com/store/apps/details?id=com.fueltracks.customer\n"
-                                    f"🍏 *iOS App:* https://apps.apple.com/in/app/fueltracks-vehicle-tracking/id6814368846\n\n"
-                                    f"Please change your password after logging in."
+                                    f"🍏 *iOS App:* https://apps.apple.com/in/app/fueltracks-vehicle-tracking/id6814368846"
                                 )
                                 resp_msg_id = send_whatsapp_message(user_phone, creds_msg)
                                 ChatMessage.objects.create(
