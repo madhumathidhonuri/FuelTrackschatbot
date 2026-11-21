@@ -529,27 +529,27 @@ def get_ai_response(user_phone, new_user_message, customer=None):
         # 🚫 SHARED OFF-TOPIC GUARD (injected into every engine below)
         offtopic_rule_english = (
             "STRICT SCOPE — HIGHEST PRIORITY RULE:\n"
-            "- You represent ONLY Fuel Tracks Technologies. You are a sales assistant, NOT a general chatbot.\n"
-            "- If the user sends anything unrelated to fleet management, GPS tracking, fuel monitoring, "
-            "pricing, or Fuel Tracks products — such as personal chit-chat, jokes, poems, food, weather, "
+            "- You represent ONLY Fuel Tracks Technologies. You are a sales & technical fleet support assistant, NOT a general chatbot.\n"
+            "- If the user sends anything completely unrelated to fleet management, GPS tracking, fuel monitoring, "
+            "pricing, hardware support, or Fuel Tracks products — such as personal chit-chat, jokes, poems, food, weather, "
             "sports, or any other off-topic content — you MUST politely decline and redirect.\n"
-            "- CRITICAL: Product pricing inquiries, catalog/PDF requests, contact requests, official documentation/paperwork requests (e.g., POA, board resolution, notary letter, letterhead, signed/stamped copies), greetings, and gratitude (e.g. thanks, thank you) are strictly ON-TOPIC. Never decline or redirect them.\n"
+            "- CRITICAL: Product pricing inquiries, catalog/PDF requests, contact requests, official documentation/paperwork requests (e.g., POA, board resolution, notary letter, letterhead, signed/stamped copies), hardware troubleshooting, device offline issues, wiring/LED checks, fuel sensor calibration, app login/credentials, vehicle tracking, greetings, and gratitude (e.g. thanks, thank you) are strictly ON-TOPIC. Never decline or redirect them.\n"
             "- Off-topic redirect (English): 'I can only assist with Fuel Tracks "
             "Technologies products and services. Feel free to ask about our GPS trackers, fuel monitoring, "
-            "smart cameras, borewell solutions, or other accessories!'\n"
+            "smart cameras, borewell solutions, technical support, or other accessories!'\n"
             "- EXCEPTIONS: General greetings, thank you, thanks, and goodbye are NOT off-topic. Respond to greetings politely, and respond to thank you / thanks / goodbye by closing the conversation politely.\n"
             "- NEVER write poems, jokes, stories, or creative content under any circumstances.\n\n"
         )
         offtopic_rule_tenglish = (
             "STRICT SCOPE — HIGHEST PRIORITY RULE:\n"
             "- Meeru ONLY Fuel Tracks Technologies products mariyu services gurinchi matladali. "
-            "Meeru general chatbot kaadu — sales assistant maatram.\n"
+            "Meeru sales & fleet support assistant maatram, general chatbot kaadu.\n"
             "- User personal topics (bhojnam, jokes, kavitalu, weather, sports, etc.) adigithe "
             "maryādagā decline cheyandi mariyu business ki redirect cheyandi.\n"
-            "- CRITICAL: Pricing queries, catalog/PDF requests, contact requests, official documentation/paperwork requests (e.g., POA, board resolution, notary letter, letterhead, signed/stamped copies), greetings, and thanks/dhanyavadalu are strictly ON-TOPIC. Never decline or redirect them.\n"
+            "- CRITICAL: Pricing queries, catalog/PDF requests, contact requests, official documentation/paperwork requests, hardware troubleshooting, device offline issues, wiring/LED checks, fuel sensor calibration, app login/credentials, vehicle tracking, greetings, and thanks/dhanyavadalu are strictly ON-TOPIC. Never decline or redirect them.\n"
             "- Off-topic redirect: 'Nenu Fuel Tracks Technologies products "
             "mariyu services ki maatrame help cheyagalanu. Meeru fleet, GPS tracking, fuel monitoring, "
-            "cameras, borewell solutions, leda other accessories gurinchi adugavacchu!'\n"
+            "cameras, borewell solutions, technical support, leda other accessories gurinchi adugavacchu!'\n"
             "- EXCEPTIONS: General greetings, thank you, thanks, dhanyavadalu, or goodbye are allowed. Polite ga respond cheyandi (e.g. hello or thank you/goodbye replies).\n"
             "- Poems, jokes, stories, creative content NEVER raayakandi.\n\n"
         )
@@ -558,7 +558,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "- మీరు ONLY Fuel Tracks Technologies products మరియు services గురించి మాట్లాడాలి.\n"
             "- వ్యక్తిగత విషయాలు (భోజనం, జోక్స్, కవితలు, వాతావరణం మొదలైనవి) అడిగితే "
             "మర్యాదగా తిరస్కరించండి మరియు వెంటనే business కి redirect చేయండి.\n"
-            "- CRITICAL: ధర (pricing) అడిగినప్పుడు, క్యాటలాగ్/PDF అడిగినప్పుడు, కాంటాక్ట్ నంబర్ అడిగినప్పుడు, అధికారిక పత్రాల/కాగితాల అభ్యర్థనలు (ఉదాహరణకు: POA, బోర్డ్ రిజల్యూషన్, నోటరీ లేఖ, లేటర్ హెడ్, సంతకం/స్టాంప్ చేసిన పత్రాలు), నమస్కారాలు, మరియు థాంక్యూ/ధన్యవాదాలు చెప్పినప్పుడు అవి ON-TOPIC. వీటిని ఎప్పుడూ తిరస్కరించకండి.\n"
+            "- CRITICAL: ధర (pricing) అడిగినప్పుడు, క్యాటలాగ్/PDF అడిగినప్పుడు, కాంటాక్ట్ నంబర్ అడిగినప్పుడు, అధికారిక పత్రాల/కాగితాల అభ్యర్థనలు (ఉదాహరణకు: POA, బోర్డ్ రిజల్యూషన్, నోటరీ లేఖ, లేటర్ హెడ్, సంతకం/స్టాంప్ చేసిన పత్రాలు), హార్డ్‌వేర్ ట్రబుల్‌షూటింగ్, డివైజ్ ఆఫ్‌లైన్ సమస్యలు, వైరింగ్/LED లైట్లు, ఫ్యూయల్ సెన్సార్ క్యాలిబ్రేషన్, యాప్ లాగిన్/క్రెడెన్షియల్స్, వెహికల్ ట్రాకింగ్, నమస్కారాలు, మరియు థాంక్యూ/ధన్యవాదాలు చెప్పినప్పుడు అవి ON-TOPIC. వీటిని ఎప్పుడూ తిరస్కరించకండి.\n"
             "- Off-topic అయినప్పుడు చెప్పండి: 'నేను Fuel Tracks Technologies "
             "products మరియు services కోసం మాత్రమే సహాయం చేయగలను. GPS tracking, fuel monitoring, "
             "కెమెరాలు, బోరుబావి సొల్యూషన్స్, లేదా ఇతర పరికరాల గురించి అడగవచ్చు!'\n"
@@ -590,10 +590,10 @@ def get_ai_response(user_phone, new_user_message, customer=None):
             "   Before deciding a message is \"out of scope,\" check the last 1-3 messages for context. Short follow-ups like \"price\", \"how much\", \"cost\", \"details\", \"features\", \"warranty\", \"specs\" almost always refer to the product just discussed — NOT a new topic. Never fire the scope-refusal on a follow-up about a product you already introduced in this conversation.\n"
             "2. PRICING QUESTIONS ARE ALWAYS IN SCOPE\n"
             "   - Never respond to a pricing question with the generic \"I can only assist with Fuel Tracks products\" refusal.\n"
-            "   - If the user asks for the price, cost, or amount for the 'TG Mining AIS 140 GPS device' or 'AIS 140 tracker', state that the price is 5500 and it is negotiable.\n"
-            "   - For any OTHER products, DO NOT provide numerical price estimations, ranges, or exact quotes yourself. Instead, politely inform the user that our Technical Sales Expert, Mr. Karunakar Reddy, handles all pricing and detailed quotes. Provide his contact number (+91 90006 66914) and say he will assist them directly.\n"
+            "   - If the user asks for the price, cost, or amount for the 'TG Mining AIS 140 GPS device' or 'AIS 140 tracker', state that the price is 5500 and it is negotiable based on fleet quantity.\n"
+            "   - For any OTHER products or custom fleet quotes, politely inform the user that our Technical Sales Expert, Mr. Karunakar Reddy, handles detailed quotes and volume discounts. Provide his contact number (+91 90006 66914) and say he will assist them directly.\n"
             "3. SCOPE REFUSAL — NARROW USE ONLY\n"
-            "   Use the redirect message (\"I can only assist with Fuel Tracks Technologies products and services...\") ONLY for messages with no reasonable connection to any product or service offered (general chit-chat, unrelated companies/personal topics). NEVER send this exact message twice in a row. If the user repeats or rephrases their question after a refusal, that means you misunderstood them — change your approach, don't repeat the line.\n"
+            "   Use the redirect message (\"I can only assist with Fuel Tracks Technologies products and services...\") ONLY for messages with no reasonable connection to any product, fleet service, or technical query (general chit-chat, unrelated companies/personal topics). NEVER send this exact message twice in a row. If the user repeats or rephrases their question after a refusal, that means you misunderstood them — change your approach, don't repeat the line.\n"
             "4. NEVER PAIR A REFUSAL WITH SENT MATERIAL\n"
             "   Do not send a catalog/PDF/document in the same turn as a scope refusal. Either answer the question (and share material if relevant) or redirect — never both in one response.\n"
             "5. HANDLING FRUSTRATION & ANGER\n"
@@ -622,11 +622,9 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
                 "FUEL TRACKS OFFICIAL PRODUCT FACTS (TELUGU SCRIPT):\n"
                 "- GPS Trackers: ఇవి ప్రభుత్వ ఆమోదం పొందిన లొకేషన్ ట్రాకర్లు (AIS 140 Certified Device). తెలంగాణ ప్రభుత్వ మైనింగ్ డిపార్ట్‌మెంట్ (Mining Department) ద్వారా ఆమోదించబడిన ఈ AIS 140 పరికరం మైనింగ్ వాహనాలకు (Mining Vehicles/Operations) ఇప్పుడు తప్పనిసరి (mandatory). మా వద్ద లభించే AIS 140 ట్రాకర్లు అత్యంత నాణ్యమైనవి, నమ్మకమైనవి మరియు బెస్ట్ ప్రైస్ గ్యారెంటీతో లభిస్తాయి. ఇందులో రియల్-టైమ్ ట్రాకింగ్, స్పీడ్ మానిటరింగ్, మరియు పానిక్ బటన్స్ ఉంటాయి. ఇతర మోడల్స్: Teltonika FMB120, Teltonika FMB910, మరియు 3G WCDMA GPS tracker (రిమోట్ ఇంజన్ కట్ మరియు IP67 వాటర్ ప్రూఫ్ కలిగి ఉంటుంది).\n"
-                "- ⚠️ ప్రభుత్వ నోటీసు (GOVERNMENT NOTICE — మైనింగ్ AIS 140 గడువు): "
-                "(1) అన్ని లీజు హోల్డర్లు & MDL హోల్డర్లు తమ వాహనాలను డిపార్ట్‌మెంట్‌లో నమోదు చేసి, జూన్ 25, 2026 నాటికి అన్ని మినరల్ క్యారియింగ్ వాహనాలకు AIS-140 ఇన్‌స్టాల్ చేయాలి. "
-                "(2) అన్ని మినరల్ ట్రాన్స్‌పోర్టింగ్ వాహనాలకు 31.07.2026 లోపు ఎంపనెల్డ్ ఏజెన్సీలతో సంప్రదించి AIS-140 పరికరాన్ని ఫిక్స్ చేయాలి. "
-                "(3) 01.08.2026 నుండి AIS-140 లేకుండా ట్రాన్సిట్ ఫారమ్స్/పాసెస్ జనరేట్ కావు. "
-                "*గడువు దాటకముందే సంప్రదించండి — మిస్టర్ కరుణాకర్ రెడ్డి: +91 90006 66914 | సపోర్ట్: +91 73374 33350 / 51 / 56.*\n"
+                "- ⚠️ ప్రభుత్వ నిబంధన (GOVERNMENT MANDATE — మైనింగ్ AIS 140): "
+                "తెలంగాణ ప్రభుత్వ మైనింగ్ డిపార్ట్‌మెంట్ నిబంధనల ప్రకారం మైనింగ్ మరియు మినరల్ ట్రాన్స్‌పోర్ట్ చేసే అన్ని వాహనాలకు ప్రభుత్వ ఆమోదం పొందిన AIS-140 GPS పరికరం తప్పనిసరి. AIS-140 పరికరం అమర్చకపోతే మైనింగ్ డిపార్ట్‌మెంట్ నుండి ఇ-ట్రాన్సిట్ పాస్‌లు / ఫారమ్‌లు జారీ కావు. "
+                "*ప్రభుత్వ ఆమోదం పొందిన AIS 140 పరికరాల కోసం సంప్రదించండి — మిస్టర్ కరుణాకర్ రెడ్డి: +91 90006 66914 | సపోర్ట్: +91 73374 33350 / 51 / 56.*\n"
                 "- Smart Fuel Monitoring: మా సిస్టమ్ 99% ఖచ్చితత్వంతో డిజిటల్ ఫ్యూయల్ రాడ్ సెన్సార్లను (Italon Fuel Sensor) మరియు Teltonika FMB920 ట్రాకర్లను "
                 "ఉపయోగిస్తుంది. ఇది ఇంధన దొంగతనాన్ని గుర్తించి వెంటనే లైవ్ అలర్ట్లను పంపుతుంది.\n"
                 "- Smart Security Cameras & Dash Cams: Solar Cam (100% సోలార్, 4G LTE), Wi-Fi Security Camera (1080P, టూ-వే ఆడియో, నైట్ విజన్, SD/క్లౌడ్ స్టోరేజ్), మరియు Dashcam DC 01 S (ముందు/వెనుక 2K రికార్డింగ్, G-సెన్సార్ ప్రొటెక్షన్).\n"
@@ -664,11 +662,9 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
                 "FUEL TRACKS FACTS IN TENGLISH:\n"
                 "- GPS Trackers: Mana trackers government certified (AIS 140 Certified Device). Government of Telangana Mining Department dwara approved aina ee AIS 140 device mining vehicles/operations ki mandatory. Ee device high quality, more reliable, mariyu best price guaranteed tho vastundi. Indulo real-time location tracking, speed monitoring, mariyu panic buttons untayi. Other models: Teltonika FMB120, Teltonika FMB910, mariyu 3G WCDMA GPS tracker (remote engine cutoff mariyu IP67 waterproof features tho).\n"
-                "- ⚠️ Government Notice (Mining AIS 140 Deadline): "
-                "(1) Anni lease holders & MDL holders June 25, 2026 nati ki tama vehicles ni department lo register chesi, anni mineral carrying vehicles ki AIS-140 install cheyyali. "
-                "(2) Anni mineral transporting vehicles ki 31.07.2026 nati ki empanelled agencies tho consult chesi AIS-140 device fix cheyyali. "
-                "(3) 01.08.2026 nundi AIS-140 fixing lekunte Transit Forms/Passes generate avvaavu. "
-                "*Deadline mundu contact cheyyandi — Mr. Karunakar Reddy: +91 90006 66914 | Support: +91 73374 33350 / 51 / 56.*\n"
+                "- ⚠️ Government Notice (Mining AIS 140 Mandate): "
+                "Telangana Government Mining Department rules prakaram mining mariyu mineral transport chese anni vehicles ki government approved AIS-140 GPS device mandatory. AIS-140 device fix cheyyakapothe mining transit passes generate avvaavu. "
+                "*Government certified AIS 140 devices kosam contact cheyyandi — Mr. Karunakar Reddy: +91 90006 66914 | Support: +91 73374 33350 / 51 / 56.*\n"
                 "- Smart Fuel Monitoring: Mana smart fuel monitoring system 99% accuracy provides chesthundhi. "
                 "Indulo Italon Fuel Level Sensor mariyu Teltonika FMB920 trackers untayi. Sudden fuel level drops and theft automatic ga detect chesi alerts pampisthundhi.\n"
                 "- Smart Cameras & Dash Cams: Solar Cam (100% solar, 4G LTE), Wi-Fi Camera (1080P, night vision, two-way audio), mariyu Dashcam DC 01 S (front/rear 2K recording, loop recording, G-sensor protection).\n"
@@ -704,11 +700,9 @@ def get_ai_response(user_phone, new_user_message, customer=None):
 
                 "FUEL TRACKS OFFICIAL PRODUCT FACTS:\n"
                 "- GPS Trackers: Government-approved trackers for commercial vehicles (AIS 140 Certified Devices). Officially approved by the Government of Telangana Mining Department, the AIS 140 device is now mandatory for all mining vehicles/operations in Telangana. Built for mining vehicles, it offers high quality, reliability, and the best price guaranteed, featuring real-time location, speed monitoring, and panic buttons. Other models: Teltonika FMB120, Teltonika FMB910, and 3G WCDMA GPS tracker with remote engine cutoff and IP67 waterproof casing.\n"
-                "- ⚠️ GOVERNMENT NOTICE (Mining AIS 140 Deadline): "
-                "(1) All Lease Holders & MDL Holders must register their vehicles with the department and install AIS-140 to all mineral carrying vehicles by June 25th, 2026. "
-                "(2) All Mineral Transporting Vehicles must be fixed with AIS-140 equipment by 31.07.2026, duly consulting empanelled agencies. "
-                "(3) From 01.08.2026, Transit Forms/Passes will NOT be generated without AIS-140 fixing. "
-                "*Contact us before the deadline — Mr. Karunakar Reddy: +91 90006 66914 | Support: +91 73374 33350 / 51 / 56.*\n"
+                "- ⚠️ GOVERNMENT MANDATE (Mining AIS 140 Compliance): "
+                "Under Telangana Government Mining Department regulations, AIS 140 certified GPS tracking devices are strictly mandatory for all mining and mineral-carrying vehicles. Transit passes and permits cannot be generated without an approved AIS-140 device. "
+                "*For officially approved AIS-140 devices, contact — Mr. Karunakar Reddy: +91 90006 66914 | Support: +91 73374 33350 / 51 / 56.*\n"
                 "- Smart Fuel Monitoring: Uses Italon digital fuel rod sensors (99% accuracy) and Teltonika FMB920 trackers to track refilling, detect sudden fuel drops, and send live theft alerts to operators.\n"
                 "- Smart Security Cameras & Dash Cams: Solar Cam (100% solar powered, 4G LTE connectivity, mobile app viewing), Wi-Fi Security Camera (1080P, night vision, motion alerts, two-way audio), and Dashcam DC 01 S (front & rear 2K recording, loop recording, G-sensor protection).\n"
                 "- Borewell Solutions: Bore Well Rod Count (digital display for drilling rod timings) and Bore Well RPM Count (accurate drilling RPM measurement).\n"
@@ -736,12 +730,11 @@ def get_ai_response(user_phone, new_user_message, customer=None):
         if customer and customer.referred_by:
             campaign = customer.referred_by
             ad_context = (
-                f"\n\nCRITICAL CONTEXT: The customer arrived via the ad campaign: '{
-                    campaign.campaign_name}'. "
-                f"You MUST focus your conversation strictly and exclusively on the product/topic of this ad: {
-                    campaign.custom_system_prompt}. "
-                f"Do NOT offer, pitch, or discuss other company products (such as other camera types, GPS trackers, "
-                f"or fuel sensors) unless the customer explicitly asks about them."
+                f"\n\nAD CAMPAIGN CONTEXT:\n"
+                f"- The customer arrived via the ad campaign: '{campaign.campaign_name}'. "
+                f"- Campaign focus: {campaign.custom_system_prompt}. "
+                f"- If the customer is asking about this ad or initiating contact, focus your conversation on this product. "
+                f"- If the customer asks about another product, fleet tracking, or technical support, assist them directly without restriction."
             )
             system_prompt += ad_context
 
@@ -798,12 +791,14 @@ def get_ai_response(user_phone, new_user_message, customer=None):
                     template_name, f"Focus strictly on answering queries about {template_name}.")
 
             template_context = (
-                f"\n\nCRITICAL CONTEXT — TEMPLATE RESPONSE DIRECTION:\n"
-                f"- The customer is replying to our WhatsApp broadcast template message: '{template_name}'.\n"
-                f"- Template Core Instructions: {template_prompt}\n"
-                f"- YOU MUST: Directly answer the user's message in 100% alignment with the template '{template_name}'. "
-                f"Focus strictly on the features, benefits, quotes, and details related to '{template_name}'. "
-                f"Do NOT introduce or pitch unrelated products unless the customer explicitly asks for them."
+                f"\n\nBROADCAST TEMPLATE CONTEXT:\n"
+                f"- The customer previously received our WhatsApp broadcast template: '{template_name}'.\n"
+                f"- Template Instructions: {template_prompt}\n"
+                f"- INTENT-AWARE ROUTING RULE:\n"
+                f"  1. If the customer's message is asking about this broadcast, mentions the offer/device, clicked a template button, or asks questions like 'tell me more', 'price', 'details', 'interested', or 'how does it work?':\n"
+                f"     -> Prioritize and answer in full alignment with the template '{template_name}'.\n"
+                f"  2. If the customer's message is asking about a DIFFERENT topic (such as tracking their vehicle, technical support, device offline, wiring, fuel theft issue, account login, or asking for another product):\n"
+                f"     -> Directly address their specific request! DO NOT force or hijack the conversation with '{template_name}'.\n"
             )
             system_prompt += template_context
 
@@ -813,7 +808,7 @@ def get_ai_response(user_phone, new_user_message, customer=None):
         messages_payload = [{"role": "system", "content": system_prompt}]
 
         history = ChatMessage.objects.filter(
-            phone_number=user_phone).order_by('-id')[:4]
+            phone_number=user_phone).order_by('-id')[:10]
         history_list = list(reversed(history))
 
         def _trim_history(text, max_len=350):
@@ -1230,6 +1225,40 @@ def check_and_notify_agent(customer, user_phone, user_text, bot_reply):
         cache.set(cache_key, True, timeout=600)
 
 
+def process_visual_media_background(user_phone, media_type, media_url, caption, domain_url, customer_name):
+    """
+    Asynchronously processes customer hardware photos and videos in a daemon background thread.
+    Prevents Meta webhook 3-second timeouts, eliminates duplicate message retries, and maintains server health.
+    """
+    try:
+        from bot.hardware_service import diagnose_hardware_image, diagnose_hardware_video, cleanup_old_media
+        # Periodic rolling storage cleanup (keeps disk clean on Render)
+        cleanup_old_media(max_age_days=7)
+
+        if media_type == "video":
+            diagnosis_reply = diagnose_hardware_video(media_url, user_caption=caption)
+        else:
+            diagnosis_reply = diagnose_hardware_image(media_url, user_caption=caption)
+
+        resp_msg_id = send_whatsapp_message(user_phone, diagnosis_reply)
+        ChatMessage.objects.create(
+            phone_number=user_phone,
+            role='assistant',
+            content=diagnosis_reply,
+            message_id=resp_msg_id
+        )
+
+        agent_alert = (
+            f"📸 *Hardware Visual Diagnostic Alert ({media_type.upper()})!*\n"
+            f"👤 Customer: {customer_name or 'Customer'} ({user_phone})\n"
+            f"📎 Media URL: {domain_url}{media_url}\n\n"
+            f"💡 *Diagnosis Summary:*\n{diagnosis_reply[:350]}"
+        )
+        notify_agents(agent_alert)
+    except Exception as bg_err:
+        print(f"[BACKGROUND DIAGNOSTIC ERROR] {bg_err}")
+
+
 @csrf_exempt
 def whatsapp_webhook(request):
     """Processes verification GET queries and messaging POST actions from Meta."""
@@ -1332,6 +1361,7 @@ def whatsapp_webhook(request):
                         cache_key = f"wa_msg_id_{message_id}"
                         cache.set(cache_key, True, timeout=86400)
 
+                    media_url = None
                     if message_obj.get("type") in [
                             "text", "interactive", "button"]:
                         if message_obj.get("type") == "text":
@@ -1358,8 +1388,19 @@ def whatsapp_webhook(request):
                         media_type = message_obj.get("type")
                         from bot.utils import download_media_from_meta
                         media_url = download_media_from_meta(message_obj, message_id=message_id)
-                        if media_url:
-                            user_text = f"[{media_type.capitalize()} Message Received]\n{media_url}"
+                        caption = message_obj.get(media_type, {}).get("caption", "").strip() if isinstance(message_obj.get(media_type), dict) else ""
+                        if media_type == "audio" and media_url:
+                            from bot.hardware_service import transcribe_voice_note
+                            transcribed_speech = transcribe_voice_note(media_url)
+                            if transcribed_speech:
+                                user_text = transcribed_speech
+                            else:
+                                user_text = f"[Audio Message Received]\n{media_url}"
+                        elif media_url:
+                            if caption:
+                                user_text = f"[{media_type.capitalize()} Message Received]\n{media_url}\nCaption: {caption}"
+                            else:
+                                user_text = f"[{media_type.capitalize()} Message Received]\n{media_url}"
                         else:
                             user_text = f"[{media_type.capitalize()} Message Received]"
                     else:
@@ -1482,6 +1523,45 @@ def whatsapp_webhook(request):
                                 message_id=resp_msg_id
                             )
                             return JsonResponse({"status": "success"})
+
+                    # --- On-Demand Vehicle Location & Tracking Interceptor ---
+                    is_tracking_kw = (
+                        clean_text.startswith("track") or
+                        "where is" in clean_text or
+                        "vehicle location" in clean_text or
+                        "location of" in clean_text or
+                        "gadi kahan" in clean_text or
+                        "gaadi ekkada" in clean_text or
+                        "truck status" in clean_text
+                    )
+                    import re
+                    plate_match = re.search(r'\b[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{0,3}\s?[0-9]{4}\b', user_text.upper())
+                    if is_tracking_kw or plate_match:
+                        from bot.hardware_service import get_vehicle_live_status
+                        plate_candidate = plate_match.group(0) if plate_match else clean_text
+                        live_status = get_vehicle_live_status(user_phone, vehicle_query=plate_candidate)
+                        if live_status:
+                            resp_msg_id = send_whatsapp_message(user_phone, live_status)
+                            ChatMessage.objects.create(
+                                phone_number=user_phone,
+                                role='assistant',
+                                content=live_status,
+                                message_id=resp_msg_id
+                            )
+                            return JsonResponse({"status": "success"})
+
+                    # --- Hardware Device & Visual Inspection Quick Interceptor ---
+                    if message_obj.get("type") in ["image", "video"] and media_url:
+                        media_type = message_obj.get("type")
+                        caption = message_obj.get(media_type, {}).get("caption", "") if isinstance(message_obj.get(media_type), dict) else ""
+                        import threading
+                        t = threading.Thread(
+                            target=process_visual_media_background,
+                            args=(user_phone, media_type, media_url, caption, domain_url, customer.owner_name),
+                            daemon=True
+                        )
+                        t.start()
+                        return JsonResponse({"status": "success"})
 
                     # Fallback for button reply text containing welcome message
                     # prefix (e.g. from copy-paste/forwarding)
