@@ -129,11 +129,17 @@ def extract_video_frames(video_path, max_frames=3):
     Extracts 2-3 keyframes across the video using imageio_ffmpeg in < 200ms.
     Captures temporal changes (LED blinking, wiring movement, fuel leaks).
     """
+    ffmpeg_exe = None
     try:
-        import imageio_ffmpeg
+        import importlib
+        imageio_ffmpeg = importlib.import_module("imageio_ffmpeg")
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception as e:
-        print(f"[HARDWARE SERVICE ERROR] FFmpeg not available: {e}")
+    except Exception:
+        import shutil
+        ffmpeg_exe = shutil.which("ffmpeg")
+
+    if not ffmpeg_exe:
+        print("[HARDWARE SERVICE WARNING] FFmpeg executable not found.")
         return []
 
     full_path = video_path
